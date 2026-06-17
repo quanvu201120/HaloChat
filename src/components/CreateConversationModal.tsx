@@ -1,0 +1,247 @@
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { X, Search, UserPlus, Users, Check } from 'lucide-react';
+import { usersApi } from '../services/api';
+import { conversationsApi } from '../services/conversations';
+import { useAuth } from '../context/AuthContext';
+import { useChat } from '../context/ChatContext';
+import { useToast } from '../context/ToastContext';
+
+interface UserResult {
+  _id: string;
+  name?: string;
+  email: string;
+  image?: string;
+}
+
+interface Props {
+  onClose: () => void;
+}
+
+export default function CreateConversationModal({ onClose }: Props) {
+  const { user } = useAuth();
+  const { refetchConversations } = useChat();
+  const toast = useToast();
+  const navigate = useNavigate();
+
+  const [tab, setTab] = useState<'direct' | 'group'>('direct');
+  const [search, setSearch] = useState('');
+  const [results, setResults] = useState<UserResult[]>([]);
+  const [selected, setSelected] = useState<UserResult[]>([]);
+  const [groupName, setGroupName] = useState('');
+  const [isSearching, setIsSearching] = useState(false);
+  const [isCreating, setIsCreating] = useState(false);
+
+  const [allUsers, setAllUsers] = useState<UserResult[]>([]);
+
+  // Lấy tất cả user (trừ mình) ngay khi mở modal
+  useEffect(() => {
+    let isMounted = true;
+    setIsSearching(true);
+    usersApi.getAll({ current: 1, pageSize: 100 })
+      .then(res => {
+        if (!isMounted) return;
+        const list: UserResult[] = res.data?.data?.users || res.data?.users || [];
+        const filtered = list.filter((u) => u._id !== user?._id);
+        setAllUsers(filtered);
+        setResults(filtered);
+      })
+      .catch(() => toast.error('Không tải được danh sách người dùng'))
+      .finally(() => { if (isMounted) setIsSearching(false); });
+
+    return () => { isMounted = false; };
+  }, [user?._id, toast]);
+
+  // Tìm kiếm local
+  useEffect(() => {
+    if (!search.trim()) {
+      setResults(allUsers);
+      return;
+    }
+    const q = search.toLowerCase();
+    setResults(allUsers.filter(u => 
+      (u.name || '').toLowerCase().includes(q) || u.email.toLowerCase().includes(q)
+    ));
+  }, [search, allUsers]);
+
+  const toggleSelect = (u: UserResult) => {
+    setSelected((prev) => {
+      if (prev.find((s) => s._id === u._id)) return prev.filter((s) => s._id !== u._id);
+      if (tab === 'direct') return [u]; // direct chỉ chọn 1
+      return [...prev, u];
+    });
+  };
+
+  const handleCreate = async () => {
+    if (selected.length === 0) {
+      toast.error('Chọn ít nhất 1 người dùng');
+      return;
+    }
+    if (tab === 'group' && !groupName.trim()) {
+      toast.error('Nhập tên nhóm');
+      return;
+    }
+    if (tab === 'group' && selected.length < 2) {
+      toast.error('Nhóm cần ít nhất 2 thành viên (ngoài bạn)');
+      return;
+    }
+
+    setIsCreating(true);
+    try {
+      const userIds = selected.map((u) => u._id);
+      const payload =
+        tab === 'group'
+          ? { users: userIds, name: groupName.trim(), isGroup: true }
+          : { users: userIds };
+
+      const res = await conversationsApi.create(payload);
+      const conv = res.data?.data ?? (res.data as any);
+      await refetchConversations();
+      toast.success(tab === 'group' ? 'Tạo nhóm thành công!' : 'Đã mở cuộc trò chuyện!');
+      onClose();
+      if (conv?._id) navigate(`/chat/${conv._id}`);
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || 'Không tạo được cuộc trò chuyện');
+    } finally {
+      setIsCreating(false);
+    }
+  };
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal" style={{ maxWidth: 480 }} onClick={(e) => e.stopPropagation()}>
+        {/* Header */}
+        <div className="modal-header">
+          <span className="modal-title">
+            {tab === 'direct' ? 'Chat trực tiếp' : 'Tạo nhóm chat'}
+          </span>
+          <button className="icon-btn" onClick={onClose}><X size={18} /></button>
+        </div>
+
+        {/* Tab */}
+        <div style={{ display: 'flex', borderBottom: '1px solid var(--border)' }}>
+          {(['direct', 'group'] as const).map((t) => (
+            <button
+              key={t}
+              onClick={() => { setTab(t); setSelected([]); }}
+              style={{
+                flex: 1, padding: '12px', border: 'none', background: 'none',
+                cursor: 'pointer', fontSize: '13.5px', fontWeight: 600,
+                color: tab === t ? 'var(--accent-primary)' : 'var(--text-muted)',
+                borderBottom: tab === t ? '2px solid var(--accent-primary)' : '2px solid transparent',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+              }}
+            >
+              {t === 'direct' ? <><UserPlus size={15} /> Chat 1-1</> : <><Users size={15} /> Tạo nhóm</>}
+            </button>
+          ))}
+        </div>
+
+        <div className="modal-body">
+          {/* Group name */}
+          {tab === 'group' && (
+            <div className="form-group">
+              <label className="form-label">Tên nhóm *</label>
+              <input
+                className="form-input"
+                placeholder="Ví dụ: Team dự án A"
+                value={groupName}
+                onChange={(e) => setGroupName(e.target.value)}
+                autoFocus
+              />
+            </div>
+          )}
+
+          {/* Search */}
+          <div className="form-group">
+            <label className="form-label">Tìm người dùng</label>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <input
+                className="form-input"
+                placeholder="Nhập tên hoặc email..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+              <button
+                className="btn btn-secondary"
+                disabled={isSearching}
+              >
+                {isSearching ? <div className="loading-spinner" style={{ width: 14, height: 14 }} /> : <Search size={14} />}
+              </button>
+            </div>
+          </div>
+
+          {/* Selected chips */}
+          {selected.length > 0 && (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+              {selected.map((u) => (
+                <span
+                  key={u._id}
+                  style={{
+                    display: 'inline-flex', alignItems: 'center', gap: '4px',
+                    background: 'rgba(99,102,241,0.12)', color: 'var(--accent-primary)',
+                    border: '1px solid rgba(99,102,241,0.25)', borderRadius: '20px',
+                    padding: '3px 10px', fontSize: '12px', fontWeight: 600,
+                  }}
+                >
+                  {u.name || u.email}
+                  <button
+                    onClick={() => toggleSelect(u)}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'inherit', padding: 0, display: 'flex' }}
+                  >
+                    <X size={12} />
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
+
+          {/* Results */}
+          {results.length > 0 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', maxHeight: '220px', overflowY: 'auto' }}>
+              {results.map((u) => {
+                const isSelected = !!selected.find((s) => s._id === u._id);
+                return (
+                  <button
+                    key={u._id}
+                    onClick={() => toggleSelect(u)}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: '10px',
+                      padding: '10px 12px', borderRadius: 'var(--radius-sm)',
+                      border: 'none', background: isSelected ? 'rgba(99,102,241,0.08)' : 'var(--bg-secondary)',
+                      cursor: 'pointer', textAlign: 'left', transition: 'var(--transition)',
+                    }}
+                  >
+                    <div className="user-avatar" style={{ width: 32, height: 32, fontSize: '12px', flexShrink: 0 }}>
+                      {(u.name || u.email).slice(0, 2).toUpperCase()}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: '13.5px', fontWeight: 600, color: 'var(--text-primary)' }}>
+                        {u.name || 'Chưa đặt tên'}
+                      </div>
+                      <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{u.email}</div>
+                    </div>
+                    {isSelected && <Check size={16} color="var(--accent-primary)" />}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        <div className="modal-footer">
+          <button className="btn btn-secondary" onClick={onClose}>Hủy</button>
+          <button
+            className="btn btn-primary"
+            onClick={handleCreate}
+            disabled={isCreating || selected.length === 0}
+          >
+            {isCreating
+              ? <><div className="loading-spinner" style={{ width: 14, height: 14 }} /> Đang tạo...</>
+              : tab === 'group' ? <><Users size={14} /> Tạo nhóm</> : <><UserPlus size={14} /> Bắt đầu chat</>}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
