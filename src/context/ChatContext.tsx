@@ -14,7 +14,7 @@ import {
 import { presenceApi } from '../services/api';
 import { normalizeId } from '../utils/chat';
 
-interface OnlineMap { [userId: string]: boolean }
+interface OnlineMap { [userId: string]: true | string }
 interface TypingMap { [conversationId: string]: string[] }
 interface UnreadMap { [conversationId: string]: boolean }
 
@@ -25,7 +25,7 @@ interface ChatContextType {
   unread: UnreadMap;
   online: OnlineMap;
   typing: TypingMap;
-  refetchConversations: () => Promise<void>;
+  refetchConversations: (options?: { silent?: boolean }) => Promise<void>;
   clearUnread: (conversationId: string) => void;
   isSocketConnected: boolean;
   setUsersOnline: (userIds: string[]) => void;
@@ -155,29 +155,35 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   }, [currentUserId]);
 
   const hydratePresence = useCallback(async (list: Conversation[]) => {
-    const memberIds = new Set<string>();
+    const memberMap = new Map<string, string | undefined>();
 
     list.forEach((conversation) => {
       conversation.users.forEach((member) => {
         if (member._id && member._id !== currentUserId) {
-          memberIds.add(member._id);
+          if (!memberMap.has(member._id)) {
+            memberMap.set(member._id, member.lastOnlineAt);
+          }
         }
       });
     });
 
-    if (memberIds.size === 0) {
+    if (memberMap.size === 0) {
       setOnline({});
       return;
     }
 
     try {
-      const res = await presenceApi.getUsersOnline([...memberIds]);
+      const res = await presenceApi.getUsersOnline([...memberMap.keys()]);
       const payload = (res.data as any)?.data ?? res.data;
       const onlineIds = Array.isArray(payload) ? payload : [];
       const next: OnlineMap = {};
 
-      memberIds.forEach((userId) => {
-        next[userId] = onlineIds.includes(userId);
+      memberMap.forEach((lastOnlineAt, userId) => {
+        if (onlineIds.includes(userId)) {
+          next[userId] = true;
+        } else {
+          next[userId] = lastOnlineAt || '';
+        }
       });
 
       setOnline(next);
@@ -242,7 +248,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (!user || !accessToken) return;
+    if (!currentUserId || !accessToken) return;
 
     const sock = connectSocket(accessToken);
 
@@ -262,10 +268,10 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       setOnline((prev) => ({ ...prev, [userId]: true }));
     };
 
-    const onUserOffline = (data: { userId: string }) => {
+    const onUserOffline = (data: { userId: string; lastOnlineAt?: string }) => {
       const userId = normalizeId(data.userId);
       if (!userId) return;
-      setOnline((prev) => ({ ...prev, [userId]: false }));
+      setOnline((prev) => ({ ...prev, [userId]: data.lastOnlineAt || new Date().toISOString() }));
     };
 
     const onTypingUpdate = (data: {
@@ -448,14 +454,13 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     fetchConversations,
     patchConversation,
     syncConversationMessage,
-    user,
   ]);
 
   useEffect(() => {
-    if (user && accessToken) {
+    if (currentUserId && accessToken) {
       void fetchConversations();
     }
-  }, [user, accessToken, fetchConversations]);
+  }, [currentUserId, accessToken, fetchConversations]);
 
   return (
     <ChatContext.Provider value={{
@@ -465,7 +470,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       unread,
       online,
       typing,
-      refetchConversations: () => fetchConversations(),
+      refetchConversations: (options) => fetchConversations(options),
       clearUnread,
       isSocketConnected,
       setUsersOnline,

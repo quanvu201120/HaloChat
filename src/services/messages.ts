@@ -84,6 +84,53 @@ export function normalizeMessages(raw: any): Message[] {
   return raw.map(normalizeMessage);
 }
 
+const FILE_MIME_BY_EXTENSION: Record<string, string> = {
+  pdf: 'application/pdf',
+  doc: 'application/msword',
+  docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  xls: 'application/vnd.ms-excel',
+  xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  ppt: 'application/vnd.ms-powerpoint',
+  pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  txt: 'text/plain',
+  csv: 'text/csv',
+  zip: 'application/zip',
+  rar: 'application/vnd.rar',
+  webm: 'audio/webm',
+  ogg: 'audio/ogg',
+  wav: 'audio/wav',
+  mp3: 'audio/mpeg',
+  aac: 'audio/aac',
+  m4a: 'audio/mp4',
+  mp4: 'video/mp4',
+  mov: 'video/quicktime',
+  png: 'image/png',
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  gif: 'image/gif',
+};
+
+function withFallbackMimeType(file: File) {
+  if (file.type) return file;
+
+  const extension = file.name.split('.').pop()?.toLowerCase() ?? '';
+  const inferredType = FILE_MIME_BY_EXTENSION[extension];
+
+  if (!inferredType) return file;
+
+  return new File([file], file.name, {
+    type: inferredType,
+    lastModified: file.lastModified,
+  });
+}
+
+function createUploadFormData(file: File, replyTo?: string) {
+  const formData = new FormData();
+  formData.append('file', withFallbackMimeType(file));
+  if (replyTo) formData.append('replyTo', replyTo);
+  return formData;
+}
+
 export const messagesApi = {
   getList: (conversationId: string, cursor?: string) =>
     api.get<Message[]>(`/conversations/${conversationId}/message`, {
@@ -100,36 +147,28 @@ export const messagesApi = {
     }),
 
   sendImage: (conversationId: string, file: File, replyTo?: string) => {
-    const fd = new FormData();
-    fd.append('file', file);
-    if (replyTo) fd.append('replyTo', replyTo);
+    const fd = createUploadFormData(file, replyTo);
     return api.post<{ data: Message }>(`/conversations/${conversationId}/message/image`, fd, {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
   },
 
   sendVideo: (conversationId: string, file: File, replyTo?: string) => {
-    const fd = new FormData();
-    fd.append('file', file);
-    if (replyTo) fd.append('replyTo', replyTo);
+    const fd = createUploadFormData(file, replyTo);
     return api.post<{ data: Message }>(`/conversations/${conversationId}/message/video`, fd, {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
   },
 
   sendFile: (conversationId: string, file: File, replyTo?: string) => {
-    const fd = new FormData();
-    fd.append('file', file);
-    if (replyTo) fd.append('replyTo', replyTo);
+    const fd = createUploadFormData(file, replyTo);
     return api.post<{ data: Message }>(`/conversations/${conversationId}/message/file`, fd, {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
   },
 
   sendVoice: (conversationId: string, file: File, replyTo?: string) => {
-    const fd = new FormData();
-    fd.append('file', file);
-    if (replyTo) fd.append('replyTo', replyTo);
+    const fd = createUploadFormData(file, replyTo);
     return api.post<{ data: Message }>(`/conversations/${conversationId}/message/voice`, fd, {
       headers: { 'Content-Type': 'multipart/form-data' },
     });

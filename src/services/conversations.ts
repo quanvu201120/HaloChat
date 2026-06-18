@@ -10,6 +10,7 @@ export interface ConversationUser {
     _id?: string;
     url?: string;
   };
+  lastOnlineAt?: string;
 }
 
 export interface Conversation {
@@ -30,6 +31,7 @@ function normalizeConversationUser(raw: any): ConversationUser {
     name: raw?.name,
     email: String(raw?.email ?? ''),
     avatar: raw?.avatar,
+    lastOnlineAt: raw?.lastOnlineAt,
   };
 }
 
@@ -80,4 +82,18 @@ export const conversationsApi = {
 
   markRead: (id: string, messageId: string) =>
     api.patch(`/conversations/${id}/read`, { messageId }),
+
+  uploadAvatar: (id: string, file: File) => {
+    const form = new FormData();
+    form.append('file', file);
+    return api.patch(`/conversations/${id}/avatar`, form, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  },
+
+  deleteAvatar: (id: string) =>
+    api.delete(`/conversations/${id}/avatar`),
+
+  changeAdmin: (id: string, newAdminId: string) =>
+    api.patch(`/conversations/${id}/change-admin`, { newAdminId }),
 };

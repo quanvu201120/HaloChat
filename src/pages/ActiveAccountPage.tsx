@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { authApi, parseError } from '../services/api';
 import { useToast } from '../context/ToastContext';
-import { ShieldCheck, RefreshCw, ArrowLeft } from 'lucide-react';
+import { useTheme } from '../context/ThemeContext';
+import { ShieldCheck, RefreshCw, ArrowLeft, Moon, Sun } from 'lucide-react';
 
 /**
  * Trang kích hoạt tài khoản.
@@ -13,6 +14,7 @@ export default function ActiveAccountPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const toast = useToast();
+  const { theme, toggleTheme } = useTheme();
 
   // Email có thể được truyền từ Login/Register qua router state
   const emailFromState = (location.state as any)?.email || '';
@@ -71,7 +73,22 @@ export default function ActiveAccountPage() {
   };
 
   return (
-    <div className="login-page">
+    <div className="login-page" style={{ position: 'relative' }}>
+      <button 
+        onClick={toggleTheme}
+        title={theme === 'dark' ? 'Chế độ sáng' : 'Chế độ tối'}
+        style={{ 
+          position: 'absolute', top: '24px', right: '24px', 
+          width: '40px', height: '40px', borderRadius: '50%', 
+          background: 'var(--bg-card)', border: '1px solid var(--border)', 
+          display: 'flex', alignItems: 'center', justifyContent: 'center', 
+          cursor: 'pointer', color: 'var(--text-primary)', 
+          boxShadow: 'var(--shadow-sm)', zIndex: 10
+        }}
+      >
+        {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
+      </button>
+
       <div className="login-bg-orb orb1" style={{ background: 'var(--accent-teal)' }} />
       <div className="login-bg-orb orb2" style={{ background: 'var(--accent-secondary)' }} />
 

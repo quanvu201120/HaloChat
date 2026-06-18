@@ -40,6 +40,10 @@ export default function Dashboard() {
 
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!form.name.trim()) {
+      toast.error('Tên hiển thị không được để trống');
+      return;
+    }
     setIsSaving(true);
     try {
       const res = await usersApi.update(form);
@@ -240,7 +244,7 @@ export default function Dashboard() {
             <div className="form-group">
               <label className="form-label" htmlFor="profile-name">
                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
-                  <UserCircle size={13} /> Tên hiển thị
+                  <UserCircle size={13} /> Tên hiển thị <span style={{ color: 'var(--error)' }}>*</span>
                 </span>
               </label>
               <input
@@ -249,6 +253,7 @@ export default function Dashboard() {
                 placeholder="Nguyễn Văn A"
                 value={form.name}
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
+                required
               />
             </div>
 

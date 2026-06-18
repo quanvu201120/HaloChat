@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { usersApi, parseError } from '../services/api';
 import { useToast } from '../context/ToastContext';
 import { UserCircle, Save, Phone, MapPin, Mail, Shield, Activity, LogOut, Camera, Trash2, AlertTriangle } from 'lucide-react';
+import ConfirmModal from '../components/ConfirmModal';
 
 export function ProfilePageContent() {
   const navigate = useNavigate();
@@ -22,6 +23,14 @@ export function ProfilePageContent() {
   const [isDeletingAvatar, setIsDeletingAvatar] = useState(false);
   const [isDisabling, setIsDisabling] = useState(false);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const [confirmAction, setConfirmAction] = useState<{
+    title: string;
+    message: string;
+    isDanger?: boolean;
+    confirmText?: string;
+    countdown?: number;
+    action: () => void | Promise<void>;
+  } | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -66,17 +75,25 @@ export function ProfilePageContent() {
     },
   ];
 
-  const handleLogoutAll = async () => {
-    setLogoutAllLoading(true);
-    try {
-      await logoutAll();
-      toast.success('Đã đăng xuất tất cả thiết bị.');
-      navigate('/login', { replace: true });
-    } catch (err: any) {
-      toast.error(parseError(err));
-    } finally {
-      setLogoutAllLoading(false);
-    }
+  const handleLogoutAll = () => {
+    setConfirmAction({
+      title: 'Đăng xuất tất cả',
+      message: 'Bạn có chắc chắn muốn đăng xuất khỏi tất cả các thiết bị khác?',
+      isDanger: true,
+      confirmText: 'Đăng xuất',
+      action: async () => {
+        setLogoutAllLoading(true);
+        try {
+          await logoutAll();
+          toast.success('Đã đăng xuất tất cả thiết bị.');
+          navigate('/login', { replace: true });
+        } catch (err: any) {
+          toast.error(parseError(err));
+        } finally {
+          setLogoutAllLoading(false);
+        }
+      }
+    });
   };
 
   const handleUploadAvatar = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -96,33 +113,61 @@ export function ProfilePageContent() {
     }
   };
 
-  const handleDeleteAvatar = async () => {
-    if (!window.confirm('Bạn có chắc chắn muốn xóa ảnh đại diện?')) return;
-    setIsDeletingAvatar(true);
-    try {
-      const res = await usersApi.deleteAvatar();
-      const updated = res.data?.data ?? res.data;
-      updateUser(updated);
-      toast.success('Đã xóa ảnh đại diện!');
-    } catch (err: any) {
-      toast.error(parseError(err));
-    } finally {
-      setIsDeletingAvatar(false);
-    }
+  const handleDeleteAvatar = () => {
+    setConfirmAction({
+      title: 'Xóa ảnh đại diện',
+      message: 'Bạn có chắc chắn muốn xóa ảnh đại diện?',
+      isDanger: true,
+      confirmText: 'Xóa',
+      action: async () => {
+        setIsDeletingAvatar(true);
+        try {
+          const res = await usersApi.deleteAvatar();
+          const updated = res.data?.data ?? res.data;
+          updateUser({ ...updated, avatar: undefined });
+          toast.success('Đã xóa ảnh đại diện!');
+        } catch (err: any) {
+          toast.error(parseError(err));
+        } finally {
+          setIsDeletingAvatar(false);
+        }
+      }
+    });
   };
 
-  const handleDisableSelf = async () => {
-    if (!window.confirm('CẢNH BÁO: Bạn có chắc chắn muốn vô hiệu hóa tài khoản? Bạn sẽ bị đăng xuất và không thể đăng nhập lại cho đến khi liên hệ quản trị viên.')) return;
-    setIsDisabling(true);
-    try {
-      await usersApi.disableSelf();
-      toast.success('Tài khoản đã bị vô hiệu hóa.');
-      await logout();
-      navigate('/login', { replace: true });
-    } catch (err: any) {
-      toast.error(parseError(err));
-      setIsDisabling(false);
-    }
+  const handleDisableSelfStep2 = () => {
+    setConfirmAction({
+      title: 'Xác nhận vô hiệu hóa',
+      message: 'Hành động này không thể hoàn tác. Bạn chắc chắn muốn vô hiệu hóa tài khoản?',
+      isDanger: true,
+      confirmText: 'Vô hiệu hóa',
+      countdown: 5,
+      action: async () => {
+        setIsDisabling(true);
+        try {
+          await usersApi.disableSelf();
+          toast.success('Tài khoản đã bị vô hiệu hóa.');
+          await logout();
+          navigate('/login', { replace: true });
+        } catch (err: any) {
+          toast.error(parseError(err));
+          setIsDisabling(false);
+        }
+      }
+    });
+  };
+
+  const handleDisableSelf = () => {
+    setConfirmAction({
+      title: 'CẢNH BÁO: Vô hiệu hóa tài khoản',
+      message: 'Bạn có chắc chắn muốn vô hiệu hóa tài khoản? Bạn sẽ bị đăng xuất và không thể đăng nhập lại cho đến khi liên hệ quản trị viên.',
+      isDanger: true,
+      confirmText: 'Tiếp tục',
+      action: () => {
+        handleDisableSelfStep2();
+        return false;
+      }
+    });
   };
 
   return (
@@ -369,6 +414,19 @@ export function ProfilePageContent() {
           </div>
         </div>
       </div>
+
+      {confirmAction && (
+        <ConfirmModal
+          isOpen={true}
+          title={confirmAction.title}
+          message={confirmAction.message}
+          isDanger={confirmAction.isDanger}
+          confirmText={confirmAction.confirmText}
+          countdown={confirmAction.countdown}
+          onConfirm={confirmAction.action}
+          onCancel={() => setConfirmAction(null)}
+        />
+      )}
     </div>
   );
 }

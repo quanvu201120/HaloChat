@@ -9,12 +9,11 @@ function getConversationName(conv: Conversation, currentUserId: string): string 
 }
 
 function getConversationAvatar(conv: Conversation, currentUserId: string): string | null {
-  if (conv.avatar?.url) return conv.avatar.url;
   if (!conv.isGroup) {
     const other = conv.users.find((u) => u._id !== currentUserId);
     return other?.avatar?.url ?? null;
   }
-  return null;
+  return conv.avatar?.url ?? null;
 }
 
 function getInitials(name: string): string {

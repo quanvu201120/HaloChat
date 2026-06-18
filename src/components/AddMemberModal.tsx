@@ -1,11 +1,10 @@
 import { useState, useEffect, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { X, Search, UserPlus, Users, Check, RefreshCcw } from 'lucide-react';
+import { X, Search, UserPlus, Check, RefreshCcw } from 'lucide-react';
 import { useAvailableUsers } from '../hooks/useAvailableUsers';
 import { conversationsApi } from '../services/conversations';
 import { useAuth } from '../context/AuthContext';
-import { useChat } from '../context/ChatContext';
 import { useToast } from '../context/ToastContext';
+import { type Conversation } from '../services/conversations';
 
 interface UserResult {
   _id: string;
@@ -15,27 +14,26 @@ interface UserResult {
 }
 
 interface Props {
+  conversationId: string;
+  currentMembers: string[];
   onClose: () => void;
+  onSuccess: (updatedConv: Conversation) => void;
 }
 
-export default function CreateConversationModal({ onClose }: Props) {
+export default function AddMemberModal({ conversationId, currentMembers, onClose, onSuccess }: Props) {
   const { user } = useAuth();
-  const { refetchConversations } = useChat();
   const toast = useToast();
-  const navigate = useNavigate();
 
-  const [tab, setTab] = useState<'direct' | 'group'>('direct');
   const [search, setSearch] = useState('');
   const [results, setResults] = useState<UserResult[]>([]);
   const [selected, setSelected] = useState<UserResult[]>([]);
-  const [groupName, setGroupName] = useState('');
-  const [isCreating, setIsCreating] = useState(false);
+  const [isAdding, setIsAdding] = useState(false);
 
   const { users: allAvailableUsers, isLoading: isSearching, refetch } = useAvailableUsers();
   
   const allUsers = useMemo(() => {
-    return allAvailableUsers.filter(u => u._id !== user?._id);
-  }, [allAvailableUsers, user?._id]);
+    return allAvailableUsers.filter(u => u._id !== user?._id && !currentMembers.includes(u._id));
+  }, [allAvailableUsers, user?._id, currentMembers]);
 
   // Tìm kiếm local
   useEffect(() => {
@@ -52,43 +50,28 @@ export default function CreateConversationModal({ onClose }: Props) {
   const toggleSelect = (u: UserResult) => {
     setSelected((prev) => {
       if (prev.find((s) => s._id === u._id)) return prev.filter((s) => s._id !== u._id);
-      if (tab === 'direct') return [u]; // direct chỉ chọn 1
       return [...prev, u];
     });
   };
 
-  const handleCreate = async () => {
+  const handleAddMembers = async () => {
     if (selected.length === 0) {
-      toast.error('Chọn ít nhất 1 người dùng');
-      return;
-    }
-    if (tab === 'group' && !groupName.trim()) {
-      toast.error('Nhập tên nhóm');
-      return;
-    }
-    if (tab === 'group' && selected.length < 2) {
-      toast.error('Nhóm cần ít nhất 2 thành viên (ngoài bạn)');
+      toast.error('Chọn ít nhất 1 người dùng để thêm');
       return;
     }
 
-    setIsCreating(true);
+    setIsAdding(true);
     try {
       const userIds = selected.map((u) => u._id);
-      const payload =
-        tab === 'group'
-          ? { users: userIds, name: groupName.trim(), isGroup: true }
-          : { users: userIds };
-
-      const res = await conversationsApi.create(payload);
-      const conv = res.data?.data ?? (res.data as any);
-      await refetchConversations();
-      toast.success(tab === 'group' ? 'Tạo nhóm thành công!' : 'Đã mở cuộc trò chuyện!');
+      const res = await conversationsApi.addMembers(conversationId, userIds);
+      const updatedConv = res.data?.data ?? (res.data as any);
+      toast.success('Đã thêm thành viên vào nhóm!');
+      onSuccess(updatedConv);
       onClose();
-      if (conv?._id) navigate(`/chat/${conv._id}`);
     } catch (err: any) {
-      toast.error(err?.response?.data?.message || 'Không tạo được cuộc trò chuyện');
+      toast.error(err?.response?.data?.message || 'Không thêm được thành viên');
     } finally {
-      setIsCreating(false);
+      setIsAdding(false);
     }
   };
 
@@ -98,7 +81,7 @@ export default function CreateConversationModal({ onClose }: Props) {
         {/* Header */}
         <div className="modal-header">
           <span className="modal-title">
-            {tab === 'direct' ? 'Chat trực tiếp' : 'Tạo nhóm chat'}
+            Thêm thành viên
           </span>
           <div style={{ display: 'flex', gap: '4px' }}>
             <button className="icon-btn" title="Làm mới danh sách" onClick={() => refetch()}>
@@ -108,40 +91,7 @@ export default function CreateConversationModal({ onClose }: Props) {
           </div>
         </div>
 
-        {/* Tab */}
-        <div style={{ display: 'flex', borderBottom: '1px solid var(--border)' }}>
-          {(['direct', 'group'] as const).map((t) => (
-            <button
-              key={t}
-              onClick={() => { setTab(t); setSelected([]); }}
-              style={{
-                flex: 1, padding: '12px', border: 'none', background: 'none',
-                cursor: 'pointer', fontSize: '13.5px', fontWeight: 600,
-                color: tab === t ? 'var(--accent-primary)' : 'var(--text-muted)',
-                borderBottom: tab === t ? '2px solid var(--accent-primary)' : '2px solid transparent',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
-              }}
-            >
-              {t === 'direct' ? <><UserPlus size={15} /> Chat 1-1</> : <><Users size={15} /> Tạo nhóm</>}
-            </button>
-          ))}
-        </div>
-
         <div className="modal-body">
-          {/* Group name */}
-          {tab === 'group' && (
-            <div className="form-group">
-              <label className="form-label">Tên nhóm *</label>
-              <input
-                className="form-input"
-                placeholder="Ví dụ: Team dự án A"
-                value={groupName}
-                onChange={(e) => setGroupName(e.target.value)}
-                autoFocus
-              />
-            </div>
-          )}
-
           {/* Search */}
           <div className="form-group">
             <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -205,18 +155,23 @@ export default function CreateConversationModal({ onClose }: Props) {
               })}
             </div>
           )}
+          {results.length === 0 && !isSearching && (
+            <div style={{ textAlign: 'center', padding: '20px', color: 'var(--text-muted)', fontSize: '13px' }}>
+              Không tìm thấy người dùng nào
+            </div>
+          )}
         </div>
 
         <div className="modal-footer">
           <button className="btn btn-secondary" onClick={onClose}>Hủy</button>
           <button
             className="btn btn-primary"
-            onClick={handleCreate}
-            disabled={isCreating || selected.length === 0}
+            onClick={handleAddMembers}
+            disabled={isAdding || selected.length === 0}
           >
-            {isCreating
-              ? <><div className="loading-spinner" style={{ width: 14, height: 14 }} /> Đang tạo...</>
-              : tab === 'group' ? <><Users size={14} /> Tạo nhóm</> : <><UserPlus size={14} /> Bắt đầu chat</>}
+            {isAdding
+              ? <><div className="loading-spinner" style={{ width: 14, height: 14 }} /> Đang thêm...</>
+              : <><UserPlus size={14} /> Thêm thành viên</>}
           </button>
         </div>
       </div>

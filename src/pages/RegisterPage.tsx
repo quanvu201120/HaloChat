@@ -2,11 +2,13 @@ import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { authApi, parseError } from '../services/api';
 import { useToast } from '../context/ToastContext';
-import { UserPlus, Eye, EyeOff } from 'lucide-react';
+import { useTheme } from '../context/ThemeContext';
+import { UserPlus, Eye, EyeOff, Moon, Sun } from 'lucide-react';
 
 export default function RegisterPage() {
   const navigate = useNavigate();
   const toast = useToast();
+  const { theme, toggleTheme } = useTheme();
 
   // RegisterAuthDto: { email, password, confirmPassword } — không có name
   const [form, setForm] = useState({ email: '', password: '', confirmPassword: '' });
@@ -40,7 +42,22 @@ export default function RegisterPage() {
   };
 
   return (
-    <div className="login-page">
+    <div className="login-page" style={{ position: 'relative' }}>
+      <button 
+        onClick={toggleTheme}
+        title={theme === 'dark' ? 'Chế độ sáng' : 'Chế độ tối'}
+        style={{ 
+          position: 'absolute', top: '24px', right: '24px', 
+          width: '40px', height: '40px', borderRadius: '50%', 
+          background: 'var(--bg-card)', border: '1px solid var(--border)', 
+          display: 'flex', alignItems: 'center', justifyContent: 'center', 
+          cursor: 'pointer', color: 'var(--text-primary)', 
+          boxShadow: 'var(--shadow-sm)', zIndex: 10
+        }}
+      >
+        {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
+      </button>
+
       <div className="login-bg-orb orb1" style={{ background: 'var(--accent-secondary)' }} />
       <div className="login-bg-orb orb2" style={{ background: 'var(--accent-teal)' }} />
 

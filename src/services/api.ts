@@ -202,10 +202,10 @@ export const usersApi = {
     role?: string;
   }) => api.post('/users', data),
 
-  // UpdateUserDto: { _id*, name?, email?, phone?, address?, image? } — KHÔNG có role
+  // UpdateUserDto: { _id*, name*, email?, phone?, address?, image? } — KHÔNG có role
   update: (data: {
     _id: string;
-    name?: string | null;
+    name: string;
     phone?: string | null;
     address?: string | null;
   }) => api.patch('/users', data),
@@ -213,9 +213,17 @@ export const usersApi = {
   delete: (id: string) => api.delete(`/users/${id}`),
 
   uploadAvatar: (file: File) => {
+    const normalizedFile = file.type
+      ? file
+      : new File([file], file.name, {
+        type: 'image/jpeg',
+        lastModified: file.lastModified,
+      });
     const formData = new FormData();
-    formData.append('file', file);
-    return api.patch('/users/avatar', formData);
+    formData.append('file', normalizedFile);
+    return api.patch('/users/avatar', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
   },
 
   deleteAvatar: () => api.delete('/users/avatar'),

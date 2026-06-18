@@ -2,13 +2,15 @@ import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { authApi, parseError } from '../services/api';
 import { useToast } from '../context/ToastContext';
-import { Mail, KeyRound, Eye, EyeOff, ArrowLeft, CheckCircle } from 'lucide-react';
+import { useTheme } from '../context/ThemeContext';
+import { Mail, KeyRound, Eye, EyeOff, ArrowLeft, CheckCircle, Moon, Sun } from 'lucide-react';
 
 type Step = 'email' | 'reset';
 
 export default function ForgotPasswordPage() {
   const navigate = useNavigate();
   const toast = useToast();
+  const { theme, toggleTheme } = useTheme();
 
   const [step, setStep] = useState<Step>('email');
   const [email, setEmail] = useState('');
@@ -66,7 +68,22 @@ export default function ForgotPasswordPage() {
   };
 
   return (
-    <div className="login-page">
+    <div className="login-page" style={{ position: 'relative' }}>
+      <button 
+        onClick={toggleTheme}
+        title={theme === 'dark' ? 'Chế độ sáng' : 'Chế độ tối'}
+        style={{ 
+          position: 'absolute', top: '24px', right: '24px', 
+          width: '40px', height: '40px', borderRadius: '50%', 
+          background: 'var(--bg-card)', border: '1px solid var(--border)', 
+          display: 'flex', alignItems: 'center', justifyContent: 'center', 
+          cursor: 'pointer', color: 'var(--text-primary)', 
+          boxShadow: 'var(--shadow-sm)', zIndex: 10
+        }}
+      >
+        {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
+      </button>
+
       <div className="login-bg-orb orb1" style={{ background: 'var(--accent-orange)' }} />
       <div className="login-bg-orb orb2" style={{ background: 'var(--accent-pink)' }} />
 

@@ -23,7 +23,7 @@ export default function AppLayout() {
 
         {/* Center: chat content or page content */}
         <main className="chat-main">
-          <div className={isChatRoute ? "chat-fluid" : "page-content"} style={isChatRoute ? { flex: 1, display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' } : {}}>
+          <div className={isChatRoute ? "chat-fluid" : "page-content"} style={isChatRoute ? { flex: 1, display: 'flex', flexDirection: 'column', width: '100%', height: '100%', overflow: 'hidden' } : {}}>
             <Outlet />
           </div>
         </main>

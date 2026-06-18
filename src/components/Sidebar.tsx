@@ -1,16 +1,19 @@
 import { useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
-  Search, PenSquare, LogOut, MessageSquarePlus,
+  Search, PenSquare, LogOut, MessageSquarePlus, Moon, Sun
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { useChat } from '../context/ChatContext';
 import ConversationItem from './ConversationItem';
 import CreateConversationModal from './CreateConversationModal';
+import ConfirmModal from './ConfirmModal';
+import { useTheme } from '../context/ThemeContext';
 
 export default function Sidebar() {
   const { user, logout } = useAuth();
+  const { theme, toggleTheme } = useTheme();
   const toast = useToast();
   const navigate = useNavigate();
   const location = useLocation();
@@ -26,15 +29,30 @@ export default function Sidebar() {
 
   const [search, setSearch] = useState('');
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [confirmAction, setConfirmAction] = useState<{
+    title: string;
+    message: string;
+    isDanger?: boolean;
+    confirmText?: string;
+    action: () => void | Promise<void>;
+  } | null>(null);
 
-  const handleLogout = async () => {
-    try {
-      await logout();
-      toast.success('Đăng xuất thành công!');
-      navigate('/login');
-    } catch {
-      toast.error('Đăng xuất thất bại');
-    }
+  const handleLogout = () => {
+    setConfirmAction({
+      title: 'Đăng xuất',
+      message: 'Bạn có chắc chắn muốn đăng xuất?',
+      isDanger: true,
+      confirmText: 'Đăng xuất',
+      action: async () => {
+        try {
+          await logout();
+          toast.success('Đăng xuất thành công!');
+          navigate('/login');
+        } catch {
+          toast.error('Đăng xuất thất bại');
+        }
+      }
+    });
   };
 
   const getInitials = () => {
@@ -121,7 +139,7 @@ export default function Sidebar() {
                 currentUserId={currentUserId}
                 hasUnread={!!unread[conv._id]}
                 isActive={conversationId === conv._id}
-                isOnline={!conv.isGroup && !!online[conv.users.find((u) => u._id !== currentUserId)?._id || '']}
+                isOnline={!conv.isGroup && online[conv.users.find((u) => u._id !== currentUserId)?._id || ''] === true}
               />
             ))
           )}
@@ -148,6 +166,14 @@ export default function Sidebar() {
 
           <button
             className="icon-btn"
+            title={theme === 'dark' ? 'Chế độ sáng' : 'Chế độ tối'}
+            onClick={toggleTheme}
+          >
+            {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
+          </button>
+          
+          <button
+            className="icon-btn"
             title="Đăng xuất"
             onClick={handleLogout}
             style={{ color: 'var(--error)' }}
@@ -159,6 +185,18 @@ export default function Sidebar() {
 
       {showCreateModal && (
         <CreateConversationModal onClose={() => setShowCreateModal(false)} />
+      )}
+
+      {confirmAction && (
+        <ConfirmModal
+          isOpen={true}
+          title={confirmAction.title}
+          message={confirmAction.message}
+          isDanger={confirmAction.isDanger}
+          confirmText={confirmAction.confirmText}
+          onConfirm={confirmAction.action}
+          onCancel={() => setConfirmAction(null)}
+        />
       )}
     </>
   );

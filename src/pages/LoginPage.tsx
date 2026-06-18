@@ -3,10 +3,12 @@ import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { parseError } from '../services/api';
 import { useToast } from '../context/ToastContext';
-import { Eye, EyeOff, LogIn } from 'lucide-react';
+import { useTheme } from '../context/ThemeContext';
+import { Eye, EyeOff, LogIn, Moon, Sun } from 'lucide-react';
 
 export default function LoginPage() {
   const { login, isLoading, user, accessToken } = useAuth();
+  const { theme, toggleTheme } = useTheme();
   const toast = useToast();
   const navigate = useNavigate();
 
@@ -50,7 +52,22 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="login-page">
+    <div className="login-page" style={{ position: 'relative' }}>
+      <button 
+        onClick={toggleTheme}
+        title={theme === 'dark' ? 'Chế độ sáng' : 'Chế độ tối'}
+        style={{ 
+          position: 'absolute', top: '24px', right: '24px', 
+          width: '40px', height: '40px', borderRadius: '50%', 
+          background: 'var(--bg-card)', border: '1px solid var(--border)', 
+          display: 'flex', alignItems: 'center', justifyContent: 'center', 
+          cursor: 'pointer', color: 'var(--text-primary)', 
+          boxShadow: 'var(--shadow-sm)', zIndex: 10
+        }}
+      >
+        {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
+      </button>
+
       <div className="login-bg-orb orb1" />
       <div className="login-bg-orb orb2" />
 
