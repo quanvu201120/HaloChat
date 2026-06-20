@@ -3,8 +3,9 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { usersApi, parseError } from '../services/api';
 import { useToast } from '../context/ToastContext';
-import { UserCircle, Save, Phone, MapPin, Mail, Shield, Activity, LogOut, Camera, Trash2, AlertTriangle } from 'lucide-react';
+import { UserCircle, Save, Phone, MapPin, Mail, Shield, Activity, LogOut, Camera, Trash2, AlertTriangle, Edit2 } from 'lucide-react';
 import ConfirmModal from '../components/ConfirmModal';
+import UpdateEmailModal from '../components/UpdateEmailModal';
 
 export function ProfilePageContent() {
   const navigate = useNavigate();
@@ -31,21 +32,25 @@ export function ProfilePageContent() {
     countdown?: number;
     action: () => void | Promise<void>;
   } | null>(null);
+  const [isUpdateEmailModalOpen, setIsUpdateEmailModalOpen] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     try {
       const payload = {
-        _id: form._id,
-        name: form.name.trim() || null,
+        name: form.name.trim(),
         phone: form.phone.trim() || null,
         address: form.address.trim() || null,
       };
 
       const res = await usersApi.update(payload);
       const updated = res.data?.data ?? res.data;
-      updateUser(updated);
+      updateUser({
+        ...updated,
+        phone: updated.phone || '',
+        address: updated.address || ''
+      });
       setForm({
         _id: updated?._id || form._id,
         name: updated?.name || '',
@@ -135,10 +140,10 @@ export function ProfilePageContent() {
     });
   };
 
-  const handleDisableSelfStep2 = () => {
+  const handleDisableSelfStep3 = () => {
     setConfirmAction({
-      title: 'Xác nhận vô hiệu hóa',
-      message: 'Hành động này không thể hoàn tác. Bạn chắc chắn muốn vô hiệu hóa tài khoản?',
+      title: 'Xác nhận vô hiệu hóa LẦN CUỐI',
+      message: 'Hành động này KHÔNG THỂ HOÀN TÁC. Bạn có chắc chắn muốn vô hiệu hóa tài khoản?',
       isDanger: true,
       confirmText: 'Vô hiệu hóa',
       countdown: 5,
@@ -153,6 +158,20 @@ export function ProfilePageContent() {
           toast.error(parseError(err));
           setIsDisabling(false);
         }
+      }
+    });
+  };
+
+  const handleDisableSelfStep2 = () => {
+    setConfirmAction({
+      title: 'Xác nhận vô hiệu hóa',
+      message: 'Hành động này không thể hoàn tác. Bạn chắc chắn muốn vô hiệu hóa tài khoản?',
+      isDanger: true,
+      confirmText: 'Vẫn muốn vô hiệu hóa',
+      countdown: 5,
+      action: () => {
+        handleDisableSelfStep3();
+        return false;
       }
     });
   };
@@ -266,10 +285,18 @@ export function ProfilePageContent() {
           <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
             {/* Email readonly */}
             <div className="form-group">
-              <label className="form-label">
+              <label className="form-label" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
-                  <Mail size={13} /> Email (không thể thay đổi)
+                  <Mail size={13} /> Email
                 </span>
+                <button 
+                  type="button" 
+                  className="btn btn-secondary" 
+                  style={{ padding: '4px 8px', fontSize: '12px', height: 'auto', background: 'transparent', border: '1px solid var(--border)' }}
+                  onClick={() => setIsUpdateEmailModalOpen(true)}
+                >
+                  <Edit2 size={12} style={{ marginRight: '4px' }} /> Cập nhật
+                </button>
               </label>
               <input
                 className="form-input"
@@ -289,7 +316,7 @@ export function ProfilePageContent() {
                 <input
                   id="profile-name"
                   className="form-input"
-                  placeholder="Nguyễn Văn A"
+                  placeholder="VD: Nguyễn Văn A"
                   value={form.name}
                   onChange={(e) => setForm({ ...form, name: e.target.value })}
                 />
@@ -307,7 +334,7 @@ export function ProfilePageContent() {
                 <input
                   id="profile-phone"
                   className="form-input"
-                  placeholder="0912345678"
+                  placeholder="VD: 0912345678"
                   value={form.phone}
                   onChange={(e) => setForm({ ...form, phone: e.target.value })}
                 />
@@ -326,7 +353,7 @@ export function ProfilePageContent() {
               <input
                 id="profile-address"
                 className="form-input"
-                placeholder="TP. Hồ Chí Minh"
+                placeholder="VD: TP. Hồ Chí Minh"
                 value={form.address}
                 onChange={(e) => setForm({ ...form, address: e.target.value })}
               />
@@ -417,7 +444,8 @@ export function ProfilePageContent() {
 
       {confirmAction && (
         <ConfirmModal
-          isOpen={true}
+          key={confirmAction.title}
+          isOpen={!!confirmAction}
           title={confirmAction.title}
           message={confirmAction.message}
           isDanger={confirmAction.isDanger}
@@ -427,6 +455,11 @@ export function ProfilePageContent() {
           onCancel={() => setConfirmAction(null)}
         />
       )}
+
+      <UpdateEmailModal 
+        isOpen={isUpdateEmailModalOpen} 
+        onClose={() => setIsUpdateEmailModalOpen(false)} 
+      />
     </div>
   );
 }

@@ -10,7 +10,7 @@ import {
 
 export default function Dashboard() {
   const navigate = useNavigate();
-  const { user, logout, logoutAll } = useAuth();
+  const { user, logout, logoutAll, updateUser } = useAuth();
   const toast = useToast();
 
   // Profile form
@@ -46,13 +46,18 @@ export default function Dashboard() {
     }
     setIsSaving(true);
     try {
-      const res = await usersApi.update(form);
+      const payload = {
+        name: form.name.trim(),
+        phone: form.phone.trim() || null,
+        address: form.address.trim() || null,
+      };
+      const res = await usersApi.update(payload);
       const updated = res.data?.data ?? res.data;
-      const stored = localStorage.getItem('user');
-      if (stored) {
-        const merged = { ...JSON.parse(stored), ...updated };
-        localStorage.setItem('user', JSON.stringify(merged));
-      }
+      updateUser({
+        ...updated,
+        phone: updated.phone || '',
+        address: updated.address || ''
+      });
       toast.success('Cập nhật hồ sơ thành công!');
     } catch (err: any) {
       toast.error(parseError(err));
@@ -250,7 +255,7 @@ export default function Dashboard() {
               <input
                 id="profile-name"
                 className="form-input"
-                placeholder="Nguyễn Văn A"
+                placeholder="VD: Nguyễn Văn A"
                 value={form.name}
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
                 required
@@ -266,7 +271,7 @@ export default function Dashboard() {
               <input
                 id="profile-phone"
                 className="form-input"
-                placeholder="0912345678"
+                placeholder="VD: 0912345678"
                 value={form.phone}
                 onChange={(e) => setForm({ ...form, phone: e.target.value })}
               />
@@ -282,7 +287,7 @@ export default function Dashboard() {
             <input
               id="profile-address"
               className="form-input"
-              placeholder="TP. Hồ Chí Minh"
+              placeholder="VD: TP. Hồ Chí Minh"
               value={form.address}
               onChange={(e) => setForm({ ...form, address: e.target.value })}
             />

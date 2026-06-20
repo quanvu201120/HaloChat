@@ -166,6 +166,15 @@ export const authApi = {
   changePassword: (data: { passwordOld: string; passwordNew: string; confirmPassword: string }) =>
     api.post('/auth/change-password', data),
 
+  confirmPassword: (password: string) =>
+    api.patch('/auth/confirm-password', { password }),
+
+  sendCodeUpdateEmail: (email: string) =>
+    api.post('/auth/send-code-update-email', { email }),
+
+  updateEmail: (email: string, code: string) =>
+    api.patch('/auth/update-email', { email, code }),
+
   // Refresh token dùng cookie → apiWithCookies
   refreshToken: () => apiWithCookies.post('/auth/refreshToken'),
 };
@@ -202,13 +211,21 @@ export const usersApi = {
     role?: string;
   }) => api.post('/users', data),
 
-  // UpdateUserDto: { _id*, name*, email?, phone?, address?, image? } — KHÔNG có role
+  // UpdateUserDto: { name*, phone?, address? }
   update: (data: {
-    _id: string;
     name: string;
     phone?: string | null;
     address?: string | null;
-  }) => api.patch('/users', data),
+  }) => api.patch('/users/me', data),
+
+  // UpdateUserByAdminDto: { name?, email?, phone?, address?, role? }
+  updateByAdmin: (id: string, data: {
+    name?: string;
+    email?: string;
+    phone?: string | null;
+    address?: string | null;
+    role?: string;
+  }) => api.patch(`/users/${id}`, data),
 
   delete: (id: string) => api.delete(`/users/${id}`),
 

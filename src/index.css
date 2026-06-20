@@ -212,6 +212,7 @@ html, body, #root {
   text-align: left;
   transition: var(--transition);
   position: relative;
+  text-decoration: none;
 }
 
 .conv-item:hover {
@@ -479,6 +480,8 @@ html, body, #root {
 
 .info-sidebar-members {
   padding: 4px 0;
+  max-height: 214px;
+  overflow-y: auto;
 }
 
 .info-sidebar-member {
@@ -970,6 +973,49 @@ html, body, #root {
 
 .msg-bubble.sending { opacity: 0.7; }
 .msg-bubble.error { border: 1px solid var(--error) !important; }
+
+/* Emoji Only Messages */
+.msg-bubble.emoji-only {
+  background: transparent !important;
+  box-shadow: none !important;
+  padding: 8px 12px !important;
+  border: none !important;
+  overflow: visible;
+  width: auto;
+}
+
+.msg-text.emoji-huge {
+  font-size: 56px;
+  line-height: 1.1;
+  display: inline-block;
+}
+.msg-text.emoji-large {
+  font-size: 44px;
+  line-height: 1.15;
+  display: inline-block;
+}
+.msg-text.emoji-medium {
+  font-size: 36px;
+  line-height: 1.2;
+  display: inline-block;
+}
+.msg-text.emoji-normal {
+  font-size: 28px;
+  line-height: 1.3;
+  display: inline-block;
+}
+
+.msg-bubble.emoji-only .msg-meta {
+  position: static;
+  margin-top: -4px;
+  justify-content: flex-end;
+  width: 100%;
+}
+
+.msg-bubble.emoji-only .msg-time {
+  text-shadow: 0 1px 2px rgba(0,0,0,0.15);
+  color: var(--text-muted);
+}
 
 /* Message content */
 .msg-text {

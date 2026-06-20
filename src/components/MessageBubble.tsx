@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import {
-  CornerUpLeft, MoreHorizontal, Pencil, Trash2, Heart, Download,
+  CornerUpLeft, Pencil, Trash2, Heart, Download,
 } from 'lucide-react';
 import AudioPlayer from './AudioPlayer';
 import type { Message, MessageReaction } from '../services/messages';
@@ -83,6 +83,27 @@ function isDownloadableMessage(message: Message) {
   return message.type === 'image' || message.type === 'video' || message.type === 'file';
 }
 
+function isEmojiOnly(text?: string): boolean {
+  if (!text) return false;
+  const trimmed = text.replace(/[\s\n]+/g, '');
+  if (!trimmed || trimmed.length > 20) return false;
+  return /^[\p{Extended_Pictographic}\uFE0F\u200D]+$/u.test(trimmed);
+}
+
+function getEmojiOnlySizeClass(text: string): string {
+  const trimmed = text.replace(/[\s\n]+/g, '');
+  try {
+    const segmenter = new Intl.Segmenter('en', { granularity: 'grapheme' });
+    const count = Array.from(segmenter.segment(trimmed)).length;
+    if (count === 1) return 'emoji-huge';
+    if (count === 2) return 'emoji-large';
+    if (count === 3) return 'emoji-medium';
+    return 'emoji-normal';
+  } catch (e) {
+    return 'emoji-large'; // fallback
+  }
+}
+
 export default function MessageBubble({
   message,
   isMe,
@@ -129,6 +150,9 @@ export default function MessageBubble({
     && !message.replyTo
     && !message.content?.trim()
     && (message.type === 'image' || message.type === 'video');
+
+  const isEmojiOnlyText = message.type === 'text' && !message.isDeleted && !message.replyTo && isEmojiOnly(message.content);
+  const emojiSizeClass = isEmojiOnlyText ? getEmojiOnlySizeClass(message.content!) : '';
 
   const handleDownload = async (event: React.MouseEvent<HTMLButtonElement>) => {
     event.stopPropagation();
@@ -206,7 +230,7 @@ export default function MessageBubble({
         )}
         <div className={`msg-content-wrapper${isMe ? ' me' : ' other'}${!message.isDeleted && reactions.length > 0 ? ' has-reactions' : ''}`} style={{ flex: 1, maxWidth: isMe ? '100%' : 'calc(100% - 40px)' }}>
           <div
-            className={`msg-bubble${isMe ? ' me' : ' other'}${message.isDeleted ? ' deleted' : ''}${isOptimistic ? ' sending' : ''}${isError ? ' error' : ''}${isMediaOnly ? ' media-only' : ''}`}
+            className={`msg-bubble${isMe ? ' me' : ' other'}${message.isDeleted ? ' deleted' : ''}${isOptimistic ? ' sending' : ''}${isError ? ' error' : ''}${isMediaOnly ? ' media-only' : ''}${isEmojiOnlyText ? ' emoji-only' : ''}`}
           onClick={() => isMe && setShowStatus((prev) => !prev)}
         >
           {showActions && !message.isDeleted && (
@@ -263,7 +287,7 @@ export default function MessageBubble({
                 </button>
               )}
               {canDelete && (
-                <button className="action-btn" title="Thu hồi" onClick={onDelete}>
+                <button className="action-btn" title="Thu hồi với mọi người" onClick={onDelete}>
                   <Trash2 size={14} />
                 </button>
               )}
@@ -285,7 +309,7 @@ export default function MessageBubble({
               Tin nhắn đã thu hồi
             </span>
           ) : message.type === 'text' ? (
-            <span className="msg-text">{message.content}</span>
+            <span className={`msg-text ${emojiSizeClass}`}>{message.content}</span>
           ) : message.type === 'image' && typeof message.media === 'object' && message.media?.url ? (
             <img
               src={message.media.url}

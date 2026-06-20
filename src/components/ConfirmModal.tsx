@@ -8,7 +8,7 @@ interface ConfirmModalProps {
   message: string;
   confirmText?: string;
   cancelText?: string;
-  onConfirm: () => void;
+  onConfirm: () => any;
   onCancel: () => void;
   isDanger?: boolean;
   countdown?: number;

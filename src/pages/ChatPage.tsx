@@ -4,7 +4,7 @@ import {
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   Send, Phone, Video, Info, Smile, Paperclip, Image, Mic, Square, X,
-  Camera, Trash2, LogOut, ShieldOff, Check, Pencil, UserPlus, UserMinus, Crown, History, ChevronDown, ChevronRight, FileText
+  Camera, Trash2, LogOut, ShieldOff, Check, Pencil, UserPlus, UserMinus, Crown, History, ChevronDown, ChevronRight, FileText, Search
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useChat } from '../context/ChatContext';
@@ -25,6 +25,7 @@ import {
   updateTextMessage,
 } from '../services/socket';
 import { useToast } from '../context/ToastContext';
+import EmojiPicker from 'emoji-picker-react';
 import MessageBubble from '../components/MessageBubble';
 import AudioPlayer from '../components/AudioPlayer';
 import Modal from '../components/Modal';
@@ -90,6 +91,8 @@ function isLikelyOptimisticMatch(candidate: LocalMessage, incoming: Message, cur
   return candidateMedia.fileName === incomingMedia.fileName && candidateMedia.size === incomingMedia.size;
 }
 
+const globalMessagesCache: Record<string, { messages: LocalMessage[], hasMore: boolean }> = {};
+
 export default function ChatPage() {
   const { conversationId } = useParams<{ conversationId: string }>();
   const activeConversationId = normalizeId(conversationId);
@@ -133,15 +136,19 @@ export default function ChatPage() {
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   const [showAddMemberModal, setShowAddMemberModal] = useState(false);
   const [showOnlineModal, setShowOnlineModal] = useState(false);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [readersModalData, setReadersModalData] = useState<{ isOpen: boolean; readers: string[] }>({ isOpen: false, readers: [] });
   const [reactionsModalData, setReactionsModalData] = useState<{ isOpen: boolean; message: Message | null }>({ isOpen: false, message: null });
   const [confirmAction, setConfirmAction] = useState<{
     title: string;
     message: string;
+    action: () => void;
     isDanger?: boolean;
     confirmText?: string;
-    action: () => void | Promise<void>;
+    countdown?: number;
   } | null>(null);
+
+  const [memberSearchQuery, setMemberSearchQuery] = useState('');
   const groupAvatarInputRef = useRef<HTMLInputElement>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -366,10 +373,20 @@ export default function ChatPage() {
       return;
     }
     const requestId = ++messagesRequestIdRef.current;
-    setIsLoadingMsgs(true);
-    setMessages([]);
-    setLoadedMessagesConversationId('');
-    setHasMore(true);
+    
+    const cached = globalMessagesCache[activeConversationId];
+    if (cached) {
+      setMessages(cached.messages);
+      setHasMore(cached.hasMore);
+      setIsLoadingMsgs(false);
+      setLoadedMessagesConversationId(activeConversationId);
+    } else {
+      setIsLoadingMsgs(true);
+      setMessages([]);
+      setHasMore(true);
+      setLoadedMessagesConversationId('');
+    }
+
     setReplyTarget(null);
     setEditingMessageId(null);
     setText('');
@@ -387,7 +404,9 @@ export default function ChatPage() {
         setHasMore(list.length === 20);
         markConversationRead(ordered[ordered.length - 1]);
       })
-      .catch(() => toast.error('Không tải được tin nhắn'))
+      .catch(() => {
+        if (!cached) toast.error('Không tải được tin nhắn');
+      })
       .finally(() => {
         if (messagesRequestIdRef.current !== requestId) return;
         setIsLoadingMsgs(false);
@@ -782,27 +801,34 @@ export default function ChatPage() {
 
   const handleDeleteMessage = (message: Message) => {
     if (!activeConversationId) return;
-    if (!window.confirm('Thu hồi tin nhắn này?')) return;
 
-    replaceMessageLocally(message._id, (currentMessage) => ({
-      ...currentMessage,
-      isDeleted: true,
-      content: '',
-      reactions: [],
-      updatedAt: new Date().toISOString(),
-    }));
-    if (replyTarget?._id === message._id) {
-      setReplyTarget(null);
-    }
-    if (editingMessageId === message._id) {
-      setEditingMessageId(null);
-      setText('');
-    }
+    setConfirmAction({
+      title: 'Thu hồi tin nhắn với mọi người',
+      message: 'Tin nhắn này sẽ bị xóa ở phía tất cả mọi người trong cuộc trò chuyện. Bạn có chắc chắn muốn thu hồi không?',
+      isDanger: true,
+      confirmText: 'Thu hồi',
+      action: () => {
+        replaceMessageLocally(message._id, (currentMessage) => ({
+          ...currentMessage,
+          isDeleted: true,
+          content: '',
+          reactions: [],
+          updatedAt: new Date().toISOString(),
+        }));
+        if (replyTarget?._id === message._id) {
+          setReplyTarget(null);
+        }
+        if (editingMessageId === message._id) {
+          setEditingMessageId(null);
+          setText('');
+        }
 
-    revokeMessage(activeConversationId, message._id, (ack: any) => {
-      if (!ack?.ok) {
-        replaceMessageLocally(message._id, () => ({ ...message }));
-        toast.error(ack?.message || 'Không thu hồi được tin nhắn');
+        revokeMessage(activeConversationId, message._id, (ack: any) => {
+          if (!ack?.ok) {
+            replaceMessageLocally(message._id, () => ({ ...message }));
+            toast.error(ack?.message || 'Không thu hồi được tin nhắn');
+          }
+        });
       }
     });
   };
@@ -984,13 +1010,14 @@ export default function ChatPage() {
     });
   };
 
-  const handleChangeAdmin = (memberId: string, memberName: string) => {
+  const handleChangeAdminStep2 = (memberId: string, memberName: string) => {
     if (!activeConversationId) return;
     setConfirmAction({
-      title: 'Chuyển quyền quản trị',
-      message: `Bạn có chắc muốn chuyển quyền quản trị cho ${memberName} không? Bạn sẽ trở thành thành viên thường.`,
+      title: 'Xác nhận chuyển quyền',
+      message: `Hành động này không thể hoàn tác. Bạn thực sự muốn chuyển quyền quản trị cho ${memberName}?`,
       isDanger: true,
       confirmText: 'Chuyển quyền',
+      countdown: 5,
       action: async () => {
         try {
           await conversationsApi.changeAdmin(activeConversationId, memberId);
@@ -999,6 +1026,20 @@ export default function ChatPage() {
         } catch {
           toast.error('Chuyển quyền quản trị thất bại');
         }
+      }
+    });
+  };
+
+  const handleChangeAdmin = (memberId: string, memberName: string) => {
+    if (!activeConversationId) return;
+    setConfirmAction({
+      title: 'Chuyển quyền quản trị',
+      message: `Bạn có chắc muốn chuyển quyền quản trị cho ${memberName} không? Bạn sẽ trở thành thành viên thường.`,
+      isDanger: true,
+      confirmText: 'Tiếp tục',
+      action: () => {
+        handleChangeAdminStep2(memberId, memberName);
+        return false;
       }
     });
   };
@@ -1031,6 +1072,12 @@ export default function ChatPage() {
     }
     return null;
   }, [visibleMessages, currentUserId]);
+
+  useEffect(() => {
+    if (activeConversationId && loadedMessagesConversationId === activeConversationId) {
+      globalMessagesCache[activeConversationId] = { messages, hasMore };
+    }
+  }, [messages, hasMore, activeConversationId, loadedMessagesConversationId]);
 
   return (
     <div className="chat-page-layout">
@@ -1206,37 +1253,37 @@ export default function ChatPage() {
         {isRecordingVoice ? (
           <div className="voice-recording-overlay">
             <button className="icon-btn cancel-voice-btn" onClick={cancelVoiceRecording} title="Hủy">
-              <X size={18} />
+              <X size={24} />
             </button>
             <div className="voice-recording-pill">
               <button className="voice-stop-btn" onClick={stopVoiceRecording} title="Dừng và xem trước">
-                <Square size={14} fill="currentColor" />
+                <Square size={20} fill="currentColor" />
               </button>
               <span className="voice-timer">{formatDuration(recordingDuration)}</span>
             </div>
             <button className="icon-btn send-voice-btn" onClick={() => {
               stopVoiceRecording();
             }} title="Xong">
-              <Send size={18} />
+              <Send size={24} />
             </button>
           </div>
         ) : (
           <>
             <button className="icon-btn" title="Đính kèm file" onClick={() => fileInputRef.current?.click()}>
-              <Paperclip size={18} />
+              <Paperclip size={24} />
             </button>
             <button className="icon-btn" title="Gửi ảnh" onClick={() => imageInputRef.current?.click()}>
-              <Image size={18} />
+              <Image size={24} />
             </button>
             <button className="icon-btn" title="Gửi video" onClick={() => videoInputRef.current?.click()}>
-              <Video size={18} />
+              <Video size={24} />
             </button>
             <button
               className="icon-btn"
               title="Ghi âm"
               onClick={startVoiceRecording}
             >
-              <Mic size={18} />
+              <Mic size={24} />
             </button>
             <input
               className="composer-input"
@@ -1254,16 +1301,38 @@ export default function ChatPage() {
               }}
               autoFocus
             />
-            <button className="icon-btn" title="Emoji">
-              <Smile size={18} />
-            </button>
+            <div style={{ position: 'relative' }}>
+              <button 
+                className={`icon-btn${showEmojiPicker ? ' active' : ''}`} 
+                title="Emoji"
+                onClick={() => setShowEmojiPicker((prev) => !prev)}
+              >
+                <Smile size={24} />
+              </button>
+              {showEmojiPicker && (
+                <div style={{ position: 'absolute', bottom: '100%', right: 0, zIndex: 50, marginBottom: '8px' }}>
+                  <div 
+                    style={{ position: 'fixed', inset: 0, zIndex: -1 }} 
+                    onClick={() => setShowEmojiPicker(false)}
+                  />
+                  <EmojiPicker 
+                    onEmojiClick={(emojiData) => {
+                      setText((prev) => prev + emojiData.emoji);
+                      if (activeConversationId) startTyping(activeConversationId);
+                    }}
+                    lazyLoadEmojis={true}
+                    searchPlaceHolder="Tìm kiếm Emoji..."
+                  />
+                </div>
+              )}
+            </div>
             <button
               className={`composer-send${text.trim() ? ' active' : ''}`}
               onClick={handleSend}
               disabled={!text.trim()}
               title={editingMessageId ? 'Lưu thay đổi' : 'Gửi'}
             >
-              <Send size={18} />
+              <Send size={24} />
             </button>
           </>
         )}
@@ -1406,8 +1475,25 @@ export default function ChatPage() {
                 )}
               </div>
               {isMembersExpanded && (
-                <div className="info-sidebar-members">
-                  {conv.users.map((member) => {
+                <>
+                  <div style={{ padding: '8px 20px 4px' }}>
+                    <div style={{ background: 'var(--bg-secondary)', borderRadius: '20px', padding: '8px 14px', display: 'flex', alignItems: 'center', gap: '8px', border: '1px solid var(--border-light)' }}>
+                      <Search size={14} style={{ color: 'var(--text-muted)' }} />
+                      <input 
+                        type="text" 
+                        placeholder="Tìm thành viên..." 
+                        value={memberSearchQuery}
+                        onChange={(e) => setMemberSearchQuery(e.target.value)}
+                        style={{ border: 'none', background: 'transparent', outline: 'none', width: '100%', fontSize: '13px', color: 'var(--text-primary)' }}
+                      />
+                    </div>
+                  </div>
+                  <div className="info-sidebar-members">
+                  {conv.users.filter(member => {
+                    if (!memberSearchQuery) return true;
+                    const name = (member.name || member.email || '').toLowerCase();
+                    return name.includes(memberSearchQuery.toLowerCase());
+                  }).map((member) => {
                   const avatar = typeof member.avatar === 'object' && member.avatar?.url
                     ? member.avatar.url
                     : typeof member.avatar === 'string' ? member.avatar : null;
@@ -1424,14 +1510,14 @@ export default function ChatPage() {
                         <div className="info-sidebar-member-name">
                           {displayName}
                           {member._id === currentUserId && <span className="info-badge-me">Bạn</span>}
-                          {isMemberAdmin && <span className="info-badge-admin">Quản trị viên</span>}
+                          {isMemberAdmin && <Crown size={14} className="text-warning" style={{ color: 'var(--warning)', marginLeft: '4px' }} title="Quản trị viên" />}
                         </div>
                       </div>
                       {isGroupAdmin && !isMemberAdmin && (
                         <div style={{ display: 'flex', gap: '4px' }}>
                           <button
                             className="icon-btn info-member-more"
-                            title="Nhường quyền quản trị"
+                            title="Chuyển quyền quản trị viên"
                             onClick={() => handleChangeAdmin(member._id, displayName)}
                           >
                             <Crown size={16} className="text-warning" style={{ color: 'var(--warning)' }} />
@@ -1449,6 +1535,7 @@ export default function ChatPage() {
                   );
                 })}
               </div>
+              </>
               )}
             </div>
           )}
@@ -1575,17 +1662,19 @@ export default function ChatPage() {
       )}
 
       {/* Confirm Modal */}
-      <ConfirmModal
-        isOpen={!!confirmAction}
-        title={confirmAction?.title || ''}
-        message={confirmAction?.message || ''}
-        isDanger={confirmAction?.isDanger}
-        confirmText={confirmAction?.confirmText}
-        onConfirm={() => {
-          if (confirmAction?.action) confirmAction.action();
-        }}
-        onCancel={() => setConfirmAction(null)}
-      />
+      {confirmAction && (
+        <ConfirmModal
+          key={confirmAction.title}
+          isOpen={!!confirmAction}
+          title={confirmAction.title}
+          message={confirmAction.message}
+          isDanger={confirmAction.isDanger}
+          confirmText={confirmAction.confirmText}
+          countdown={confirmAction.countdown}
+          onConfirm={confirmAction.action}
+          onCancel={() => setConfirmAction(null)}
+        />
+      )}
       {/* Online/Offline Status Modal */}
       {showOnlineModal && conv?.isGroup && (
         <Modal

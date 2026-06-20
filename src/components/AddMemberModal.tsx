@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { X, Search, UserPlus, Check, RefreshCcw } from 'lucide-react';
+import { X, UserPlus, Check, RefreshCcw } from 'lucide-react';
 import { useAvailableUsers } from '../hooks/useAvailableUsers';
 import { conversationsApi } from '../services/conversations';
 import { useAuth } from '../context/AuthContext';
@@ -24,7 +24,7 @@ export default function AddMemberModal({ conversationId, currentMembers, onClose
   const { user } = useAuth();
   const toast = useToast();
 
-  const [search, setSearch] = useState('');
+  const [search] = useState('');
   const [results, setResults] = useState<UserResult[]>([]);
   const [selected, setSelected] = useState<UserResult[]>([]);
   const [isAdding, setIsAdding] = useState(false);

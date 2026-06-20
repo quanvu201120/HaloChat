@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { X, Search, UserPlus, Users, Check, RefreshCcw } from 'lucide-react';
+import { X, UserPlus, Users, Check, RefreshCcw } from 'lucide-react';
 import { useAvailableUsers } from '../hooks/useAvailableUsers';
 import { conversationsApi } from '../services/conversations';
 import { useAuth } from '../context/AuthContext';
@@ -25,7 +25,7 @@ export default function CreateConversationModal({ onClose }: Props) {
   const navigate = useNavigate();
 
   const [tab, setTab] = useState<'direct' | 'group'>('direct');
-  const [search, setSearch] = useState('');
+  const [search] = useState('');
   const [results, setResults] = useState<UserResult[]>([]);
   const [selected, setSelected] = useState<UserResult[]>([]);
   const [groupName, setGroupName] = useState('');

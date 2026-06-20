@@ -24,8 +24,8 @@ const PAGE_SIZE = 10;
 // CreateUserDto: { name*, email*, password*, confirmPassword*, phone?, address?, role? }
 const defaultCreate = { name: '', email: '', password: '', confirmPassword: '', phone: '', address: '', role: 'USER' };
 
-// UpdateUserDto: { _id*, name?, email?, phone?, address?, image? } — KHÔNG có role
-const defaultEdit = { _id: '', name: '', phone: '', address: '' };
+// UpdateUserByAdminDto: { name?, email?, phone?, address?, role? }
+const defaultEdit = { _id: '', name: '', email: '', phone: '', address: '', role: 'USER' };
 
 export default function UsersPage() {
   const toast = useToast();
@@ -109,20 +109,20 @@ export default function UsersPage() {
   // ===== EDIT =====
   const openEdit = (user: User) => {
     setSelectedUser(user);
-    // UpdateUserDto: KHÔNG có role — chỉ _id, name, phone, address
-    setEditForm({ _id: user._id, name: user.name || '', phone: user.phone || '', address: user.address || '' });
+    setEditForm({ _id: user._id, name: user.name || '', email: user.email || '', phone: user.phone || '', address: user.address || '', role: user.role || 'USER' });
     setShowEdit(true);
   };
 
   const handleEdit = async () => {
     setEditLoading(true);
     try {
-      // Chỉ gửi các field UpdateUserDto cho phép
-      await usersApi.update({
-        _id: editForm._id,
-        name: editForm.name || undefined,
-        phone: editForm.phone || undefined,
-        address: editForm.address || undefined,
+      // Gửi UpdateUserByAdminDto
+      await usersApi.updateByAdmin(editForm._id, {
+        name: editForm.name.trim() || undefined,
+        email: editForm.email.trim() || undefined,
+        phone: editForm.phone.trim() || null,
+        address: editForm.address.trim() || null,
+        role: editForm.role || undefined,
       });
       toast.success('Cập nhật user thành công!');
       setShowEdit(false);
@@ -331,7 +331,7 @@ export default function UsersPage() {
       </Modal>
 
       {/* ===== EDIT MODAL ===== */}
-      {/* UpdateUserDto: _id*, name?, email?, phone?, address?, image? — KHÔNG có role */}
+      {/* UpdateUserByAdminDto: name?, email?, phone?, address?, role? */}
       <Modal isOpen={showEdit} onClose={() => setShowEdit(false)} title={`Chỉnh sửa: ${selectedUser?.email}`}
         footer={
           <>
@@ -343,25 +343,31 @@ export default function UsersPage() {
         }
       >
         <div className="form-group">
-          <label className="form-label">Email (không thể thay đổi)</label>
-          <input className="form-input" value={selectedUser?.email || ''} disabled style={{ opacity: 0.5 }} />
+          <label className="form-label">Email</label>
+          <input className="form-input" value={editForm.email} onChange={e => setEditForm({ ...editForm, email: e.target.value })} />
         </div>
         <div className="form-row">
           <div className="form-group">
             <label className="form-label">Tên hiển thị</label>
-            <input id="edit-name" className="form-input" placeholder="Nguyễn Văn A" value={editForm.name} onChange={e => setEditForm({ ...editForm, name: e.target.value })} />
+            <input id="edit-name" className="form-input" placeholder="VD: Nguyễn Văn A" value={editForm.name} onChange={e => setEditForm({ ...editForm, name: e.target.value })} />
           </div>
           <div className="form-group">
-            <label className="form-label">Số điện thoại</label>
-            <input id="edit-phone" className="form-input" placeholder="0912345678" value={editForm.phone} onChange={e => setEditForm({ ...editForm, phone: e.target.value })} />
+            <label className="form-label">Vai trò</label>
+            <select className="form-select" value={editForm.role} onChange={e => setEditForm({ ...editForm, role: e.target.value })}>
+              <option value="USER">USER</option>
+              <option value="ADMIN">ADMIN</option>
+            </select>
           </div>
         </div>
-        <div className="form-group">
-          <label className="form-label">Địa chỉ</label>
-          <input id="edit-address" className="form-input" placeholder="Địa chỉ" value={editForm.address} onChange={e => setEditForm({ ...editForm, address: e.target.value })} />
-        </div>
-        <div style={{ padding: '10px 12px', background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.2)', borderRadius: '8px', fontSize: '12px', color: 'var(--warning)' }}>
-          ⚠️ Role không thể thay đổi qua API này
+        <div className="form-row">
+          <div className="form-group">
+            <label className="form-label">Số điện thoại</label>
+            <input id="edit-phone" className="form-input" placeholder="VD: 0912345678" value={editForm.phone} onChange={e => setEditForm({ ...editForm, phone: e.target.value })} />
+          </div>
+          <div className="form-group">
+            <label className="form-label">Địa chỉ</label>
+            <input id="edit-address" className="form-input" placeholder="VD: TP. Hồ Chí Minh" value={editForm.address} onChange={e => setEditForm({ ...editForm, address: e.target.value })} />
+          </div>
         </div>
       </Modal>
 
