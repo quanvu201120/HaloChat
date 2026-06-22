@@ -1,11 +1,13 @@
 import { api } from './api';
 
-export enum MediaResourceTypeEnum {
-  IMAGE = 'image',
-  VIDEO = 'video',
-  AUDIO = 'audio',
-  FILE = 'file',
-}
+export const MediaResourceTypeEnum = {
+  IMAGE: 'image',
+  VIDEO: 'video',
+  AUDIO: 'audio',
+  FILE: 'file',
+} as const;
+
+export type MediaResourceTypeEnum = typeof MediaResourceTypeEnum[keyof typeof MediaResourceTypeEnum];
 
 export interface MediaResponse {
   _id: string;

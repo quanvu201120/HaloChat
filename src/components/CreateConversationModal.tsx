@@ -1,8 +1,9 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { X, UserPlus, Users, Check, RefreshCcw } from 'lucide-react';
 import { useAvailableUsers } from '../hooks/useAvailableUsers';
 import { conversationsApi } from '../services/conversations';
+import { parseError } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { useChat } from '../context/ChatContext';
 import { useToast } from '../context/ToastContext';
@@ -25,68 +26,62 @@ export default function CreateConversationModal({ onClose }: Props) {
   const navigate = useNavigate();
 
   const [tab, setTab] = useState<'direct' | 'group'>('direct');
-  const [search] = useState('');
-  const [results, setResults] = useState<UserResult[]>([]);
+  const [search, setSearch] = useState('');
   const [selected, setSelected] = useState<UserResult[]>([]);
   const [groupName, setGroupName] = useState('');
   const [isCreating, setIsCreating] = useState(false);
 
   const { users: allAvailableUsers, isLoading: isSearching, refetch } = useAvailableUsers();
-  
-  const allUsers = useMemo(() => {
-    return allAvailableUsers.filter(u => u._id !== user?._id);
-  }, [allAvailableUsers, user?._id]);
 
-  // Tìm kiếm local
-  useEffect(() => {
-    if (!search.trim()) {
-      setResults(allUsers);
-      return;
-    }
+  const allUsers = useMemo(() => allAvailableUsers.filter((u) => u._id !== user?._id), [allAvailableUsers, user?._id]);
+
+  const results = useMemo(() => {
+    if (!search.trim()) return allUsers;
     const q = search.toLowerCase();
-    setResults(allUsers.filter(u => 
-      (u.name || '').toLowerCase().includes(q) || u.email.toLowerCase().includes(q)
-    ));
+    return allUsers.filter((u) => (u.name || '').toLowerCase().includes(q) || u.email.toLowerCase().includes(q));
   }, [search, allUsers]);
 
   const toggleSelect = (u: UserResult) => {
     setSelected((prev) => {
       if (prev.find((s) => s._id === u._id)) return prev.filter((s) => s._id !== u._id);
-      if (tab === 'direct') return [u]; // direct chỉ chọn 1
+      if (tab === 'direct') return [u];
       return [...prev, u];
     });
   };
 
   const handleCreate = async () => {
     if (selected.length === 0) {
-      toast.error('Chọn ít nhất 1 người dùng');
+      toast.error('Chon it nhat 1 nguoi dung');
       return;
     }
     if (tab === 'group' && !groupName.trim()) {
-      toast.error('Nhập tên nhóm');
+      toast.error('Nhap ten nhom');
       return;
     }
     if (tab === 'group' && selected.length < 2) {
-      toast.error('Nhóm cần ít nhất 2 thành viên (ngoài bạn)');
+      toast.error('Nhom can it nhat 2 thanh vien (ngoai ban)');
       return;
     }
 
     setIsCreating(true);
     try {
-      const userIds = selected.map((u) => u._id);
+      const userIds = selected.map((u) => u._id).filter(Boolean);
+      if (userIds.length !== selected.length) {
+        toast.error('Danh sach nguoi dung khong hop le');
+        return;
+      }
       const payload =
         tab === 'group'
           ? { users: userIds, name: groupName.trim(), isGroup: true }
           : { users: userIds };
 
       const res = await conversationsApi.create(payload);
-      const conv = res.data?.data ?? (res.data as any);
+      const conv = res.data?.data ?? res.data;
       await refetchConversations();
-      toast.success(tab === 'group' ? 'Tạo nhóm thành công!' : 'Đã mở cuộc trò chuyện!');
       onClose();
       if (conv?._id) navigate(`/chat/${conv._id}`);
-    } catch (err: any) {
-      toast.error(err?.response?.data?.message || 'Không tạo được cuộc trò chuyện');
+    } catch (err: unknown) {
+      toast.error(parseError(err) || 'Khong tao duoc cuoc tro chuyen');
     } finally {
       setIsCreating(false);
     }
@@ -95,46 +90,49 @@ export default function CreateConversationModal({ onClose }: Props) {
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal" style={{ maxWidth: 480 }} onClick={(e) => e.stopPropagation()}>
-        {/* Header */}
         <div className="modal-header">
-          <span className="modal-title">
-            {tab === 'direct' ? 'Chat trực tiếp' : 'Tạo nhóm chat'}
-          </span>
+          <span className="modal-title">{tab === 'direct' ? 'Chat truc tiep' : 'Tao nhom chat'}</span>
           <div style={{ display: 'flex', gap: '4px' }}>
-            <button className="icon-btn" title="Làm mới danh sách" onClick={() => refetch()}>
+            <button className="icon-btn" title="Lam moi danh sach" onClick={() => refetch()}>
               <RefreshCcw size={16} className={isSearching ? 'rotating' : ''} />
             </button>
             <button className="icon-btn" onClick={onClose}><X size={18} /></button>
           </div>
         </div>
 
-        {/* Tab */}
         <div style={{ display: 'flex', borderBottom: '1px solid var(--border)' }}>
           {(['direct', 'group'] as const).map((t) => (
             <button
               key={t}
               onClick={() => { setTab(t); setSelected([]); }}
               style={{
-                flex: 1, padding: '12px', border: 'none', background: 'none',
-                cursor: 'pointer', fontSize: '13.5px', fontWeight: 600,
+                flex: 1,
+                padding: '12px',
+                border: 'none',
+                background: 'none',
+                cursor: 'pointer',
+                fontSize: '13.5px',
+                fontWeight: 600,
                 color: tab === t ? 'var(--accent-primary)' : 'var(--text-muted)',
                 borderBottom: tab === t ? '2px solid var(--accent-primary)' : '2px solid transparent',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '6px',
               }}
             >
-              {t === 'direct' ? <><UserPlus size={15} /> Chat 1-1</> : <><Users size={15} /> Tạo nhóm</>}
+              {t === 'direct' ? <><UserPlus size={15} /> Chat 1-1</> : <><Users size={15} /> Tao nhom</>}
             </button>
           ))}
         </div>
 
         <div className="modal-body">
-          {/* Group name */}
           {tab === 'group' && (
             <div className="form-group">
-              <label className="form-label">Tên nhóm *</label>
+              <label className="form-label">Ten nhom *</label>
               <input
                 className="form-input"
-                placeholder="Ví dụ: Team dự án A"
+                placeholder="Vi du: Team du an A"
                 value={groupName}
                 onChange={(e) => setGroupName(e.target.value)}
                 autoFocus
@@ -142,25 +140,35 @@ export default function CreateConversationModal({ onClose }: Props) {
             </div>
           )}
 
-          {/* Search */}
           <div className="form-group">
             <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              Chọn người dùng
+              Chon nguoi dung
               {isSearching && <div className="loading-spinner" style={{ width: 14, height: 14 }} />}
             </label>
+            <input
+              className="form-input"
+              placeholder="Tim theo ten hoac email..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
           </div>
 
-          {/* Selected chips */}
           {selected.length > 0 && (
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
               {selected.map((u) => (
                 <span
                   key={u._id}
                   style={{
-                    display: 'inline-flex', alignItems: 'center', gap: '4px',
-                    background: 'rgba(99,102,241,0.12)', color: 'var(--accent-primary)',
-                    border: '1px solid rgba(99,102,241,0.25)', borderRadius: '20px',
-                    padding: '3px 10px', fontSize: '12px', fontWeight: 600,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    background: 'rgba(99,102,241,0.12)',
+                    color: 'var(--accent-primary)',
+                    border: '1px solid rgba(99,102,241,0.25)',
+                    borderRadius: '20px',
+                    padding: '3px 10px',
+                    fontSize: '12px',
+                    fontWeight: 600,
                   }}
                 >
                   {u.name || u.email}
@@ -175,7 +183,6 @@ export default function CreateConversationModal({ onClose }: Props) {
             </div>
           )}
 
-          {/* Results */}
           {results.length > 0 && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', maxHeight: '220px', overflowY: 'auto' }}>
               {results.map((u) => {
@@ -185,10 +192,16 @@ export default function CreateConversationModal({ onClose }: Props) {
                     key={u._id}
                     onClick={() => toggleSelect(u)}
                     style={{
-                      display: 'flex', alignItems: 'center', gap: '10px',
-                      padding: '10px 12px', borderRadius: 'var(--radius-sm)',
-                      border: 'none', background: isSelected ? 'rgba(99,102,241,0.08)' : 'var(--bg-secondary)',
-                      cursor: 'pointer', textAlign: 'left', transition: 'var(--transition)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '10px',
+                      padding: '10px 12px',
+                      borderRadius: 'var(--radius-sm)',
+                      border: 'none',
+                      background: isSelected ? 'rgba(99,102,241,0.08)' : 'var(--bg-secondary)',
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                      transition: 'var(--transition)',
                     }}
                   >
                     <div className="user-avatar" style={{ width: 32, height: 32, fontSize: '12px', flexShrink: 0 }}>
@@ -196,7 +209,7 @@ export default function CreateConversationModal({ onClose }: Props) {
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: '13.5px', fontWeight: 600, color: 'var(--text-primary)' }}>
-                        {u.name || u.email || 'Chưa đặt tên'}
+                        {u.name || u.email || 'Chua dat ten'}
                       </div>
                     </div>
                     {isSelected && <Check size={16} color="var(--accent-primary)" />}
@@ -208,15 +221,11 @@ export default function CreateConversationModal({ onClose }: Props) {
         </div>
 
         <div className="modal-footer">
-          <button className="btn btn-secondary" onClick={onClose}>Hủy</button>
-          <button
-            className="btn btn-primary"
-            onClick={handleCreate}
-            disabled={isCreating || selected.length === 0}
-          >
+          <button className="btn btn-secondary" onClick={onClose}>Huy</button>
+          <button className="btn btn-primary" onClick={handleCreate} disabled={isCreating || selected.length === 0}>
             {isCreating
-              ? <><div className="loading-spinner" style={{ width: 14, height: 14 }} /> Đang tạo...</>
-              : tab === 'group' ? <><Users size={14} /> Tạo nhóm</> : <><UserPlus size={14} /> Bắt đầu chat</>}
+              ? <><div className="loading-spinner" style={{ width: 14, height: 14 }} /> Dang tao...</>
+              : tab === 'group' ? <><Users size={14} /> Tao nhom</> : <><UserPlus size={14} /> Bat dau chat</>}
           </button>
         </div>
       </div>

@@ -153,30 +153,22 @@ export const messagesApi = {
 
   sendImage: (conversationId: string, file: File, replyTo?: string) => {
     const fd = createUploadFormData(file, replyTo);
-    return api.post<{ data: Message }>(`/conversations/${conversationId}/message/image`, fd, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    });
+    return api.post<{ data: Message }>(`/conversations/${conversationId}/message/image`, fd);
   },
 
   sendVideo: (conversationId: string, file: File, replyTo?: string) => {
     const fd = createUploadFormData(file, replyTo);
-    return api.post<{ data: Message }>(`/conversations/${conversationId}/message/video`, fd, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    });
+    return api.post<{ data: Message }>(`/conversations/${conversationId}/message/video`, fd);
   },
 
   sendFile: (conversationId: string, file: File, replyTo?: string) => {
     const fd = createUploadFormData(file, replyTo);
-    return api.post<{ data: Message }>(`/conversations/${conversationId}/message/file`, fd, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    });
+    return api.post<{ data: Message }>(`/conversations/${conversationId}/message/file`, fd);
   },
 
   sendVoice: (conversationId: string, file: File, replyTo?: string) => {
     const fd = createUploadFormData(file, replyTo);
-    return api.post<{ data: Message }>(`/conversations/${conversationId}/message/voice`, fd, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    });
+    return api.post<{ data: Message }>(`/conversations/${conversationId}/message/voice`, fd);
   },
 
   addReaction: (messageId: string, conversationId: string, type: string) =>

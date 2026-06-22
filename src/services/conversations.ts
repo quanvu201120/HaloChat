@@ -65,7 +65,7 @@ export const conversationsApi = {
   updateName: (id: string, name: string) =>
     api.patch(`/conversations/${id}/update-name`, { name }),
 
-  addMembers: (id: string, members: string[]) =>
+   addMembers: (id: string, members: string[]) =>
     api.patch(`/conversations/${id}/add-members`, { members }),
 
   removeMember: (id: string, memberId: string) =>
@@ -86,9 +86,7 @@ export const conversationsApi = {
   uploadAvatar: (id: string, file: File) => {
     const form = new FormData();
     form.append('file', file);
-    return api.patch(`/conversations/${id}/avatar`, form, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    });
+    return api.patch(`/conversations/${id}/avatar`, form);
   },
 
   deleteAvatar: (id: string) =>

@@ -22,7 +22,7 @@ export default function MediaLightbox({ medias, initialIndex, onClose }: MediaLi
   const handleDownload = async (e: React.MouseEvent) => {
     e.preventDefault();
     const activeMedia = medias[currentIndex] || medias[0];
-    if (!activeMedia) return;
+    if (!activeMedia?.url) return;
     try {
       const response = await fetch(activeMedia.url);
       const blob = await response.blob();

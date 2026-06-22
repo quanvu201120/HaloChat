@@ -10,6 +10,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@tanstack/react-query": "^5.101.0",
     "axios": "^1.16.1",
     "emoji-picker-react": "^4.19.1",
     "lucide-react": "^1.16.0",

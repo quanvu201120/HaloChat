@@ -1,56 +1,45 @@
-import { useState, useEffect, useCallback } from 'react';
-import { usersApi } from '../services/api';
+import { useEffect, useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { useToast } from '../context/ToastContext';
+import { fetchUsersList } from '../queries/users';
 
 export interface UserResult {
   _id: string;
   name?: string;
   email: string;
   image?: string;
+  isDisabled?: boolean;
 }
 
-let cachedUsers: UserResult[] | null = null;
-let fetchPromise: Promise<UserResult[]> | null = null;
-
 export function useAvailableUsers() {
-  const [users, setUsers] = useState<UserResult[]>(cachedUsers || []);
-  const [isLoading, setIsLoading] = useState(!cachedUsers);
   const toast = useToast();
 
-  const fetchUsers = useCallback(async (force = false) => {
-    if (cachedUsers && !force) {
-      setUsers(cachedUsers);
-      setIsLoading(false);
-      return;
-    }
+  const query = useQuery({
+    queryKey: ['users', 'available'],
+    queryFn: async () => fetchUsersList(1, '', 100),
+    staleTime: 5 * 60_000,
+  });
 
-    if (!fetchPromise || force) {
-      setIsLoading(true);
-      fetchPromise = usersApi.getAll({ current: 1, pageSize: 100 })
-        .then(res => {
-          const list = res.data?.data?.users || res.data?.users || [];
-          cachedUsers = list;
-          return list;
-        })
-        .catch(err => {
-          toast.error('Không tải được danh sách người dùng');
-          throw err;
-        });
-    }
-
-    try {
-      const result = await fetchPromise;
-      setUsers(result);
-    } catch (err) {
-      // Error is already handled with toast in the promise chain
-    } finally {
-      setIsLoading(false);
-    }
-  }, [toast]);
+  const users = useMemo<UserResult[]>(() => {
+    const list = query.data?.userList || [];
+    return list.map((user) => ({
+      _id: user._id,
+      name: user.name,
+      email: user.email,
+      image: user.image,
+      isDisabled: user.isDisabled,
+    })).filter((user) => Boolean(user._id) && !user.isDisabled);
+  }, [query.data?.userList]);
 
   useEffect(() => {
-    fetchUsers();
-  }, [fetchUsers]);
+    if (query.isError) {
+      toast.error('Khong tai duoc danh sach nguoi dung');
+    }
+  }, [query.isError, toast]);
 
-  return { users, isLoading, refetch: () => fetchUsers(true) };
+  return {
+    users,
+    isLoading: query.isPending && !query.data,
+    refetch: () => query.refetch(),
+  };
 }

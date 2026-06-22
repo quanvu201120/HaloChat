@@ -681,16 +681,27 @@ export default function ChatPage() {
           const mediaId = typeof target.media === 'object' ? target.media._id : target.media;
           removeSidebarMedia(mediaId);
         }
-        return prev.map((item) => (
-          item._id === data.messageId
-            ? {
+        return prev.map((item) => {
+          let updatedItem = item;
+          if (item._id === data.messageId) {
+            updatedItem = {
               ...item,
               isDeleted: true,
               content: '',
               reactions: [],
-            }
-            : item
-        ));
+            };
+          } else if (typeof item.replyTo === 'object' && item.replyTo?._id === data.messageId) {
+            updatedItem = {
+              ...item,
+              replyTo: {
+                ...item.replyTo,
+                isDeleted: true,
+                content: '',
+              }
+            };
+          }
+          return updatedItem;
+        });
       });
       if (replyTarget?._id === data.messageId) {
         setReplyTarget(null);
@@ -1859,7 +1870,7 @@ export default function ChatPage() {
                         <div className="info-sidebar-member-name">
                           {displayName}
                           {member._id === currentUserId && <span className="info-badge-me">Bạn</span>}
-                          {isMemberAdmin && <Crown size={14} className="text-warning" style={{ color: 'var(--warning)', marginLeft: '4px' }} title="Quản trị viên" />}
+                          {isMemberAdmin && <Crown size={14} className="text-warning" style={{ color: 'var(--warning)', marginLeft: '4px' }} aria-label="Quản trị viên" />}
                         </div>
                       </div>
                       {isGroupAdmin && !isMemberAdmin && (

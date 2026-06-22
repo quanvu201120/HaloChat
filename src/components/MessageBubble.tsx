@@ -4,7 +4,7 @@ import {
 } from 'lucide-react';
 import AudioPlayer from './AudioPlayer';
 import type { Message, MessageReaction } from '../services/messages';
-import { api, parseError } from '../services/api';
+import { api } from '../services/api';
 import { useToast } from '../context/ToastContext';
 
 interface Props {
@@ -173,7 +173,7 @@ export default function MessageBubble({
   }, [showReactionPicker]);
 
   useEffect(() => {
-    let timer: NodeJS.Timeout;
+    let timer: ReturnType<typeof setTimeout> | undefined;
     if (showActions) {
       timer = setTimeout(() => {
         setShowActions(false);
@@ -359,7 +359,7 @@ export default function MessageBubble({
             </div>
           )}
 
-          {message.replyTo && (
+          {!message.isDeleted && message.replyTo && (
             <div className="msg-reply-ref">
               {replyPreview.senderName && (
                 <div className="msg-reply-ref-name">{replyPreview.senderName}</div>

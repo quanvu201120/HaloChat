@@ -30,9 +30,11 @@ export default function AddMemberModal({ conversationId, currentMembers, onClose
   const [isAdding, setIsAdding] = useState(false);
 
   const { users: allAvailableUsers, isLoading: isSearching, refetch } = useAvailableUsers();
-  
+
+
+
   const allUsers = useMemo(() => {
-    return allAvailableUsers.filter(u => u._id !== user?._id && !currentMembers.includes(u._id));
+     return allAvailableUsers.filter(u => u._id !== user?._id && !currentMembers.includes(u._id));
   }, [allAvailableUsers, user?._id, currentMembers]);
 
   // Tìm kiếm local
@@ -62,7 +64,7 @@ export default function AddMemberModal({ conversationId, currentMembers, onClose
 
     setIsAdding(true);
     try {
-      const userIds = selected.map((u) => u._id);
+       const userIds = selected.map((u) => u._id);
       const res = await conversationsApi.addMembers(conversationId, userIds);
       const updatedConv = res.data?.data ?? (res.data as any);
       toast.success('Đã thêm thành viên vào nhóm!');

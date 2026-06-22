@@ -1,121 +1,125 @@
 # HaloChat FE Refactor Plan
 
-Mục tiêu: refactor frontend HaloChat sang stack hiện đại theo từng bước nhỏ, có thể dừng và tiếp tục an toàn giữa các phiên chat.
+Muc tieu: refactor frontend HaloChat theo tung buoc nho, co the dung lai va tiep tuc an toan giua cac phien chat.
 
-## Cách dùng file này
+## Cach dung file nay
 
-- Mỗi task xong thì tick `x`.
-- Nếu chuyển sang chat khác, chỉ cần đọc lại file này để biết đang ở bước nào.
-- Mỗi phase nên dừng lại để kiểm tra build / runtime trước khi sang phase tiếp theo.
+- Moi task xong thi tick `x`.
+- Neu chuyen sang chat khac, chi can doc lai file nay de biet dang o buoc nao.
+- Moi phase nen dung lai de kiem tra build / runtime truoc khi sang phase tiep theo.
 
-## Trạng thái hiện tại
+## Trang thai hien tai
 
-- [x] Đã audit sơ bộ cấu trúc FE
-- [x] Đã xác nhận project là `Vite + React`
-- [x] Đã xác nhận hiện đang dùng `Context` + CSS thủ công
-- [x] Đã đọc skill `frontend-patterns` và bám theo nó
-- [ ] Chưa bắt đầu refactor code
+- [x] Da audit so bo cau truc FE
+- [x] Da xac nhan project la `Vite + React`
+- [x] Da xac nhan hien dang dung `Context` + CSS thu cong
+- [x] Da doc skill `frontend-patterns` va bam theo no
+- [x] Da bat dau refactor code
+- [x] Da cai QueryClientProvider va migrate UsersPage / CreateConversationModal sang React Query
 
-## Phase 0 - Chốt baseline
+## Phase 0 - Chot baseline
 
-- [x] Đọc các file lõi: `App.tsx`, `AppLayout.tsx`, `AuthContext.tsx`, `ChatContext.tsx`, `ThemeContext.tsx`, `ToastContext.tsx`, `api.ts`
-- [x] Đọc các màn hình quan trọng: `LoginPage.tsx`, `RegisterPage.tsx`, `ChatPage.tsx`, `Modal.tsx`
-- [x] Xác định `ChatPage` là file nặng nhất và có nhiều state / side effect nhất
-- [x] Xác định `ChatContext` đang ôm conversations, unread, online, typing, socket lifecycle
-- [x] Xác định `AuthContext` đang xử lý persist login state bằng localStorage
-- [x] Xác định `api.ts` đang xử lý axios, attach token, refresh queue, redirect login
-- [x] Xác định form login/register hiện còn dùng `useState` thủ công
-- [x] Xác định modal/sidebar hiện còn CSS thủ công và có thể hưởng lợi từ animation
-- [ ] Chốt toàn bộ component/page còn lại nếu cần trước khi code
-- [ ] Chốt thứ tự migrate cụ thể theo file
+- [x] Doc cac file loi: `App.tsx`, `AppLayout.tsx`, `AuthContext.tsx`, `ChatContext.tsx`, `ThemeContext.tsx`, `ToastContext.tsx`, `api.ts`
+- [x] Doc cac man hinh quan trong: `LoginPage.tsx`, `RegisterPage.tsx`, `ChatPage.tsx`, `Modal.tsx`
+- [x] Xac dinh `ChatPage` la file nang nhat va co nhieu state / side effect nhat
+- [x] Xac dinh `ChatContext` dang om conversations, unread, online, typing, socket lifecycle
+- [x] Xac dinh `AuthContext` dang xu ly persist login state bang localStorage
+- [x] Xac dinh `api.ts` dang xu ly axios, attach token, refresh queue, redirect login
+- [x] Xac dinh form login/register hien con dung `useState` thu cong
+- [x] Xac dinh modal/sidebar hien con CSS thu cong va co the huong loi tu animation
+- [x] Chot toan bo component/page con lai neu can truoc khi code
+- [x] Chot thu tu migrate cu the theo file
 
 Checkpoint:
 
-- [x] Có danh sách file cần sửa theo từng phase
-- [ ] Có thứ tự triển khai rõ ràng
+- [x] Co danh sach file can sua theo tung phase
+- [x] Co thu tu trien khai ro rang
 
 ## Baseline notes
 
-- Nên ưu tiên `ChatPage` + `ChatContext` trước vì đây là nơi gom nhiều logic nhất.
-- `LoginPage` và `RegisterPage` là các điểm tốt để áp dụng `react-hook-form` + `zod` sớm.
-- `Modal` là điểm tốt để cắm `framer-motion` trước khi đụng nhiều UI khác.
-- `index.css` hiện rất lớn, nên migrate sang `tailwindcss` theo từng cụm UI, không đổi một lần.
-- Theo skill `frontend-patterns`, nên giữ component đơn giản, logic phức tạp đẩy ra custom hooks / stores.
+- Nen uu tien `ChatPage` + `ChatContext` truoc vi day la noi gom nhieu logic nhat.
+- `LoginPage` va `RegisterPage` la cac diem tot de ap dung `react-hook-form` + `zod` som.
+- `Modal` la diem tot de gan `framer-motion` truoc khi dung vao nhieu UI khac.
+- `index.css` hien rat lon, nen migrate sang `tailwindcss` theo tung cum UI, khong doi mot lan.
+- Theo skill `frontend-patterns`, nen giu component don gian, logic phuc tap day ra custom hooks / stores.
 
-## Phase 1 - Nền tảng data fetching
+## Phase 1 - Nen tang data fetching
 
-- [ ] Cài và cấu hình `@tanstack/react-query`
-- [ ] Tạo `QueryClientProvider`
-- [ ] Tách API layer nếu cần để query/mutation dùng chung
-- [ ] Migrate các màn hình chỉ đọc dữ liệu sang query trước
-- [ ] Chuẩn hóa loading / error state từ query
+- [x] Cai va cau hinh `@tanstack/react-query`
+- [x] Tao `QueryClientProvider`
+- [x] Tach API layer query dung chung cho users
+- [x] Migrate UsersPage danh sach / chi tiet sang query/mutation
+- [x] Migrate cac man hinh chi doc du lieu sang query truoc
+- [x] Chuan hoa loading / error state tu query
+- [x] Dung shared users query cho CreateConversationModal / useAvailableUsers
+- [x] Loc user `isDisabled` khoi danh sach chon de khop backend create/add member
 
 Checkpoint:
 
-- [ ] App chạy bình thường
-- [ ] Các trang fetch data không còn phụ thuộc `useEffect` dài dòng
+- [x] App chay binh thuong
+- [x] Cac trang fetch data khong con phu thuoc `useEffect` dai dong
 
 ## Phase 2 - Global state
 
-- [ ] Cài và cấu hình `zustand`
-- [ ] Xác định state nào nên ở store global
-- [ ] Tách state chat khỏi `ChatContext`
-- [ ] Tách auth/session state nếu cần
-- [ ] Giữ context chỉ cho những phần thật sự cần React Context
+- [ ] Cai va cau hinh `zustand`
+- [ ] Xac dinh state nao nen o store global
+- [ ] Tach state chat khoi `ChatContext`
+- [ ] Tach auth/session state neu can
+- [ ] Giu context chi cho nhung phan that su can React Context
 
 Checkpoint:
 
-- [ ] Sidebar / chat state vẫn đồng bộ
-- [ ] Socket events vẫn cập nhật đúng UI
+- [ ] Sidebar / chat state van dong bo
+- [ ] Socket events van cap nhat dung UI
 
 ## Phase 3 - Form stack
 
-- [ ] Cài `react-hook-form` và `zod`
-- [ ] Tạo schema cho login / register / forgot password / change password
-- [ ] Migrate từng form một
-- [ ] Chuẩn hóa message validation và error display
-- [ ] Giảm tối đa state nhập liệu thủ công bằng `useState`
+- [ ] Cai `react-hook-form` va `zod`
+- [ ] Tao schema cho login / register / forgot password / change password
+- [ ] Migrate tung form mot
+- [ ] Chuan hoa message validation va error display
+- [ ] Giam toi da state nhap lieu thu cong bang `useState`
 
 Checkpoint:
 
-- [ ] Form submit hoạt động ổn
-- [ ] Validation hiển thị đúng và nhất quán
+- [ ] Form submit hoat dong on
+- [ ] Validation hien thi dung va nhat quan
 
 ## Phase 4 - Animation
 
-- [ ] Cài `framer-motion`
+- [ ] Cai `framer-motion`
 - [ ] Animate modal open/close
 - [ ] Animate sidebar slide in/out
-- [ ] Animate page / panel transitions nếu cần
-- [ ] Giữ motion vừa đủ, không làm nặng UI
+- [ ] Animate page / panel transitions neu can
+- [ ] Giua motion vua du, khong lam nang UI
 
 Checkpoint:
 
-- [ ] Không có giật layout khi mở/đóng modal
-- [ ] Mobile vẫn mượt
+- [ ] Khong co giat layout khi mo/dong modal
+- [ ] Mobile van muot
 
 ## Phase 5 - Tailwind migration
 
-- [ ] Cài và cấu hình `tailwindcss`
-- [ ] Thiết lập design tokens / theme map nếu cần
-- [ ] Chọn 1 cụm UI nhỏ để migrate trước
-- [ ] Migrate dần các component dùng CSS nhiều nhất
-- [ ] Giảm dần phụ thuộc vào `src/index.css`
+- [ ] Cai va cau hinh `tailwindcss`
+- [ ] Thiet lap design tokens / theme map neu can
+- [ ] Chon 1 cum UI nho de migrate truoc
+- [ ] Migrate dan cac component dung CSS nhieu nhat
+- [ ] Giam dan phu thuoc vao `src/index.css`
 
 Checkpoint:
 
-- [ ] Build không lỗi
-- [ ] UI không bị lệch style khi chuyển từng phần
+- [ ] Build khong loi
+- [ ] UI khong bi lech style khi chuyen tung phan
 
-## Phase 6 - Dọn dẹp cuối
+## Phase 6 - Don dep cuoi
 
-- [ ] Xóa CSS / context / helper không còn dùng
-- [ ] Rà lại import thừa
-- [ ] Rà lại lint / type errors
-- [ ] Chạy test / build
-- [ ] Kiểm tra responsive desktop + mobile
+- [ ] Xoa CSS / context / helper khong con dung
+- [ ] Ra lai import thua
+- [ ] Ra lai lint / type errors
+- [ ] Chay test / build
+- [ ] Kiem tra responsive desktop + mobile
 
-## Ghi chú
+## Ghi chu
 
-- Ưu tiên refactor theo hướng an toàn: thay đổi nhỏ, kiểm tra sớm, rồi mới mở rộng.
-- Nếu một phase đụng quá nhiều file, chia tiếp thành nhiều patch nhỏ hơn.
+- Uu tien refactor theo huong an toan: thay doi nho, kiem tra som, roi moi mo rong.
+- Neu mot phase dung qua nhieu file, chia tiep thanh nhieu patch nho hon.

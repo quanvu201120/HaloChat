@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { usersApi, parseError } from '../services/api';
 import { useToast } from '../context/ToastContext';
-import { UserCircle, Save, Phone, MapPin, Mail, Shield, Activity, LogOut, Camera, Trash2, AlertTriangle, Edit2, ChevronLeft, MoreHorizontal } from 'lucide-react';
+import { UserCircle, Save, Phone, MapPin, Mail, Shield, Activity, LogOut, Camera, Trash2, AlertTriangle, Edit2, ChevronLeft } from 'lucide-react';
 import ConfirmModal from '../components/ConfirmModal';
 import UpdateEmailModal from '../components/UpdateEmailModal';
 import MediaLightbox from '../components/MediaLightbox';
@@ -22,7 +22,6 @@ export function ProfilePageContent() {
   const [isLoading, setIsLoading] = useState(false);
   const [logoutAllLoading, setLogoutAllLoading] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
-  const [isDeletingAvatar, setIsDeletingAvatar] = useState(false);
   const [isDisabling, setIsDisabling] = useState(false);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const [confirmAction, setConfirmAction] = useState<{
@@ -185,11 +184,10 @@ export function ProfilePageContent() {
       isDanger: true,
       confirmText: 'Vẫn muốn vô hiệu hóa',
       countdown: 5,
-      action: () => {
-        handleDisableSelfStep3();
-        return false;
-      }
-    });
+    action: () => {
+      handleDisableSelfStep3();
+    }
+  });
   };
 
   const handleDisableSelf = () => {
@@ -198,11 +196,10 @@ export function ProfilePageContent() {
       message: 'Bạn có chắc chắn muốn vô hiệu hóa tài khoản? Bạn sẽ bị đăng xuất và không thể đăng nhập lại cho đến khi liên hệ quản trị viên.',
       isDanger: true,
       confirmText: 'Tiếp tục',
-      action: () => {
+    action: () => {
         handleDisableSelfStep2();
-        return false;
-      }
-    });
+    }
+  });
   };
 
   return (

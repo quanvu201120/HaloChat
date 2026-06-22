@@ -44,14 +44,12 @@ export function subscribeAuthStorage(listener: () => void) {
 export const api = axios.create({
   baseURL: API_BASE_URL,
   withCredentials: true,
-  headers: { 'Content-Type': 'application/json' },
 });
 
 // Instance CHO COOKIE endpoints (refreshToken, logout) — giữ riêng để flow auth rõ ràng
 const apiWithCookies = axios.create({
   baseURL: API_BASE_URL,
   withCredentials: true,
-  headers: { 'Content-Type': 'application/json' },
 });
 
 // ===== Parse error message từ backend =====
@@ -280,9 +278,7 @@ export const usersApi = {
       });
     const formData = new FormData();
     formData.append('file', normalizedFile);
-    return api.patch('/users/avatar', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    });
+    return api.patch('/users/avatar', formData);
   },
 
   deleteAvatar: () => api.delete('/users/avatar'),
