@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect, useRef } from 'react';
 import {
   CornerUpLeft, Pencil, Trash2, Heart, Download,
 } from 'lucide-react';
@@ -22,6 +22,7 @@ interface Props {
   onEdit?: () => void;
   onDelete?: () => void;
   onToggleReaction?: (type: string) => void;
+  onMediaClick?: (media: any) => void;
 }
 
 export const REACTIONS = [
@@ -80,7 +81,7 @@ function isDownloadableMessage(message: Message) {
     return false;
   }
 
-  return message.type === 'image' || message.type === 'video' || message.type === 'file';
+  return message.type === 'file';
 }
 
 function isEmojiOnly(text?: string): boolean {
@@ -119,12 +120,70 @@ export default function MessageBubble({
   onEdit,
   onDelete,
   onToggleReaction,
+  onMediaClick,
 }: Props) {
   const [showActions, setShowActions] = useState(false);
   const [showStatus, setShowStatus] = useState(false);
   const [showReactionPicker, setShowReactionPicker] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
+  const actionsRef = useRef<HTMLDivElement>(null);
+  const reactionsRef = useRef<HTMLDivElement>(null);
   const toast = useToast();
+
+  // Dynamic positioning for mobile edge cases
+  useEffect(() => {
+    if (showActions && actionsRef.current && window.innerWidth <= 768) {
+      actionsRef.current.style.left = '';
+      actionsRef.current.style.right = '';
+      
+      const rect = actionsRef.current.getBoundingClientRect();
+      const padding = 8;
+      
+      if (isMe) {
+        if (rect.left < padding) {
+          actionsRef.current.style.right = 'auto';
+          actionsRef.current.style.left = '4px';
+        }
+      } else {
+        if (rect.right > window.innerWidth - padding) {
+          actionsRef.current.style.left = 'auto';
+          actionsRef.current.style.right = '4px';
+        }
+      }
+    }
+  }, [showActions, isMe]);
+
+  useEffect(() => {
+    if (showReactionPicker && reactionsRef.current && window.innerWidth <= 768) {
+      reactionsRef.current.style.left = '';
+      reactionsRef.current.style.right = '';
+      reactionsRef.current.style.transform = '';
+
+      const rect = reactionsRef.current.getBoundingClientRect();
+      const padding = 8;
+
+      if (rect.left < padding) {
+        reactionsRef.current.style.right = 'auto';
+        reactionsRef.current.style.left = `-${Math.max(0, actionsRef.current?.getBoundingClientRect().left || 0) - padding}px`;
+      } else if (rect.right > window.innerWidth - padding) {
+        reactionsRef.current.style.left = 'auto';
+        reactionsRef.current.style.right = `-${window.innerWidth - Math.min(window.innerWidth, actionsRef.current?.getBoundingClientRect().right || window.innerWidth) - padding}px`;
+      }
+    }
+  }, [showReactionPicker]);
+
+  useEffect(() => {
+    let timer: NodeJS.Timeout;
+    if (showActions) {
+      timer = setTimeout(() => {
+        setShowActions(false);
+        setShowReactionPicker(false);
+      }, 5000);
+    }
+    return () => {
+      if (timer) clearTimeout(timer);
+    };
+  }, [showActions]);
 
   const isOptimistic = message._id.startsWith('opt_');
   const isError = Boolean((message as Message & { _error?: boolean })._error);
@@ -194,11 +253,17 @@ export default function MessageBubble({
       link.click();
       link.remove();
       window.URL.revokeObjectURL(objectUrl);
-    } catch (error: any) {
-      toast.error(parseError(error) || 'Không tải được tệp');
-    } finally {
-      setIsDownloading(false);
-    }
+      } catch (err: any) {
+        console.error('Download error:', err);
+        if (err.response?.data instanceof Blob) {
+          const text = await err.response.data.text();
+          toast.error(`Lỗi backend: ${text}`);
+        } else {
+          toast.error(`Lỗi: ${err.message || 'Không tải được tệp'}`);
+        }
+      } finally {
+        setIsDownloading(false);
+      }
   };
 
   if (message.type === 'system') {
@@ -211,12 +276,13 @@ export default function MessageBubble({
 
   return (
     <div
-      className={`msg-row${isMe ? ' me' : ' other'}`}
+      className={`msg-row${isMe ? ' me' : ' other'}${showActions ? ' show-actions' : ''}`}
       onMouseEnter={() => setShowActions(true)}
       onMouseLeave={() => {
         setShowActions(false);
         setShowReactionPicker(false);
       }}
+      onClick={() => setShowActions((prev) => !prev)}
     >
       {showSenderName && senderName && (
         <div className="msg-sender-name" style={{ marginLeft: '40px' }}>{senderName}</div>
@@ -234,13 +300,11 @@ export default function MessageBubble({
           onClick={() => isMe && setShowStatus((prev) => !prev)}
         >
           {showActions && !message.isDeleted && (
-            <div className={`msg-actions${isMe ? ' me' : ' other'}`} onClick={(e) => e.stopPropagation()}>
+            <div ref={actionsRef} className={`msg-actions${isMe ? ' me' : ' other'}`} onClick={(e) => e.stopPropagation()}>
               <div
                 className="action-btn"
                 title="Cảm xúc"
                 style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                onMouseEnter={() => setShowReactionPicker(true)}
-                onMouseLeave={() => setShowReactionPicker(false)}
                 onClick={(e) => {
                   e.stopPropagation();
                   setShowReactionPicker((prev) => !prev);
@@ -248,7 +312,7 @@ export default function MessageBubble({
               >
                 <Heart size={14} style={{ fill: myReaction ? 'var(--error)' : 'transparent', color: myReaction ? 'var(--error)' : 'inherit' }} />
                 {showReactionPicker && (
-                  <div className={`msg-reaction-picker${isMe ? ' me' : ' other'}`} onClick={(e) => e.stopPropagation()}>
+                  <div ref={reactionsRef} className={`msg-reaction-picker${isMe ? ' me' : ' other'}`} onClick={(e) => e.stopPropagation()}>
                     {REACTIONS.map((reaction) => (
                       <button
                         key={reaction.type}
@@ -259,6 +323,7 @@ export default function MessageBubble({
                           e.stopPropagation();
                           onToggleReaction?.(reaction.type);
                           setShowReactionPicker(false);
+                          setShowActions(false);
                         }}
                       >
                         {reaction.icon}
@@ -267,7 +332,7 @@ export default function MessageBubble({
                   </div>
                 )}
               </div>
-              <button className="action-btn" title="Trả lời" onClick={onReply}>
+              <button className="action-btn" title="Trả lời" onClick={(e) => { e.stopPropagation(); onReply?.(); setShowActions(false); }}>
                 <CornerUpLeft size={14} />
               </button>
               {canDownload && typeof message.media === 'object' && message.media?.url && (
@@ -275,19 +340,19 @@ export default function MessageBubble({
                   className="action-btn"
                   type="button"
                   title={isDownloading ? 'Đang tải' : 'Tải xuống'}
-                  onClick={handleDownload}
+                  onClick={(e) => { handleDownload(e); setShowActions(false); }}
                   disabled={isDownloading}
                 >
                   <Download size={14} />
                 </button>
               )}
               {canEdit && (
-                <button className="action-btn" title="Sửa" onClick={onEdit}>
+                <button className="action-btn" title="Sửa" onClick={(e) => { e.stopPropagation(); onEdit?.(); setShowActions(false); }}>
                   <Pencil size={14} />
                 </button>
               )}
               {canDelete && (
-                <button className="action-btn" title="Thu hồi với mọi người" onClick={onDelete}>
+                <button className="action-btn" title="Thu hồi với mọi người" onClick={(e) => { e.stopPropagation(); onDelete?.(); setShowActions(false); }}>
                   <Trash2 size={14} />
                 </button>
               )}
@@ -316,24 +381,44 @@ export default function MessageBubble({
               alt={message.media.fileName || 'Ảnh'}
               className="msg-image"
               loading="lazy"
+              onClick={(e) => { e.stopPropagation(); onMediaClick?.(message.media); }}
+              style={{ cursor: onMediaClick ? 'pointer' : 'default' }}
             />
           ) : message.type === 'video' && typeof message.media === 'object' && message.media?.url ? (
-            <video className="msg-video" controls preload="metadata">
-              <source src={message.media.url} type={message.media.mimeType || 'video/mp4'} />
-            </video>
+            <div style={{ position: 'relative', cursor: onMediaClick ? 'pointer' : 'default', display: 'inline-block' }} onClick={(e) => { e.stopPropagation(); onMediaClick?.(message.media); }}>
+              <video className="msg-video" preload="metadata" style={{ display: 'block' }}>
+                <source src={message.media.url} type={message.media.mimeType || 'video/mp4'} />
+              </video>
+              <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: '48px', height: '48px', backgroundColor: 'rgba(0,0,0,0.5)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', pointerEvents: 'none' }}>
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+              </div>
+            </div>
           ) : message.type === 'voice' && typeof message.media === 'object' && message.media?.url ? (
             <AudioPlayer src={message.media.url} isMe={isMe} />
           ) : typeof message.media === 'object' && message.media?.url ? (
             <div className="msg-file-block" onClick={(event) => event.stopPropagation()}>
-              <a
+              <div
                 className="msg-file"
-                href={message.media.url}
-                target="_blank"
-                rel="noreferrer"
+                style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}
               >
-                <span>[File]</span>
-                <span>{message.media.fileName || 'Tệp đính kèm'}</span>
-              </a>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', overflow: 'hidden' }}>
+                  <span style={{ flexShrink: 0 }}>[File]</span>
+                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{message.media.fileName || 'Tệp đính kèm'}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={(e) => handleDownload(e as any)}
+                  disabled={isDownloading}
+                  style={{
+                    background: 'var(--surface-3)', border: 'none', color: 'inherit',
+                    cursor: 'pointer', padding: '6px', display: 'flex', alignItems: 'center',
+                    borderRadius: '4px', flexShrink: 0
+                  }}
+                  title="Tải xuống"
+                >
+                  <Download size={16} />
+                </button>
+              </div>
             </div>
           ) : (
             <span className="msg-text">{message.content || 'Tin nhắn đính kèm'}</span>

@@ -131,9 +131,14 @@ function createUploadFormData(file: File, replyTo?: string) {
   return formData;
 }
 
+export interface ListMessagesResponse {
+  messages: Message[];
+  nextCursor: string | null;
+}
+
 export const messagesApi = {
-  getList: (conversationId: string, cursor?: string) =>
-    api.get<Message[]>(`/conversations/${conversationId}/message`, {
+  getList: (conversationId: string, cursor?: string | null) =>
+    api.get<ListMessagesResponse | { data: ListMessagesResponse }>(`/conversations/${conversationId}/message`, {
       params: cursor ? { cursor } : undefined,
     }),
 

@@ -3,9 +3,10 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { usersApi, parseError } from '../services/api';
 import { useToast } from '../context/ToastContext';
-import { UserCircle, Save, Phone, MapPin, Mail, Shield, Activity, LogOut, Camera, Trash2, AlertTriangle, Edit2 } from 'lucide-react';
+import { UserCircle, Save, Phone, MapPin, Mail, Shield, Activity, LogOut, Camera, Trash2, AlertTriangle, Edit2, ChevronLeft, MoreHorizontal } from 'lucide-react';
 import ConfirmModal from '../components/ConfirmModal';
 import UpdateEmailModal from '../components/UpdateEmailModal';
+import MediaLightbox from '../components/MediaLightbox';
 
 export function ProfilePageContent() {
   const navigate = useNavigate();
@@ -33,6 +34,19 @@ export function ProfilePageContent() {
     action: () => void | Promise<void>;
   } | null>(null);
   const [isUpdateEmailModalOpen, setIsUpdateEmailModalOpen] = useState(false);
+  const [selectedMedia, setSelectedMedia] = useState<{ url: string; type: 'image' | 'video' } | null>(null);
+  const [isAvatarMenuOpen, setIsAvatarMenuOpen] = useState(false);
+  const menuRef = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setIsAvatarMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -121,21 +135,23 @@ export function ProfilePageContent() {
   const handleDeleteAvatar = () => {
     setConfirmAction({
       title: 'Xóa ảnh đại diện',
-      message: 'Bạn có chắc chắn muốn xóa ảnh đại diện?',
+      message: 'Bạn có chắc chắn muốn xóa ảnh đại diện của mình?',
       isDanger: true,
-      confirmText: 'Xóa',
-      action: async () => {
-        setIsDeletingAvatar(true);
-        try {
-          const res = await usersApi.deleteAvatar();
-          const updated = res.data?.data ?? res.data;
-          updateUser({ ...updated, avatar: undefined });
-          toast.success('Đã xóa ảnh đại diện!');
-        } catch (err: any) {
-          toast.error(parseError(err));
-        } finally {
-          setIsDeletingAvatar(false);
-        }
+      action: () => {
+        setConfirmAction(null);
+        (async () => {
+          setIsUploading(true);
+          try {
+            const res = await usersApi.deleteAvatar();
+            const updated = res.data?.data ?? res.data;
+            updateUser({ ...updated, avatar: undefined });
+            toast.success('Đã xóa ảnh đại diện');
+          } catch (err: any) {
+            toast.error(parseError(err));
+          } finally {
+            setIsUploading(false);
+          }
+        })();
       }
     });
   };
@@ -191,13 +207,22 @@ export function ProfilePageContent() {
 
   return (
     <div>
-      <div style={{ marginBottom: '24px' }}>
-        <h1 style={{ fontSize: '26px', fontWeight: 800, color: 'var(--text-primary)', marginBottom: '4px' }}>
-          Hồ sơ cá nhân
-        </h1>
-        <p style={{ color: 'var(--text-muted)', fontSize: '14px' }}>
-          Quản lý thông tin tài khoản của bạn
-        </p>
+      <div style={{ display: 'flex', alignItems: 'center', marginBottom: '24px', gap: '12px' }}>
+        <button 
+          className="icon-btn mobile-back-btn" 
+          onClick={() => navigate('/')}
+          title="Quay lại"
+        >
+          <ChevronLeft size={24} />
+        </button>
+        <div>
+          <h1 style={{ fontSize: '26px', fontWeight: 800, color: 'var(--text-primary)', marginBottom: '4px' }}>
+            Hồ sơ cá nhân
+          </h1>
+          <p style={{ color: 'var(--text-muted)', fontSize: '14px' }}>
+            Quản lý thông tin tài khoản của bạn
+          </p>
+        </div>
       </div>
 
       <div className="profile-section">
@@ -207,21 +232,78 @@ export function ProfilePageContent() {
             className="profile-avatar" 
             style={{ 
               position: 'relative', 
-              cursor: 'pointer',
+              cursor: user?.avatar?.url ? 'pointer' : 'default',
               backgroundImage: user?.avatar?.url ? `url(${user.avatar.url})` : 'none',
               backgroundSize: 'cover',
               backgroundPosition: 'center'
             }}
-            onClick={() => fileInputRef.current?.click()}
-            title="Đổi ảnh đại diện"
+            onClick={() => {
+              if (user?.avatar?.url) {
+                setSelectedMedia({ url: user.avatar.url, type: 'image' });
+              }
+            }}
+            title={user?.avatar?.url ? "Xem ảnh đại diện" : "Ảnh đại diện"}
           >
             {!user?.avatar?.url && getInitials()}
-            <div style={{
-              position: 'absolute', bottom: -5, right: -5, background: 'var(--accent-primary)',
-              borderRadius: '50%', width: 28, height: 28, display: 'flex', alignItems: 'center',
-              justifyContent: 'center', color: '#fff', border: '2px solid var(--bg-primary)'
-            }}>
-              {isUploading ? <div className="loading-spinner" style={{ width: 14, height: 14, borderColor: 'white', borderTopColor: 'transparent' }} /> : <Camera size={14} />}
+            
+            <div 
+              ref={menuRef}
+              style={{
+                position: 'absolute', bottom: -5, right: -5,
+              }}
+              onClick={(e) => {
+                e.stopPropagation();
+                if (user?.avatar?.url) {
+                  setIsAvatarMenuOpen(!isAvatarMenuOpen);
+                } else {
+                  fileInputRef.current?.click();
+                }
+              }}
+            >
+              <div style={{
+                background: 'var(--accent-primary)',
+                borderRadius: '50%', width: 28, height: 28, display: 'flex', alignItems: 'center',
+                justifyContent: 'center', color: '#fff', border: '2px solid var(--bg-primary)',
+                cursor: 'pointer'
+              }} title={user?.avatar?.url ? "Tùy chọn" : "Đổi ảnh đại diện"}>
+                {isUploading ? <div className="loading-spinner" style={{ width: 14, height: 14, borderColor: 'white', borderTopColor: 'transparent' }} /> : (user?.avatar?.url ? <Edit2 size={13} /> : <Camera size={14} />)}
+              </div>
+
+              {isAvatarMenuOpen && (
+                <div style={{
+                  position: 'absolute',
+                  top: '100%',
+                  right: 0,
+                  marginTop: '8px',
+                  background: 'var(--bg-primary)',
+                  border: '1px solid var(--border)',
+                  borderRadius: '8px',
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                  padding: '4px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '2px',
+                  zIndex: 10,
+                  minWidth: '120px',
+                  animation: 'fadeIn 0.2s ease-out'
+                }}>
+                  <button
+                    className="dropdown-item"
+                    style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', fontSize: '13px', background: 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left', width: '100%', borderRadius: '4px', color: 'var(--text-primary)' }}
+                    onClick={(e) => { e.stopPropagation(); setIsAvatarMenuOpen(false); fileInputRef.current?.click(); }}
+                  >
+                    <Camera size={14} /> Chọn mới
+                  </button>
+                  <button
+                    className="dropdown-item"
+                    style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', fontSize: '13px', color: 'var(--error)', background: 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left', width: '100%', borderRadius: '4px' }}
+                    onClick={(e) => { e.stopPropagation(); setIsAvatarMenuOpen(false); handleDeleteAvatar(); }}
+                    disabled={isUploading}
+                  >
+                    <Trash2 size={14} /> Xóa ảnh
+                  </button>
+                </div>
+              )}
             </div>
           </div>
           
@@ -232,17 +314,6 @@ export function ProfilePageContent() {
             accept="image/jpeg,image/png,image/gif"
             onChange={handleUploadAvatar}
           />
-
-          {user?.avatar?.url && (
-            <button 
-              className="btn btn-secondary" 
-              style={{ padding: '6px 12px', fontSize: '12px', marginTop: '8px' }}
-              onClick={handleDeleteAvatar}
-              disabled={isDeletingAvatar}
-            >
-              {isDeletingAvatar ? 'Đang xóa...' : <><Trash2 size={12} /> Xóa ảnh</>}
-            </button>
-          )}
           <div className="profile-name">{user?.name || 'Chưa đặt tên'}</div>
           <div className="profile-email">{user?.email}</div>
 
@@ -460,6 +531,14 @@ export function ProfilePageContent() {
         isOpen={isUpdateEmailModalOpen} 
         onClose={() => setIsUpdateEmailModalOpen(false)} 
       />
+
+      {selectedMedia && (
+        <MediaLightbox
+          medias={[{ _id: 'avatar', url: selectedMedia.url, resourceType: selectedMedia.type, provider: 'cloudinary' } as any]}
+          initialIndex={0}
+          onClose={() => setSelectedMedia(null)}
+        />
+      )}
     </div>
   );
 }

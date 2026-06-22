@@ -26,10 +26,12 @@ export default function ConfirmModal({
   countdown = 0,
 }: ConfirmModalProps) {
   const [timer, setTimer] = useState(countdown);
+  const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
       setTimer(countdown);
+      setIsLoading(false);
     }
   }, [isOpen, countdown]);
 
@@ -45,24 +47,30 @@ export default function ConfirmModal({
   return (
     <Modal
       isOpen={isOpen}
-      onClose={onCancel}
+      onClose={isLoading ? () => {} : onCancel}
       title={title}
       footer={
         <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', width: '100%' }}>
-          <button className="btn btn-secondary" onClick={onCancel}>
+          <button className="btn btn-secondary" onClick={onCancel} disabled={isLoading}>
             {cancelText}
           </button>
           <button
             className={`btn ${isDanger ? 'btn-danger' : 'btn-primary'}`}
-            disabled={timer > 0}
+            disabled={timer > 0 || isLoading}
             onClick={async () => {
-              const shouldClose = await onConfirm();
-              if (shouldClose !== false) {
-                onCancel();
+              try {
+                setIsLoading(true);
+                const shouldClose = await onConfirm();
+                if (shouldClose !== false) {
+                  onCancel();
+                }
+              } finally {
+                // If it doesn't close, or if there's an error, we turn off loading state
+                setIsLoading(false);
               }
             }}
           >
-            {timer > 0 ? `${confirmText} (${timer})` : confirmText}
+            {isLoading ? 'Đang xử lý...' : timer > 0 ? `${confirmText} (${timer})` : confirmText}
           </button>
         </div>
       }

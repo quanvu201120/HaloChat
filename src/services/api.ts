@@ -2,7 +2,11 @@ import axios from 'axios';
 
 const envApiOrigin = import.meta.env.VITE_API_ORIGIN?.trim();
 
-export const API_ORIGIN = envApiOrigin || 'http://localhost:8080';
+const defaultOrigin = window.location.hostname === 'localhost' 
+  ? 'http://localhost:8080' 
+  : `http://${window.location.hostname}:8080`;
+
+export const API_ORIGIN = envApiOrigin || defaultOrigin;
 export const API_BASE_URL = `${API_ORIGIN}/api/v1`;
 
 const AUTH_STORAGE_EVENT = 'halochat-auth-storage';
@@ -92,6 +96,20 @@ const attachToken = (config: any) => {
 api.interceptors.request.use(attachToken);
 apiWithCookies.interceptors.request.use(attachToken);
 
+let isRefreshing = false;
+let failedQueue: Array<{ resolve: (token: string) => void; reject: (err: any) => void }> = [];
+
+const processQueue = (error: any, token: string | null = null) => {
+  failedQueue.forEach((prom) => {
+    if (error) {
+      prom.reject(error);
+    } else if (token) {
+      prom.resolve(token);
+    }
+  });
+  failedQueue = [];
+};
+
 // Tự refresh token khi gặp 401
 api.interceptors.response.use(
   (res) => res,
@@ -111,20 +129,44 @@ api.interceptors.response.use(
     const hasAccessToken = Boolean(localStorage.getItem('accessToken'));
 
     if (status === 401 && !original._retry && !isAuthEndpoint && hasAccessToken) {
+      if (isRefreshing) {
+        return new Promise(function (resolve, reject) {
+          failedQueue.push({ resolve, reject });
+        })
+          .then((token) => {
+            original.headers = original.headers || {};
+            original.headers.Authorization = `Bearer ${token}`;
+            return api(original);
+          })
+          .catch((err) => {
+            return Promise.reject(err);
+          });
+      }
+
       original._retry = true;
+      isRefreshing = true;
+
       try {
         const { data } = await apiWithCookies.post('/auth/refreshToken');
         const resData = data?.data ?? data;
         const newToken = resData?.accessToken || (typeof resData === 'string' ? resData : null);
+        
         if (typeof newToken === 'string' && newToken) {
           persistAccessToken(newToken);
           original.headers = original.headers || {};
           original.headers.Authorization = `Bearer ${newToken}`;
+          processQueue(null, newToken);
           return api(original);
+        } else {
+          throw new Error('Invalid token format');
         }
-      } catch {
+      } catch (err) {
+        processQueue(err, null);
         clearStoredAuth();
         window.location.href = '/login';
+        return Promise.reject(err);
+      } finally {
+        isRefreshing = false;
       }
     }
     return Promise.reject(error);

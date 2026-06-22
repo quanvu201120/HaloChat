@@ -1,19 +1,27 @@
+/* eslint-disable react-hooks/set-state-in-effect */
+/* eslint-disable react-hooks/purity */
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import {
   useState, useEffect, useRef, useCallback, useMemo,
 } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   Send, Phone, Video, Info, Smile, Paperclip, Image, Mic, Square, X,
-  Camera, Trash2, LogOut, ShieldOff, Check, Pencil, UserPlus, UserMinus, Crown, History, ChevronDown, ChevronRight, FileText, Search
+  Camera, Trash2, LogOut, ShieldOff, Check, Pencil, UserPlus, UserMinus, Crown, History, ChevronDown, ChevronRight, ChevronLeft, FileText, Search, Plus, Download, Edit2
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useChat } from '../context/ChatContext';
 import {
   conversationsApi, normalizeConversation, type Conversation,
 } from '../services/conversations';
+import MediaLightbox from '../components/MediaLightbox';
 import {
   messagesApi, normalizeMessage, normalizeMessages, type Message,
 } from '../services/messages';
+import {
+  mediaApi, MediaResourceTypeEnum, type MediaResponse,
+} from '../services/media';
+import { api } from '../services/api';
 import {
   joinConversation,
   sendTextMessage,
@@ -91,7 +99,14 @@ function isLikelyOptimisticMatch(candidate: LocalMessage, incoming: Message, cur
   return candidateMedia.fileName === incomingMedia.fileName && candidateMedia.size === incomingMedia.size;
 }
 
-const globalMessagesCache: Record<string, { messages: LocalMessage[], hasMore: boolean }> = {};
+const globalMessagesCache: Record<string, { messages: LocalMessage[], hasMore: boolean, nextCursor: string | null }> = {};
+
+type MediaCacheEntry = {
+  medias: MediaResponse[];
+  nextCursor: string | null;
+  hasMore: boolean;
+};
+const globalMediaCache: Record<string, Partial<Record<MediaResourceTypeEnum, MediaCacheEntry>>> = {};
 
 export default function ChatPage() {
   const { conversationId } = useParams<{ conversationId: string }>();
@@ -118,8 +133,23 @@ export default function ChatPage() {
   const [isLoadingMsgs, setIsLoadingMsgs] = useState(true);
   const [isFetchingMore, setIsFetchingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [text, setText] = useState('');
   const [replyTarget, setReplyTarget] = useState<Message | null>(null);
+  
+  const [isGroupAvatarMenuOpen, setIsGroupAvatarMenuOpen] = useState(false);
+  const [selectedGroupMedia, setSelectedGroupMedia] = useState<{ url: string; type: 'image' | 'video' } | null>(null);
+  const groupAvatarMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (groupAvatarMenuRef.current && !groupAvatarMenuRef.current.contains(event.target as Node)) {
+        setIsGroupAvatarMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [voiceBlob, setVoiceBlob] = useState<Blob | null>(null);
   const [voiceUrl, setVoiceUrl] = useState<string>('');
@@ -127,16 +157,27 @@ export default function ChatPage() {
   const [isRecordingVoice, setIsRecordingVoice] = useState(false);
   const [recordingDuration, setRecordingDuration] = useState(0);
   const [showInfo, setShowInfo] = useState(false);
-  const [isMembersExpanded, setIsMembersExpanded] = useState(true);
+  const [isMembersExpanded, setIsMembersExpanded] = useState(false);
   const [isImagesExpanded, setIsImagesExpanded] = useState(false);
   const [isVideosExpanded, setIsVideosExpanded] = useState(false);
   const [isFilesExpanded, setIsFilesExpanded] = useState(false);
+
+  const [sidebarMedia, setSidebarMedia] = useState<Partial<Record<MediaResourceTypeEnum, MediaResponse[]>>>({});
+  const [sidebarMediaCursor, setSidebarMediaCursor] = useState<Partial<Record<MediaResourceTypeEnum, string | null>>>({});
+  const [sidebarMediaHasMore, setSidebarMediaHasMore] = useState<Partial<Record<MediaResourceTypeEnum, boolean>>>({});
+  const [isLoadingSidebarMedia, setIsLoadingSidebarMedia] = useState<Partial<Record<MediaResourceTypeEnum, boolean>>>({});
+  const [hasFetchedSidebarMedia, setHasFetchedSidebarMedia] = useState<Partial<Record<MediaResourceTypeEnum, boolean>>>({});
+
+  const [lightboxMedias, setLightboxMedias] = useState<MediaResponse[] | null>(null);
+  const [lightboxIndex, setLightboxIndex] = useState<number>(0);
+
   const [editingGroupName, setEditingGroupName] = useState(false);
   const [groupNameInput, setGroupNameInput] = useState('');
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   const [showAddMemberModal, setShowAddMemberModal] = useState(false);
   const [showOnlineModal, setShowOnlineModal] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [showMediaMenu, setShowMediaMenu] = useState(false);
   const [readersModalData, setReadersModalData] = useState<{ isOpen: boolean; readers: string[] }>({ isOpen: false, readers: [] });
   const [reactionsModalData, setReactionsModalData] = useState<{ isOpen: boolean; message: Message | null }>({ isOpen: false, message: null });
   const [confirmAction, setConfirmAction] = useState<{
@@ -157,7 +198,25 @@ export default function ChatPage() {
   const imageInputRef = useRef<HTMLInputElement>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const emojiPickerRef = useRef<HTMLDivElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  
+  // Handle click outside for Emoji Picker
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent | TouchEvent) => {
+      if (showEmojiPicker && emojiPickerRef.current && !emojiPickerRef.current.contains(event.target as Node)) {
+        setShowEmojiPicker(false);
+      }
+    };
+    
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('touchstart', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
+    };
+  }, [showEmojiPicker]);
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const mediaChunksRef = useRef<Blob[]>([]);
   const isCancelledVoiceRef = useRef(false);
@@ -219,9 +278,10 @@ export default function ChatPage() {
       return 'Không hoạt động';
     }
 
-    return `${conv.users.length} thành viên`;
+    const onlineCount = conv.users.filter((u) => u._id === currentUserId || online[u._id] === true).length;
+    return `Online ${onlineCount}/${conv.users.length}`;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [conv, isOtherOnline, otherUser, online]);
+  }, [conv, isOtherOnline, otherUser, online, currentUserId]);
 
   const stopVoiceStream = useCallback(() => {
     mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
@@ -370,20 +430,27 @@ export default function ChatPage() {
       setMessages([]);
       setLoadedMessagesConversationId('');
       setIsLoadingMsgs(false);
+      prevVisibleLengthRef.current = 0;
+      isPrependingRef.current = false;
       return;
     }
     const requestId = ++messagesRequestIdRef.current;
     
+    prevVisibleLengthRef.current = 0;
+    isPrependingRef.current = false;
+
     const cached = globalMessagesCache[activeConversationId];
     if (cached) {
       setMessages(cached.messages);
       setHasMore(cached.hasMore);
+      setNextCursor(cached.nextCursor);
       setIsLoadingMsgs(false);
       setLoadedMessagesConversationId(activeConversationId);
     } else {
       setIsLoadingMsgs(true);
       setMessages([]);
       setHasMore(true);
+      setNextCursor(null);
       setLoadedMessagesConversationId('');
     }
 
@@ -397,11 +464,16 @@ export default function ChatPage() {
     messagesApi.getList(activeConversationId)
       .then((res) => {
         if (messagesRequestIdRef.current !== requestId) return;
-        const list = normalizeMessages((res.data as any)?.data ?? res.data);
+        const responseData = (res.data as any)?.data ?? res.data;
+        const listRaw = responseData?.messages ?? responseData;
+        const cursor = responseData?.nextCursor ?? null;
+
+        const list = normalizeMessages(listRaw);
         const ordered = [...list].reverse();
         setMessages(ordered);
         setLoadedMessagesConversationId(activeConversationId);
-        setHasMore(list.length === 20);
+        setHasMore(cursor !== null ? !!cursor : list.length === 20);
+        setNextCursor(cursor);
         markConversationRead(ordered[ordered.length - 1]);
       })
       .catch(() => {
@@ -415,6 +487,149 @@ export default function ChatPage() {
     clearUnread(activeConversationId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeConversationId]);
+
+  // --- SIDEBAR MEDIA LOGIC ---
+  useEffect(() => {
+    if (activeConversationId) {
+      const cached = globalMediaCache[activeConversationId];
+      if (cached) {
+        setSidebarMedia({
+          [MediaResourceTypeEnum.IMAGE]: cached[MediaResourceTypeEnum.IMAGE]?.medias || [],
+          [MediaResourceTypeEnum.VIDEO]: cached[MediaResourceTypeEnum.VIDEO]?.medias || [],
+          [MediaResourceTypeEnum.FILE]: cached[MediaResourceTypeEnum.FILE]?.medias || [],
+        });
+        setSidebarMediaCursor({
+          [MediaResourceTypeEnum.IMAGE]: cached[MediaResourceTypeEnum.IMAGE]?.nextCursor || null,
+          [MediaResourceTypeEnum.VIDEO]: cached[MediaResourceTypeEnum.VIDEO]?.nextCursor || null,
+          [MediaResourceTypeEnum.FILE]: cached[MediaResourceTypeEnum.FILE]?.nextCursor || null,
+        });
+        setSidebarMediaHasMore({
+          [MediaResourceTypeEnum.IMAGE]: cached[MediaResourceTypeEnum.IMAGE]?.hasMore || false,
+          [MediaResourceTypeEnum.VIDEO]: cached[MediaResourceTypeEnum.VIDEO]?.hasMore || false,
+          [MediaResourceTypeEnum.FILE]: cached[MediaResourceTypeEnum.FILE]?.hasMore || false,
+        });
+        setHasFetchedSidebarMedia({
+          [MediaResourceTypeEnum.IMAGE]: !!cached[MediaResourceTypeEnum.IMAGE],
+          [MediaResourceTypeEnum.VIDEO]: !!cached[MediaResourceTypeEnum.VIDEO],
+          [MediaResourceTypeEnum.FILE]: !!cached[MediaResourceTypeEnum.FILE],
+        });
+      } else {
+        setSidebarMedia({});
+        setSidebarMediaCursor({});
+        setSidebarMediaHasMore({});
+        setHasFetchedSidebarMedia({});
+      }
+    }
+  }, [activeConversationId]);
+
+  const fetchSidebarMedia = useCallback(async (type: MediaResourceTypeEnum, isLoadMore = false) => {
+    if (!activeConversationId) return;
+    if (isLoadingSidebarMedia[type]) return;
+    if (isLoadMore && !sidebarMediaHasMore[type]) return;
+    if (!isLoadMore && hasFetchedSidebarMedia[type]) return;
+
+    setIsLoadingSidebarMedia((prev) => ({ ...prev, [type]: true }));
+    const cursor = isLoadMore ? sidebarMediaCursor[type] : null;
+
+    try {
+      const res = await mediaApi.getListByConversation(activeConversationId, type, cursor);
+      const responseData = (res.data as any)?.data ?? res.data;
+      const fetchedMedias = responseData?.medias ?? responseData ?? [];
+      const nextCursor = responseData?.nextCursor ?? null;
+
+      setSidebarMedia((prev) => {
+        const existing = isLoadMore ? (prev[type] || []) : [];
+        const fetchedIds = new Set(fetchedMedias.map((m: any) => m._id));
+        const unmergedAppended = !isLoadMore ? (prev[type] || []).filter((m) => !fetchedIds.has(m._id)) : [];
+        const updated = [...existing, ...unmergedAppended, ...fetchedMedias];
+        
+        if (!globalMediaCache[activeConversationId]) globalMediaCache[activeConversationId] = {};
+        globalMediaCache[activeConversationId]![type] = {
+          medias: updated,
+          nextCursor,
+          hasMore: !!nextCursor,
+        };
+
+        return { ...prev, [type]: updated };
+      });
+      setSidebarMediaCursor((prev) => ({ ...prev, [type]: nextCursor }));
+      setSidebarMediaHasMore((prev) => ({ ...prev, [type]: !!nextCursor }));
+      setHasFetchedSidebarMedia((prev) => ({ ...prev, [type]: true }));
+    } catch (err) {
+      console.warn(`Failed to load ${type} media`, err);
+      if (!isLoadMore) {
+        setSidebarMedia((prev) => ({ ...prev, [type]: prev[type] || [] }));
+      }
+    } finally {
+      setIsLoadingSidebarMedia((prev) => ({ ...prev, [type]: false }));
+    }
+  }, [activeConversationId, sidebarMedia, sidebarMediaCursor, sidebarMediaHasMore, isLoadingSidebarMedia, hasFetchedSidebarMedia]);
+
+  const appendSidebarMedia = useCallback((message: Message) => {
+    if (!message.media || typeof message.media === 'string') return;
+    
+    const mediaObj = message.media as any;
+    
+    let type = mediaObj.resourceType as MediaResourceTypeEnum;
+    if (!type || (type as any) === 'voice') {
+      const mime = mediaObj.mimeType || '';
+      type = MediaResourceTypeEnum.FILE;
+      if (mime.startsWith('image/')) type = MediaResourceTypeEnum.IMAGE;
+      else if (mime.startsWith('video/')) type = MediaResourceTypeEnum.VIDEO;
+      else if (mime.startsWith('audio/')) type = MediaResourceTypeEnum.FILE;
+    }
+    
+    setSidebarMedia((prev) => {
+      const existing = prev[type] || [];
+      if (existing.some((m) => m._id === mediaObj._id)) return prev;
+
+      const newMedia = {
+        _id: mediaObj._id,
+        url: mediaObj.url || '',
+        fileName: mediaObj.fileName,
+        mimeType: mediaObj.mimeType,
+        size: mediaObj.size,
+        publicId: mediaObj.publicId,
+        resourceType: type,
+        owner: typeof message.sender === 'object' ? message.sender._id : message.sender,
+        conversation: message.conversationId,
+        createdAt: message.createdAt,
+      } as any;
+
+      return { ...prev, [type]: [newMedia, ...existing] };
+    });
+  }, []);
+
+  const removeSidebarMedia = useCallback((mediaId: string) => {
+    setSidebarMedia((prev) => {
+      const next = { ...prev };
+      let changed = false;
+      Object.keys(next).forEach((type) => {
+        const t = type as MediaResourceTypeEnum;
+        if (next[t]) {
+          const filtered = next[t]!.filter((m) => m._id !== mediaId);
+          if (filtered.length !== next[t]!.length) {
+            next[t] = filtered;
+            changed = true;
+          }
+        }
+      });
+      return changed ? next : prev;
+    });
+  }, []);
+
+  useEffect(() => {
+    if (isImagesExpanded) fetchSidebarMedia(MediaResourceTypeEnum.IMAGE);
+  }, [isImagesExpanded, fetchSidebarMedia]);
+
+  useEffect(() => {
+    if (isVideosExpanded) fetchSidebarMedia(MediaResourceTypeEnum.VIDEO);
+  }, [isVideosExpanded, fetchSidebarMedia]);
+
+  useEffect(() => {
+    if (isFilesExpanded) fetchSidebarMedia(MediaResourceTypeEnum.FILE);
+  }, [isFilesExpanded, fetchSidebarMedia]);
+  // ---------------------------
 
   useEffect(() => {
     if (!activeConversationId || !socket) return;
@@ -441,6 +656,8 @@ export default function ChatPage() {
         return [...prev, message];
       });
 
+      appendSidebarMedia(message);
+
       if (getSenderId(message) !== currentUserId) {
         markConversationRead(message);
       }
@@ -458,16 +675,23 @@ export default function ChatPage() {
 
     const onMessageDeleted = (data: { messageId: string; conversationId: string }) => {
       if (normalizeId(data.conversationId) !== activeConversationId) return;
-      setMessages((prev) => prev.map((item) => (
-        item._id === data.messageId
-          ? {
-            ...item,
-            isDeleted: true,
-            content: '',
-            reactions: [],
-          }
-          : item
-      )));
+      setMessages((prev) => {
+        const target = prev.find((m) => m._id === data.messageId);
+        if (target && target.media) {
+          const mediaId = typeof target.media === 'object' ? target.media._id : target.media;
+          removeSidebarMedia(mediaId);
+        }
+        return prev.map((item) => (
+          item._id === data.messageId
+            ? {
+              ...item,
+              isDeleted: true,
+              content: '',
+              reactions: [],
+            }
+            : item
+        ));
+      });
       if (replyTarget?._id === data.messageId) {
         setReplyTarget(null);
       }
@@ -537,6 +761,8 @@ export default function ChatPage() {
     navigate,
     toast,
     updateConversationReadReceipt,
+    appendSidebarMedia,
+    removeSidebarMedia,
   ]);
 
   // Scroll to bottom only on first load of a conversation or new messages sent/received.
@@ -561,12 +787,24 @@ export default function ChatPage() {
 
     // If count decreased (e.g. switched conversation) or jumped a lot → scroll to bottom
     if (currLen === 0) return;
-    messagesEndRef.current?.scrollIntoView({ behavior: prevLen === 0 ? 'instant' : 'smooth' });
+    
+    if (prevLen === 0) {
+      const container = messagesContainerRef.current;
+      if (container) {
+        container.scrollTop = container.scrollHeight;
+      }
+    } else {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
   }, [visibleMessages.length]);
 
   const handleScroll = useCallback(() => {
     const container = messagesContainerRef.current;
     if (!container || isFetchingMore || !hasMore || visibleMessages.length === 0 || !activeConversationId) return;
+    
+    // Do not fetch more if we haven't finished the initial scroll
+    if (prevVisibleLengthRef.current === 0) return;
+    
     if (container.scrollTop > 60) return;
 
     const oldest = visibleMessages[0];
@@ -577,10 +815,15 @@ export default function ChatPage() {
     isPrependingRef.current = true;
 
     setIsFetchingMore(true);
-    messagesApi.getList(activeConversationId, oldest.createdAt)
+    messagesApi.getList(activeConversationId, nextCursor || oldest.createdAt)
       .then((res) => {
-        const older = normalizeMessages((res.data as any)?.data ?? res.data);
-        if (older.length < 20) setHasMore(false);
+        const responseData = (res.data as any)?.data ?? res.data;
+        const listRaw = responseData?.messages ?? responseData;
+        const cursor = responseData?.nextCursor ?? null;
+
+        const older = normalizeMessages(listRaw);
+        if (older.length < 20 && cursor === null) setHasMore(false);
+        setNextCursor(cursor);
         setMessages((prev) => [...older.reverse(), ...prev]);
       })
       .catch(() => { isPrependingRef.current = false; })
@@ -611,7 +854,8 @@ export default function ChatPage() {
     setMessages((prev) => prev.map((item) => (
       item._id === optimisticId ? { ...nextMessage, _error: false } : item
     )));
-  }, []);
+    appendSidebarMedia(nextMessage);
+  }, [appendSidebarMedia]);
 
   const replaceMessageLocally = useCallback((messageId: string, updater: (message: LocalMessage) => LocalMessage) => {
     setMessages((prev) => prev.map((item) => (
@@ -928,15 +1172,28 @@ export default function ChatPage() {
     }
   };
 
-  const handleDeleteGroupAvatar = async () => {
+  const handleDeleteGroupAvatar = () => {
     if (!activeConversationId) return;
-    try {
-      await conversationsApi.deleteAvatar(activeConversationId);
-      setConv((prev) => prev ? { ...prev, avatar: undefined } : prev);
-      toast.success('Đã xóa ảnh đại diện nhóm');
-    } catch {
-      toast.error('Xóa ảnh đại diện thất bại');
-    }
+    setConfirmAction({
+      title: 'Xóa ảnh đại diện nhóm',
+      message: 'Bạn có chắc chắn muốn xóa ảnh đại diện này?',
+      isDanger: true,
+      action: () => {
+        setConfirmAction(null);
+        (async () => {
+          setIsUploadingAvatar(true);
+          try {
+            await conversationsApi.deleteAvatar(activeConversationId);
+            setConv((prev) => prev ? { ...prev, avatar: undefined } : prev);
+            toast.success('Đã xóa ảnh đại diện nhóm');
+          } catch {
+            toast.error('Xóa ảnh đại diện thất bại');
+          } finally {
+            setIsUploadingAvatar(false);
+          }
+        })();
+      }
+    });
   };
 
   const handleUpdateGroupName = async () => {
@@ -1075,15 +1332,23 @@ export default function ChatPage() {
 
   useEffect(() => {
     if (activeConversationId && loadedMessagesConversationId === activeConversationId) {
-      globalMessagesCache[activeConversationId] = { messages, hasMore };
+      globalMessagesCache[activeConversationId] = { messages, hasMore, nextCursor };
     }
-  }, [messages, hasMore, activeConversationId, loadedMessagesConversationId]);
+  }, [messages, hasMore, nextCursor, activeConversationId, loadedMessagesConversationId]);
 
   return (
     <div className="chat-page-layout">
       <div className="chat-page">
       <div className="chat-header">
         <div className="chat-header-info">
+          <button 
+            className="icon-btn mobile-back-btn" 
+            onClick={() => navigate('/')}
+            title="Quay lại"
+            style={{ marginRight: '8px' }}
+          >
+            <ChevronLeft size={20} />
+          </button>
           <div className="chat-header-avatar">
             {headerAvatarUrl ? (
               <img src={headerAvatarUrl} alt={convName} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
@@ -1170,6 +1435,10 @@ export default function ChatPage() {
                 onEdit={() => handleEditMessage(message)}
                 onDelete={() => handleDeleteMessage(message)}
                 onToggleReaction={(reactionType: string) => handleToggleReaction(message, reactionType)}
+                onMediaClick={(media) => {
+                  setLightboxMedias([media]);
+                  setLightboxIndex(0);
+                }}
               />
             );
           })
@@ -1269,23 +1538,40 @@ export default function ChatPage() {
           </div>
         ) : (
           <>
-            <button className="icon-btn" title="Đính kèm file" onClick={() => fileInputRef.current?.click()}>
-              <Paperclip size={24} />
-            </button>
-            <button className="icon-btn" title="Gửi ảnh" onClick={() => imageInputRef.current?.click()}>
-              <Image size={24} />
-            </button>
-            <button className="icon-btn" title="Gửi video" onClick={() => videoInputRef.current?.click()}>
-              <Video size={24} />
-            </button>
-            <button
-              className="icon-btn"
-              title="Ghi âm"
-              onClick={startVoiceRecording}
-            >
-              <Mic size={24} />
-            </button>
+            <div className="composer-media-actions">
+              <button 
+                className={`icon-btn mobile-plus-btn${showMediaMenu ? ' active' : ''}`}
+                title="Đính kèm"
+                onClick={() => setShowMediaMenu((prev) => !prev)}
+              >
+                <Plus size={24} />
+              </button>
+              
+              {showMediaMenu && (
+                <div className="media-actions-backdrop" onClick={() => setShowMediaMenu(false)} />
+              )}
+              
+              <div className={`media-actions-menu${showMediaMenu ? ' open' : ''}`}>
+                <button className="icon-btn" title="Đính kèm file" onClick={() => { fileInputRef.current?.click(); setShowMediaMenu(false); }}>
+                  <Paperclip size={24} />
+                </button>
+                <button className="icon-btn" title="Gửi ảnh" onClick={() => { imageInputRef.current?.click(); setShowMediaMenu(false); }}>
+                  <Image size={24} />
+                </button>
+                <button className="icon-btn" title="Gửi video" onClick={() => { videoInputRef.current?.click(); setShowMediaMenu(false); }}>
+                  <Video size={24} />
+                </button>
+                <button
+                  className="icon-btn"
+                  title="Ghi âm"
+                  onClick={() => { startVoiceRecording(); setShowMediaMenu(false); }}
+                >
+                  <Mic size={24} />
+                </button>
+              </div>
+            </div>
             <input
+              ref={inputRef}
               className="composer-input"
               placeholder={editingMessageId ? 'Chỉnh sửa tin nhắn...' : 'Nhập tin nhắn...'}
               value={text}
@@ -1299,22 +1585,27 @@ export default function ChatPage() {
               onBlur={() => {
                 if (activeConversationId) stopTyping(activeConversationId);
               }}
-              autoFocus
             />
             <div style={{ position: 'relative' }}>
               <button 
                 className={`icon-btn${showEmojiPicker ? ' active' : ''}`} 
                 title="Emoji"
-                onClick={() => setShowEmojiPicker((prev) => !prev)}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  if (!showEmojiPicker) {
+                    inputRef.current?.blur();
+                  }
+                  setShowEmojiPicker((prev) => !prev);
+                }}
               >
                 <Smile size={24} />
               </button>
               {showEmojiPicker && (
-                <div style={{ position: 'absolute', bottom: '100%', right: 0, zIndex: 50, marginBottom: '8px' }}>
-                  <div 
-                    style={{ position: 'fixed', inset: 0, zIndex: -1 }} 
-                    onClick={() => setShowEmojiPicker(false)}
-                  />
+                <div 
+                  ref={emojiPickerRef}
+                  style={{ position: 'absolute', bottom: '100%', right: 0, zIndex: 50, marginBottom: '8px' }}
+                >
                   <EmojiPicker 
                     onEmojiClick={(emojiData) => {
                       setText((prev) => prev + emojiData.emoji);
@@ -1322,6 +1613,7 @@ export default function ChatPage() {
                     }}
                     lazyLoadEmojis={true}
                     searchPlaceHolder="Tìm kiếm Emoji..."
+                    autoFocusSearch={false}
                   />
                 </div>
               )}
@@ -1340,6 +1632,12 @@ export default function ChatPage() {
     </div>
 
       {/* Info Sidebar */}
+      {showInfo && (
+        <div 
+          className="info-sidebar-backdrop" 
+          onClick={() => setShowInfo(false)} 
+        />
+      )}
       <div className={`info-sidebar${showInfo ? ' open' : ''}`}>
         <div className="info-sidebar-header">
           <span>Thông tin hội thoại</span>
@@ -1363,7 +1661,15 @@ export default function ChatPage() {
           {/* Avatar & Name */}
           <div className="info-sidebar-profile">
             <div className="info-sidebar-avatar-wrap">
-              <div className="info-sidebar-avatar">
+              <div 
+                className="info-sidebar-avatar"
+                style={{ cursor: conv?.avatar?.url ? 'pointer' : 'default' }}
+                onClick={() => {
+                  if (conv?.avatar?.url) {
+                    setSelectedGroupMedia({ url: conv.avatar.url, type: 'image' });
+                  }
+                }}
+              >
                 {conv?.avatar?.url ? (
                   <img src={conv.avatar.url} alt={convName} />
                 ) : headerAvatarUrl ? (
@@ -1371,29 +1677,72 @@ export default function ChatPage() {
                 ) : (
                   <span>{convName.slice(0, 2).toUpperCase()}</span>
                 )}
+                
                 {isUploadingAvatar && (
                   <div className="info-avatar-uploading">
                     <div className="loading-spinner" style={{ width: 20, height: 20 }} />
                   </div>
                 )}
               </div>
+
               {isGroupAdmin && conv?.isGroup && (
-                <div className="info-avatar-actions">
-                  <button
-                    className="info-avatar-btn"
-                    title="Đổi ảnh đại diện nhóm"
-                    onClick={() => groupAvatarInputRef.current?.click()}
-                  >
-                    <Camera size={14} />
-                  </button>
-                  {conv.avatar?.url && (
-                    <button
-                      className="info-avatar-btn danger"
-                      title="Xóa ảnh đại diện"
-                      onClick={handleDeleteGroupAvatar}
-                    >
-                      <Trash2 size={14} />
-                    </button>
+                <div 
+                  ref={groupAvatarMenuRef}
+                  style={{
+                    position: 'absolute', bottom: -5, right: -5,
+                  }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (conv?.avatar?.url) {
+                      setIsGroupAvatarMenuOpen(!isGroupAvatarMenuOpen);
+                    } else {
+                      groupAvatarInputRef.current?.click();
+                    }
+                  }}
+                >
+                  <div style={{
+                    background: 'var(--accent-primary)',
+                    borderRadius: '50%', width: 28, height: 28, display: 'flex', alignItems: 'center',
+                    justifyContent: 'center', color: '#fff', border: '2px solid var(--bg-primary)',
+                    cursor: 'pointer'
+                  }} title={conv?.avatar?.url ? "Tùy chọn" : "Đổi ảnh đại diện nhóm"}>
+                    {isUploadingAvatar ? <div className="loading-spinner" style={{ width: 14, height: 14, borderColor: 'white', borderTopColor: 'transparent' }} /> : (conv?.avatar?.url ? <Edit2 size={13} /> : <Camera size={14} />)}
+                  </div>
+
+                  {isGroupAvatarMenuOpen && (
+                    <div style={{
+                      position: 'absolute',
+                      top: '100%',
+                      right: 0,
+                      marginTop: '8px',
+                      background: 'var(--bg-primary)',
+                      border: '1px solid var(--border)',
+                      borderRadius: '8px',
+                      boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                      padding: '4px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '2px',
+                      zIndex: 10,
+                      minWidth: '120px',
+                      animation: 'fadeIn 0.2s ease-out'
+                    }}>
+                      <button
+                        className="dropdown-item"
+                        style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', fontSize: '13px', background: 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left', width: '100%', borderRadius: '4px', color: 'var(--text-primary)' }}
+                        onClick={(e) => { e.stopPropagation(); setIsGroupAvatarMenuOpen(false); groupAvatarInputRef.current?.click(); }}
+                      >
+                        <Camera size={14} /> Chọn mới
+                      </button>
+                      <button
+                        className="dropdown-item"
+                        style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', fontSize: '13px', color: 'var(--error)', background: 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left', width: '100%', borderRadius: '4px' }}
+                        onClick={(e) => { e.stopPropagation(); setIsGroupAvatarMenuOpen(false); handleDeleteGroupAvatar(); }}
+                        disabled={isUploadingAvatar}
+                      >
+                        <Trash2 size={14} /> Xóa ảnh
+                      </button>
+                    </div>
                   )}
                 </div>
               )}
@@ -1554,8 +1903,47 @@ export default function ChatPage() {
               <Image size={16} style={{ color: 'var(--text-secondary)' }} />
             </div>
             {isImagesExpanded && (
-              <div style={{ padding: '16px 0', textAlign: 'center', color: 'var(--text-secondary)', fontSize: '13px' }}>
-                Chưa có hình ảnh nào
+              <div style={{ padding: '16px 0', color: 'var(--text-secondary)', fontSize: '13px' }}>
+                {isLoadingSidebarMedia[MediaResourceTypeEnum.IMAGE] && !sidebarMedia[MediaResourceTypeEnum.IMAGE]?.length ? (
+                  <div style={{ textAlign: 'center' }}>Đang tải...</div>
+                ) : sidebarMedia[MediaResourceTypeEnum.IMAGE]?.length ? (
+                  <>
+                    <div 
+                      style={{ 
+                        display: 'grid', 
+                        gridTemplateColumns: 'repeat(3, 1fr)', 
+                        gap: '2px',
+                        maxHeight: '240px',
+                        overflowY: 'auto',
+                        paddingRight: '2px'
+                      }}
+                      onScroll={(e) => {
+                        const target = e.currentTarget;
+                        if (target.scrollHeight - target.scrollTop <= target.clientHeight + 20) {
+                          fetchSidebarMedia(MediaResourceTypeEnum.IMAGE, true);
+                        }
+                      }}
+                    >
+                      {sidebarMedia[MediaResourceTypeEnum.IMAGE]!.map((media, idx) => (
+                        <div 
+                          key={media._id} 
+                          onClick={() => {
+                            setLightboxMedias(sidebarMedia[MediaResourceTypeEnum.IMAGE]!);
+                            setLightboxIndex(idx);
+                          }}
+                          style={{ position: 'relative', width: '100%', paddingBottom: '100%', backgroundColor: '#f0f0f0', borderRadius: '4px', overflow: 'hidden', cursor: 'pointer' }}
+                        >
+                          <img src={media.thumbUrl || media.url} alt="img" style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
+                        </div>
+                      ))}
+                    </div>
+                    {isLoadingSidebarMedia[MediaResourceTypeEnum.IMAGE] && (
+                      <div style={{ textAlign: 'center', marginTop: '8px', fontSize: '12px' }}>Đang tải thêm...</div>
+                    )}
+                  </>
+                ) : (
+                  <div style={{ textAlign: 'center' }}>Chưa có hình ảnh nào</div>
+                )}
               </div>
             )}
           </div>
@@ -1574,8 +1962,56 @@ export default function ChatPage() {
               <Video size={16} style={{ color: 'var(--text-secondary)' }} />
             </div>
             {isVideosExpanded && (
-              <div style={{ padding: '16px 0', textAlign: 'center', color: 'var(--text-secondary)', fontSize: '13px' }}>
-                Chưa có video nào
+              <div style={{ padding: '16px 0', color: 'var(--text-secondary)', fontSize: '13px' }}>
+                {isLoadingSidebarMedia[MediaResourceTypeEnum.VIDEO] && !sidebarMedia[MediaResourceTypeEnum.VIDEO]?.length ? (
+                  <div style={{ textAlign: 'center' }}>Đang tải...</div>
+                ) : sidebarMedia[MediaResourceTypeEnum.VIDEO]?.length ? (
+                  <>
+                    <div 
+                      style={{ 
+                        display: 'grid', 
+                        gridTemplateColumns: 'repeat(3, 1fr)', 
+                        gap: '2px',
+                        maxHeight: '240px',
+                        overflowY: 'auto',
+                        paddingRight: '2px'
+                      }}
+                      onScroll={(e) => {
+                        const target = e.currentTarget;
+                        if (target.scrollHeight - target.scrollTop <= target.clientHeight + 20) {
+                          fetchSidebarMedia(MediaResourceTypeEnum.VIDEO, true);
+                        }
+                      }}
+                    >
+                      {sidebarMedia[MediaResourceTypeEnum.VIDEO]!.map((media, idx) => (
+                        <div 
+                          key={media._id} 
+                          onClick={() => {
+                            setLightboxMedias(sidebarMedia[MediaResourceTypeEnum.VIDEO]!);
+                            setLightboxIndex(idx);
+                          }}
+                          style={{ position: 'relative', width: '100%', paddingBottom: '100%', backgroundColor: '#333', borderRadius: '4px', overflow: 'hidden', cursor: 'pointer' }}
+                        >
+                          <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', color: 'white', zIndex: 1 }}>
+                            <Video size={20} />
+                          </div>
+                          {media.thumbUrl ? (
+                            <img src={media.thumbUrl} alt="thumb" style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'cover', opacity: 0.6 }} />
+                          ) : media.url ? (
+                            <video preload="metadata" style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'cover', opacity: 0.6 }}>
+                              <source src={media.url} type={media.mimeType || 'video/mp4'} />
+                            </video>
+                          ) : null}
+                        </div>
+                      ))}
+                    </div>
+                    {isLoadingSidebarMedia[MediaResourceTypeEnum.VIDEO] && (
+                      <div style={{ textAlign: 'center', marginTop: '8px', fontSize: '12px' }}>Đang tải thêm...</div>
+                    )}
+                  </>
+                ) : (
+                  <div style={{ textAlign: 'center' }}>Chưa có video nào</div>
+                )}
               </div>
             )}
           </div>
@@ -1594,8 +2030,88 @@ export default function ChatPage() {
               <FileText size={16} style={{ color: 'var(--text-secondary)' }} />
             </div>
             {isFilesExpanded && (
-              <div style={{ padding: '16px 0', textAlign: 'center', color: 'var(--text-secondary)', fontSize: '13px' }}>
-                Chưa có file nào
+              <div style={{ padding: '16px 0', color: 'var(--text-secondary)', fontSize: '13px' }}>
+                {isLoadingSidebarMedia[MediaResourceTypeEnum.FILE] && !sidebarMedia[MediaResourceTypeEnum.FILE]?.length ? (
+                  <div style={{ textAlign: 'center' }}>Đang tải...</div>
+                ) : sidebarMedia[MediaResourceTypeEnum.FILE]?.length ? (
+                  <>
+                    <div 
+                      style={{ 
+                        display: 'flex', 
+                        flexDirection: 'column', 
+                        gap: '4px',
+                        maxHeight: '260px',
+                        overflowY: 'auto',
+                        paddingRight: '4px'
+                      }}
+                      onScroll={(e) => {
+                        const target = e.currentTarget;
+                        if (target.scrollHeight - target.scrollTop <= target.clientHeight + 20) {
+                          fetchSidebarMedia(MediaResourceTypeEnum.FILE, true);
+                        }
+                      }}
+                    >
+                      {sidebarMedia[MediaResourceTypeEnum.FILE]!.map((media) => (
+                        <div key={media._id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 8px', backgroundColor: 'var(--bg-secondary)', borderRadius: '6px', color: 'var(--text-primary)' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden' }}>
+                            <FileText size={18} style={{ color: 'var(--primary)', flexShrink: 0 }} />
+                            <div style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '13px' }}>
+                              {media.fileName || 'Tài liệu'}
+                            </div>
+                          </div>
+                          <button 
+                            onClick={async (e) => {
+                              e.stopPropagation();
+                              if (!media.url) return;
+                              try {
+                                const isR2Media = Boolean(media.provider === 'r2' || (media.objectKey && media._id));
+                                let blob: Blob;
+
+                                if (isR2Media) {
+                                  const response = await api.get(`/media/${media._id}/download`, {
+                                    responseType: 'blob',
+                                  });
+                                  blob = response.data instanceof Blob 
+                                    ? response.data 
+                                    : new Blob([response.data], { type: media.mimeType || 'application/octet-stream' });
+                                } else {
+                                  const response = await fetch(media.url);
+                                  blob = await response.blob();
+                                }
+                                
+                                const blobUrl = window.URL.createObjectURL(blob);
+                                const a = document.createElement('a');
+                                a.href = blobUrl;
+                                a.download = media.fileName || 'download';
+                                document.body.appendChild(a);
+                                a.click();
+                                a.remove();
+                                window.URL.revokeObjectURL(blobUrl);
+                              } catch (err: any) {
+                                console.error('Download error:', err);
+                                if (err.response?.data instanceof Blob) {
+                                  const text = await err.response.data.text();
+                                  toast.error(`Lỗi backend: ${text}`);
+                                } else {
+                                  toast.error(`Lỗi: ${err.message || 'Không tải được tệp'}`);
+                                }
+                              }
+                            }}
+                            title="Tải xuống"
+                            style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: '4px', flexShrink: 0, color: 'var(--text-secondary)' }}
+                          >
+                            <Download size={16} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                    {isLoadingSidebarMedia[MediaResourceTypeEnum.FILE] && (
+                      <div style={{ textAlign: 'center', marginTop: '8px', fontSize: '12px' }}>Đang tải thêm...</div>
+                    )}
+                  </>
+                ) : (
+                  <div style={{ textAlign: 'center' }}>Chưa có file nào</div>
+                )}
               </div>
             )}
           </div>
@@ -1721,6 +2237,22 @@ export default function ChatPage() {
             ))}
           </div>
         </Modal>
+      )}
+      {/* Lightbox for Images and Videos */}
+      {lightboxMedias && (
+        <MediaLightbox 
+          medias={lightboxMedias} 
+          initialIndex={lightboxIndex} 
+          onClose={() => setLightboxMedias(null)} 
+        />
+      )}
+      {/* Image/Video Viewer for group avatar */}
+      {selectedGroupMedia && (
+        <MediaLightbox
+          medias={[{ _id: 'group_avatar', url: selectedGroupMedia.url, resourceType: selectedGroupMedia.type, provider: 'cloudinary' } as any]}
+          initialIndex={0}
+          onClose={() => setSelectedGroupMedia(null)}
+        />
       )}
     </div>
   );

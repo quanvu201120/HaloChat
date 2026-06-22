@@ -14,10 +14,11 @@ export default function AppLayout() {
   const isChatRoute =
     location.pathname === '/' ||
     location.pathname.startsWith('/chat');
+  const isSidebarOnlyRoute = location.pathname === '/';
 
   return (
     <ChatProvider>
-      <div className="app-layout">
+      <div className={`app-layout ${isSidebarOnlyRoute ? 'mobile-sidebar-only' : 'mobile-main-only'}`}>
         {/* Left Sidebar: conversation list */}
         <Sidebar />
 
