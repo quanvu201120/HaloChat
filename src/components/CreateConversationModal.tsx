@@ -4,8 +4,8 @@ import { X, UserPlus, Users, Check, RefreshCcw } from 'lucide-react';
 import { useAvailableUsers } from '../hooks/useAvailableUsers';
 import { conversationsApi } from '../services/conversations';
 import { parseError } from '../services/api';
-import { useAuth } from '../context/AuthContext';
-import { useChat } from '../context/ChatContext';
+import { useAuthStore as useAuth } from '../store/authStore';
+import { useChatStore as useChat } from '../store/chatStore';
 import { useToast } from '../context/ToastContext';
 
 interface UserResult {
@@ -51,15 +51,15 @@ export default function CreateConversationModal({ onClose }: Props) {
 
   const handleCreate = async () => {
     if (selected.length === 0) {
-      toast.error('Chon it nhat 1 nguoi dung');
+      toast.error('Chọn ít nhất 1 người dùng');
       return;
     }
     if (tab === 'group' && !groupName.trim()) {
-      toast.error('Nhap ten nhom');
+      toast.error('Nhập tên nhóm');
       return;
     }
     if (tab === 'group' && selected.length < 2) {
-      toast.error('Nhom can it nhat 2 thanh vien (ngoai ban)');
+      toast.error('Nhóm cần ít nhất 2 thành viên (ngoài bạn)');
       return;
     }
 
@@ -67,7 +67,7 @@ export default function CreateConversationModal({ onClose }: Props) {
     try {
       const userIds = selected.map((u) => u._id).filter(Boolean);
       if (userIds.length !== selected.length) {
-        toast.error('Danh sach nguoi dung khong hop le');
+        toast.error('Danh sách người dùng không hợp lệ');
         return;
       }
       const payload =
@@ -81,7 +81,7 @@ export default function CreateConversationModal({ onClose }: Props) {
       onClose();
       if (conv?._id) navigate(`/chat/${conv._id}`);
     } catch (err: unknown) {
-      toast.error(parseError(err) || 'Khong tao duoc cuoc tro chuyen');
+      toast.error(parseError(err) || 'Không tạo được cuộc trò chuyện');
     } finally {
       setIsCreating(false);
     }
@@ -91,9 +91,9 @@ export default function CreateConversationModal({ onClose }: Props) {
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal" style={{ maxWidth: 480 }} onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
-          <span className="modal-title">{tab === 'direct' ? 'Chat truc tiep' : 'Tao nhom chat'}</span>
+          <span className="modal-title">{tab === 'direct' ? 'Chat với bạn bè' : 'Tạo nhóm chat'}</span>
           <div style={{ display: 'flex', gap: '4px' }}>
-            <button className="icon-btn" title="Lam moi danh sach" onClick={() => refetch()}>
+            <button className="icon-btn" title="Làm mới danh sách" onClick={() => refetch()}>
               <RefreshCcw size={16} className={isSearching ? 'rotating' : ''} />
             </button>
             <button className="icon-btn" onClick={onClose}><X size={18} /></button>
@@ -121,7 +121,7 @@ export default function CreateConversationModal({ onClose }: Props) {
                 gap: '6px',
               }}
             >
-              {t === 'direct' ? <><UserPlus size={15} /> Chat 1-1</> : <><Users size={15} /> Tao nhom</>}
+              {t === 'direct' ? <><UserPlus size={15} /></> : <><Users size={15} /> </>}
             </button>
           ))}
         </div>
@@ -129,10 +129,10 @@ export default function CreateConversationModal({ onClose }: Props) {
         <div className="modal-body">
           {tab === 'group' && (
             <div className="form-group">
-              <label className="form-label">Ten nhom *</label>
+              <label className="form-label">Tên nhóm *</label>
               <input
                 className="form-input"
-                placeholder="Vi du: Team du an A"
+                placeholder="Ví dụ: Nhóm chat vui vẻ"
                 value={groupName}
                 onChange={(e) => setGroupName(e.target.value)}
                 autoFocus
@@ -140,8 +140,8 @@ export default function CreateConversationModal({ onClose }: Props) {
             </div>
           )}
 
-          <div className="form-group">
-            <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          {/* <div className="form-group">
+            <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '8px'  }}>
               Chon nguoi dung
               {isSearching && <div className="loading-spinner" style={{ width: 14, height: 14 }} />}
             </label>
@@ -151,7 +151,7 @@ export default function CreateConversationModal({ onClose }: Props) {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
-          </div>
+          </div> */}
 
           {selected.length > 0 && (
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
@@ -221,11 +221,11 @@ export default function CreateConversationModal({ onClose }: Props) {
         </div>
 
         <div className="modal-footer">
-          <button className="btn btn-secondary" onClick={onClose}>Huy</button>
+          <button className="btn btn-secondary" onClick={onClose}>Hủy</button>
           <button className="btn btn-primary" onClick={handleCreate} disabled={isCreating || selected.length === 0}>
             {isCreating
-              ? <><div className="loading-spinner" style={{ width: 14, height: 14 }} /> Dang tao...</>
-              : tab === 'group' ? <><Users size={14} /> Tao nhom</> : <><UserPlus size={14} /> Bat dau chat</>}
+              ? <><div className="loading-spinner" style={{ width: 14, height: 14 }} /> Đang tạo...</>
+              : tab === 'group' ? <><Users size={14} /> Tạo nhóm</> : <><UserPlus size={14} /> Bắt đầu chat</>}
           </button>
         </div>
       </div>

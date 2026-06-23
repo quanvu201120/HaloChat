@@ -9,8 +9,8 @@ import {
   Send, Phone, Video, Info, Smile, Paperclip, Image, Mic, Square, X,
   Camera, Trash2, LogOut, ShieldOff, Check, Pencil, UserPlus, UserMinus, Crown, History, ChevronDown, ChevronRight, ChevronLeft, FileText, Search, Plus, Download, Edit2
 } from 'lucide-react';
-import { useAuth } from '../context/AuthContext';
-import { useChat } from '../context/ChatContext';
+import { useAuthStore as useAuth } from '../store/authStore';
+import { useChatStore as useChat } from '../store/chatStore';
 import {
   conversationsApi, normalizeConversation, type Conversation,
 } from '../services/conversations';

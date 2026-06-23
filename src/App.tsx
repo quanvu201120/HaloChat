@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate, useParams } from 'react-router-dom';
-import { AuthProvider } from './context/AuthContext';
+import { useEffect } from 'react';
+import { useAuthStore } from './store/authStore';
 import { ToastProvider } from './context/ToastContext';
 import { ThemeProvider } from './context/ThemeContext';
 import AppLayout from './AppLayout';
@@ -21,12 +22,19 @@ function ChatRoute() {
   return <ChatPage key={conversationId} />;
 }
 
+function AppInit() {
+  useEffect(() => {
+    return useAuthStore.getState().init();
+  }, []);
+  return null;
+}
+
 export default function App() {
   return (
     <ThemeProvider>
       <BrowserRouter>
-        <AuthProvider>
-          <ToastProvider>
+        <AppInit />
+        <ToastProvider>
             <Routes>
               {/* Public routes */}
               <Route path="/login" element={<LoginPage />} />
@@ -46,7 +54,6 @@ export default function App() {
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </ToastProvider>
-        </AuthProvider>
       </BrowserRouter>
     </ThemeProvider>
   );

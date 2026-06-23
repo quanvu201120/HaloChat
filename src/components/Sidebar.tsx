@@ -3,9 +3,9 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import {
   Search, PenSquare, LogOut, MessageSquarePlus, Moon, Sun
 } from 'lucide-react';
-import { useAuth } from '../context/AuthContext';
+import { useAuthStore as useAuth } from '../store/authStore';
 import { useToast } from '../context/ToastContext';
-import { useChat } from '../context/ChatContext';
+import { useChatStore as useChat } from '../store/chatStore';
 import ConversationItem from './ConversationItem';
 import CreateConversationModal from './CreateConversationModal';
 import ConfirmModal from './ConfirmModal';

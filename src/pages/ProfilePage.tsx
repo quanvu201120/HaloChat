@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
+import { useAuthStore as useAuth } from '../store/authStore';
 import { usersApi, parseError } from '../services/api';
 import { useToast } from '../context/ToastContext';
 import { UserCircle, Save, Phone, MapPin, Mail, Shield, Activity, LogOut, Camera, Trash2, AlertTriangle, Edit2, ChevronLeft } from 'lucide-react';

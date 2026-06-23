@@ -1,6 +1,6 @@
 import { Outlet, Navigate, useLocation } from 'react-router-dom';
-import { useAuth } from './context/AuthContext';
-import { ChatProvider } from './context/ChatContext';
+import { useAuthStore as useAuth } from './store/authStore';
+import SocketManager from './components/SocketManager';
 import Sidebar from './components/Sidebar';
 
 export default function AppLayout() {
@@ -17,7 +17,8 @@ export default function AppLayout() {
   const isSidebarOnlyRoute = location.pathname === '/';
 
   return (
-    <ChatProvider>
+    <>
+      <SocketManager />
       <div className={`app-layout ${isSidebarOnlyRoute ? 'mobile-sidebar-only' : 'mobile-main-only'}`}>
         {/* Left Sidebar: conversation list */}
         <Sidebar />
@@ -29,6 +30,6 @@ export default function AppLayout() {
           </div>
         </main>
       </div>
-    </ChatProvider>
+    </>
   );
 }

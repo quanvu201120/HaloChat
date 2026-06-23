@@ -61,16 +61,16 @@ Checkpoint:
 
 ## Phase 2 - Global state
 
-- [ ] Cai va cau hinh `zustand`
-- [ ] Xac dinh state nao nen o store global
-- [ ] Tach state chat khoi `ChatContext`
-- [ ] Tach auth/session state neu can
-- [ ] Giu context chi cho nhung phan that su can React Context
+- [x] Cai va cau hinh `zustand`
+- [x] Xac dinh state nao nen o store global
+- [x] Tach state chat khoi `ChatContext`
+- [x] Tach auth/session state neu can
+- [x] Giu context chi cho nhung phan that su can React Context
 
 Checkpoint:
 
-- [ ] Sidebar / chat state van dong bo
-- [ ] Socket events van cap nhat dung UI
+- [x] Sidebar / chat state van dong bo
+- [x] Socket events van cap nhat dung UI
 
 ## Phase 3 - Form stack
 

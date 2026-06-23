@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { X, UserPlus, Check, RefreshCcw } from 'lucide-react';
 import { useAvailableUsers } from '../hooks/useAvailableUsers';
 import { conversationsApi } from '../services/conversations';
-import { useAuth } from '../context/AuthContext';
+import { useAuthStore as useAuth } from '../store/authStore';
 import { useToast } from '../context/ToastContext';
 import { type Conversation } from '../services/conversations';
 
