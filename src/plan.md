@@ -87,16 +87,16 @@ Checkpoint:
 
 ## Phase 4 - Animation
 
-- [ ] Cai `framer-motion`
-- [ ] Animate modal open/close
-- [ ] Animate sidebar slide in/out
-- [ ] Animate page / panel transitions neu can
-- [ ] Giua motion vua du, khong lam nang UI
+- [x] Cai `framer-motion`
+- [x] Animate modal open/close
+- [x] Animate sidebar slide in/out
+- [x] Animate page / panel transitions neu can
+- [x] Giua motion vua du, khong lam nang UI
 
 Checkpoint:
 
-- [ ] Khong co giat layout khi mo/dong modal
-- [ ] Mobile van muot
+- [x] Khong co giat layout khi mo/dong modal
+- [x] Mobile van muot
 
 ## Phase 5 - Tailwind migration
 

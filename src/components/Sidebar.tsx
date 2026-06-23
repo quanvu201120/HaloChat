@@ -183,21 +183,20 @@ export default function Sidebar() {
         </div>
       </aside>
 
-      {showCreateModal && (
-        <CreateConversationModal onClose={() => setShowCreateModal(false)} />
-      )}
+      <CreateConversationModal 
+        isOpen={showCreateModal} 
+        onClose={() => setShowCreateModal(false)} 
+      />
 
-      {confirmAction && (
-        <ConfirmModal
-          isOpen={true}
-          title={confirmAction.title}
-          message={confirmAction.message}
-          isDanger={confirmAction.isDanger}
-          confirmText={confirmAction.confirmText}
-          onConfirm={confirmAction.action}
-          onCancel={() => setConfirmAction(null)}
-        />
-      )}
+      <ConfirmModal
+        isOpen={!!confirmAction}
+        title={confirmAction?.title || ''}
+        message={confirmAction?.message || ''}
+        isDanger={confirmAction?.isDanger}
+        confirmText={confirmAction?.confirmText}
+        onConfirm={confirmAction?.action || (() => {})}
+        onCancel={() => setConfirmAction(null)}
+      />
     </>
   );
 }

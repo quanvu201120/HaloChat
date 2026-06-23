@@ -156,17 +156,17 @@ export default function SocketManager() {
         }));
       };
 
-      const onGroupCreated = () => { void useChatStore.getState().fetchConversations({ silent: true }); };
-      const onConversationRestored = () => { void useChatStore.getState().fetchConversations({ silent: true }); };
-      const onAdminChanged = () => { void useChatStore.getState().fetchConversations({ silent: true }); };
-      const onMemberAdded = () => { void useChatStore.getState().fetchConversations({ silent: true }); };
+      const onGroupCreated = () => { void useChatStore.getState().refetchConversations({ silent: true }); };
+      const onConversationRestored = () => { void useChatStore.getState().refetchConversations({ silent: true }); };
+      const onAdminChanged = () => { void useChatStore.getState().refetchConversations({ silent: true }); };
+      const onMemberAdded = () => { void useChatStore.getState().refetchConversations({ silent: true }); };
       const onMemberRemoved = (data: { conversationId: string; removedMemberId: string }) => {
         const removedMemberId = normalizeId(data.removedMemberId);
         if (removedMemberId && removedMemberId === currentUserId) {
           onConversationDisbanded({ conversationId: data.conversationId });
           return;
         }
-        void useChatStore.getState().fetchConversations({ silent: true });
+        void useChatStore.getState().refetchConversations({ silent: true });
       };
 
       const onUserDisabled = (data: { userId: string }) => {
@@ -182,8 +182,8 @@ export default function SocketManager() {
         }
 
         // Cập nhật UI ngay lập tức
-        useChatStore.getState().setOnline((prev) => ({ ...prev, [userId]: false }));
-        void useChatStore.getState().fetchConversations({ silent: true });
+        useChatStore.getState().setOnline((prev) => ({ ...prev, [userId]: new Date().toISOString() }));
+        void useChatStore.getState().refetchConversations({ silent: true });
       };
 
       sock.on('connect', onConnect);
@@ -215,14 +215,14 @@ export default function SocketManager() {
     const unsubFetch = useAuthStore.subscribe((state, prevState) => {
       const isAuthChanged = state.accessToken !== prevState.accessToken || state.user?._id !== prevState.user?._id;
       if (isAuthChanged && state.accessToken && state.user) {
-        void useChatStore.getState().fetchConversations();
+        void useChatStore.getState().refetchConversations();
       }
     });
 
     // Initial check
     initSocket();
     if (useAuthStore.getState().accessToken && useAuthStore.getState().user) {
-       void useChatStore.getState().fetchConversations();
+       void useChatStore.getState().refetchConversations();
     }
 
     return () => {

@@ -418,8 +418,7 @@ html, body, #root {
   font-weight: 600;
   color: var(--text-primary);
   flex-shrink: 0;
-  background: rgba(255,255,255,0.85);
-  backdrop-filter: blur(12px);
+  background: transparent;
 }
 
 .info-sidebar-profile {

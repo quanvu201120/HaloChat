@@ -154,7 +154,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }
   },
 
-  fetchConversations: async (options) => {
+  refetchConversations: async (options) => {
     const silent = options?.silent === true;
     if (!silent) set({ isLoadingConversations: true });
 
@@ -179,8 +179,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }
   },
   
-  refetchConversations: async (options) => {
-    return get().fetchConversations(options);
+  fetchConversations: async (options?: { silent?: boolean }) => {
+    return get().refetchConversations(options);
   },
 
   fetchConversationById: async (conversationId) => {

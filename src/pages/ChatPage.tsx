@@ -2168,8 +2168,9 @@ export default function ChatPage() {
       </div>
 
       {/* Add Member Modal */}
-      {showAddMemberModal && activeConversationId && conv && (
+      {activeConversationId && conv && (
         <AddMemberModal
+          isOpen={showAddMemberModal}
           conversationId={activeConversationId}
           currentMembers={conv.users.map((u) => u._id)}
           onClose={() => setShowAddMemberModal(false)}

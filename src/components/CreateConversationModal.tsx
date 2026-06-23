@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { X, UserPlus, Users, Check, RefreshCcw } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useAvailableUsers } from '../hooks/useAvailableUsers';
 import { conversationsApi } from '../services/conversations';
 import { parseError } from '../services/api';
@@ -16,17 +17,18 @@ interface UserResult {
 }
 
 interface Props {
+  isOpen: boolean;
   onClose: () => void;
 }
 
-export default function CreateConversationModal({ onClose }: Props) {
+export default function CreateConversationModal({ isOpen, onClose }: Props) {
   const { user } = useAuth();
   const { refetchConversations } = useChat();
   const toast = useToast();
   const navigate = useNavigate();
 
   const [tab, setTab] = useState<'direct' | 'group'>('direct');
-  const [search, setSearch] = useState('');
+  const [search] = useState('');
   const [selected, setSelected] = useState<UserResult[]>([]);
   const [groupName, setGroupName] = useState('');
   const [isCreating, setIsCreating] = useState(false);
@@ -88,9 +90,26 @@ export default function CreateConversationModal({ onClose }: Props) {
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal" style={{ maxWidth: 480 }} onClick={(e) => e.stopPropagation()}>
-        <div className="modal-header">
+    <AnimatePresence>
+      {isOpen && (
+        <motion.div 
+          className="modal-overlay" 
+          onClick={onClose}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.2 }}
+        >
+          <motion.div 
+            className="modal" 
+            style={{ maxWidth: 480 }} 
+            onClick={(e) => e.stopPropagation()}
+            initial={{ opacity: 0, scale: 0.95, y: 10 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: 10 }}
+            transition={{ duration: 0.2, ease: "easeOut" }}
+          >
+            <div className="modal-header">
           <span className="modal-title">{tab === 'direct' ? 'Chat với bạn bè' : 'Tạo nhóm chat'}</span>
           <div style={{ display: 'flex', gap: '4px' }}>
             <button className="icon-btn" title="Làm mới danh sách" onClick={() => refetch()}>
@@ -227,8 +246,10 @@ export default function CreateConversationModal({ onClose }: Props) {
               ? <><div className="loading-spinner" style={{ width: 14, height: 14 }} /> Đang tạo...</>
               : tab === 'group' ? <><Users size={14} /> Tạo nhóm</> : <><UserPlus size={14} /> Bắt đầu chat</>}
           </button>
-        </div>
-      </div>
-    </div>
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 }

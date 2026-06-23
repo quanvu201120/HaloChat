@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { X, UserPlus, Check, RefreshCcw } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useAvailableUsers } from '../hooks/useAvailableUsers';
 import { conversationsApi } from '../services/conversations';
 import { useAuthStore as useAuth } from '../store/authStore';
@@ -14,13 +15,14 @@ interface UserResult {
 }
 
 interface Props {
+  isOpen: boolean;
   conversationId: string;
   currentMembers: string[];
   onClose: () => void;
   onSuccess: (updatedConv: Conversation) => void;
 }
 
-export default function AddMemberModal({ conversationId, currentMembers, onClose, onSuccess }: Props) {
+export default function AddMemberModal({ isOpen, conversationId, currentMembers, onClose, onSuccess }: Props) {
   const { user } = useAuth();
   const toast = useToast();
 
@@ -78,9 +80,26 @@ export default function AddMemberModal({ conversationId, currentMembers, onClose
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal" style={{ maxWidth: 480 }} onClick={(e) => e.stopPropagation()}>
-        {/* Header */}
+    <AnimatePresence>
+      {isOpen && (
+        <motion.div 
+          className="modal-overlay" 
+          onClick={onClose}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.2 }}
+        >
+          <motion.div 
+            className="modal" 
+            style={{ maxWidth: 480 }} 
+            onClick={(e) => e.stopPropagation()}
+            initial={{ opacity: 0, scale: 0.95, y: 10 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: 10 }}
+            transition={{ duration: 0.2, ease: "easeOut" }}
+          >
+            {/* Header */}
         <div className="modal-header">
           <span className="modal-title">
             Thêm thành viên
@@ -176,7 +195,9 @@ export default function AddMemberModal({ conversationId, currentMembers, onClose
               : <><UserPlus size={14} /> Thêm thành viên</>}
           </button>
         </div>
-      </div>
-    </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 }
