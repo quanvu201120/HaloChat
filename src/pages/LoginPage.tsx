@@ -1,10 +1,20 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
 import { useAuthStore as useAuth } from '../store/authStore';
 import { parseError } from '../services/api';
 import { useToast } from '../context/ToastContext';
 import { useTheme } from '../context/ThemeContext';
 import { Eye, EyeOff, LogIn, Moon, Sun } from 'lucide-react';
+
+const loginSchema = z.object({
+  email: z.string().email('Email không hợp lệ'),
+  password: z.string().min(1, 'Mật khẩu không được để trống'),
+});
+
+type LoginFormValues = z.infer<typeof loginSchema>;
 
 export default function LoginPage() {
   const { login, isLoading, user, accessToken } = useAuth();
@@ -12,9 +22,16 @@ export default function LoginPage() {
   const toast = useToast();
   const navigate = useNavigate();
 
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<LoginFormValues>({
+    resolver: zodResolver(loginSchema),
+    defaultValues: { email: '', password: '' },
+  });
 
   // Nếu đã đăng nhập rồi thì redirect về trang chính
   useEffect(() => {
@@ -23,16 +40,11 @@ export default function LoginPage() {
     }
   }, [user, accessToken, navigate]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!email || !password) {
-      toast.error('Vui lòng nhập email và mật khẩu');
-      return;
-    }
+  const onSubmit = async (data: LoginFormValues) => {
     try {
-      await login(email, password);
+      await login(data.email, data.password);
       toast.success('Đăng nhập thành công!');
-      window.location.href = '/';
+      navigate('/', { replace: true });
     } catch (err: any) {
       const msg: string = parseError(err);
 
@@ -44,7 +56,7 @@ export default function LoginPage() {
 
       if (isInactive) {
         toast.warning('Tài khoản chưa được kích hoạt. Vui lòng nhập mã xác nhận.');
-        navigate('/active-account', { state: { email } });
+        navigate('/active-account', { state: { email: data.email } });
       } else {
         toast.error(msg);
       }
@@ -78,19 +90,19 @@ export default function LoginPage() {
           <p className="login-subtitle">Đăng nhập để quản lý tài khoản của bạn</p>
         </div>
 
-        <form className="login-form" onSubmit={handleSubmit}>
+        <form className="login-form" onSubmit={handleSubmit(onSubmit)}>
           <div className="form-group">
             <label className="form-label" htmlFor="login-email">Email</label>
             <input
               id="login-email"
-              className="form-input"
+              className={`form-input ${errors.email ? 'is-invalid' : ''}`}
               type="email"
               placeholder="email@example.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              {...register('email')}
               autoFocus
               autoComplete="email"
             />
+            {errors.email && <div className="error-message" style={{ color: 'var(--error-color)', fontSize: '13px', marginTop: '4px' }}>{errors.email.message}</div>}
           </div>
 
           <div className="form-group">
@@ -98,11 +110,10 @@ export default function LoginPage() {
             <div style={{ position: 'relative' }}>
               <input
                 id="login-password"
-                className="form-input"
+                className={`form-input ${errors.password ? 'is-invalid' : ''}`}
                 type={showPassword ? 'text' : 'password'}
                 placeholder="••••••••"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                {...register('password')}
                 autoComplete="current-password"
                 style={{ paddingRight: '44px' }}
               />
@@ -119,6 +130,7 @@ export default function LoginPage() {
                 {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
               </button>
             </div>
+            {errors.password && <div className="error-message" style={{ color: 'var(--error-color)', fontSize: '13px', marginTop: '4px' }}>{errors.password.message}</div>}
           </div>
 
           <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
@@ -132,7 +144,7 @@ export default function LoginPage() {
             type="submit"
             className="btn btn-primary"
             disabled={isLoading}
-            style={{ width: '100%', justifyContent: 'center', padding: '11px' }}
+            style={{ width: '100%', justifyContent: 'center', padding: '11px', marginTop: '16px' }}
           >
             {isLoading
               ? <><div className="loading-spinner" style={{ width: 16, height: 16 }} /> Đang đăng nhập...</>
@@ -140,7 +152,7 @@ export default function LoginPage() {
             }
           </button>
 
-          <div style={{ textAlign: 'center', marginTop: '8px', fontSize: '13px', color: 'var(--text-muted)' }}>
+          <div style={{ textAlign: 'center', marginTop: '16px', fontSize: '13px', color: 'var(--text-muted)' }}>
             Chưa có tài khoản?{' '}
             <Link to="/register" style={{ color: 'var(--accent-primary)', textDecoration: 'none', fontWeight: 600 }}>
               Đăng ký ngay

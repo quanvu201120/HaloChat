@@ -213,6 +213,8 @@ export default function MessageBubble({
   const isEmojiOnlyText = message.type === 'text' && !message.isDeleted && !message.replyTo && isEmojiOnly(message.content);
   const emojiSizeClass = isEmojiOnlyText ? getEmojiOnlySizeClass(message.content!) : '';
 
+  const isSenderDisabled = message.isSenderDisabled || (message.content === 'Người dùng bị vô hiệu hoá' && !message.isDeleted);
+
   const handleDownload = async (event: React.MouseEvent<HTMLButtonElement>) => {
     event.stopPropagation();
     if (isDownloading || typeof message.media !== 'object' || !message.media?.url) return;
@@ -276,13 +278,13 @@ export default function MessageBubble({
 
   return (
     <div
-      className={`msg-row${isMe ? ' me' : ' other'}${showActions ? ' show-actions' : ''}`}
-      onMouseEnter={() => setShowActions(true)}
+      className={`msg-row${isMe ? ' me' : ' other'}${showActions && !isSenderDisabled ? ' show-actions' : ''}`}
+      onMouseEnter={() => !isSenderDisabled && setShowActions(true)}
       onMouseLeave={() => {
         setShowActions(false);
         setShowReactionPicker(false);
       }}
-      onClick={() => setShowActions((prev) => !prev)}
+      onClick={() => !isSenderDisabled && setShowActions((prev) => !prev)}
     >
       {showSenderName && senderName && (
         <div className="msg-sender-name" style={{ marginLeft: '40px' }}>{senderName}</div>
@@ -294,12 +296,13 @@ export default function MessageBubble({
             {senderAvatarUrl ? <img src={senderAvatarUrl} alt={senderName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : senderName.slice(0, 2).toUpperCase()}
           </div>
         )}
-        <div className={`msg-content-wrapper${isMe ? ' me' : ' other'}${!message.isDeleted && reactions.length > 0 ? ' has-reactions' : ''}`} style={{ flex: 1, maxWidth: isMe ? '100%' : 'calc(100% - 40px)' }}>
+        <div className={`msg-content-wrapper${isMe ? ' me' : ' other'}${!message.isDeleted && !isSenderDisabled && reactions.length > 0 ? ' has-reactions' : ''}`} style={{ flex: 1, maxWidth: isMe ? '100%' : 'calc(100% - 40px)' }}>
           <div
             className={`msg-bubble${isMe ? ' me' : ' other'}${message.isDeleted ? ' deleted' : ''}${isOptimistic ? ' sending' : ''}${isError ? ' error' : ''}${isMediaOnly ? ' media-only' : ''}${isEmojiOnlyText ? ' emoji-only' : ''}`}
-          onClick={() => isMe && setShowStatus((prev) => !prev)}
+            onClick={() => isMe && setShowStatus((prev) => !prev)}
+            style={isSenderDisabled ? { border: '1px solid var(--error)', opacity: 0.8 } : undefined}
         >
-          {showActions && !message.isDeleted && (
+          {showActions && !message.isDeleted && !isSenderDisabled && (
             <div ref={actionsRef} className={`msg-actions${isMe ? ' me' : ' other'}`} onClick={(e) => e.stopPropagation()}>
               <div
                 className="action-btn"
@@ -429,7 +432,7 @@ export default function MessageBubble({
           </div>
         </div>
 
-        {!message.isDeleted && reactions.length > 0 && (
+        {!message.isDeleted && !isSenderDisabled && reactions.length > 0 && (
           <div className={`msg-reactions${isMe ? ' me' : ' other'}`}>
             {Object.entries(reactionSummary).map(([type, count]) => {
               const reaction = REACTIONS.find((item) => item.type === type);

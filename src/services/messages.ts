@@ -39,6 +39,7 @@ export interface Message {
   isDeleted: boolean;
   deletedAt?: string;
   reactions?: MessageReaction[];
+  isSenderDisabled?: boolean;
   createdAt: string;
   updatedAt: string;
 }

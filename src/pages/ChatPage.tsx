@@ -7,7 +7,7 @@ import {
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   Send, Phone, Video, Info, Smile, Paperclip, Image, Mic, Square, X,
-  Camera, Trash2, LogOut, ShieldOff, Check, Pencil, UserPlus, UserMinus, Crown, History, ChevronDown, ChevronRight, ChevronLeft, FileText, Search, Plus, Download, Edit2
+  Camera, Trash2, LogOut, ShieldOff, Check, Pencil, UserPlus, UserMinus, Crown, History, ChevronDown, ChevronRight, ChevronLeft, FileText, Search, Plus, Download, Edit2, UserX
 } from 'lucide-react';
 import { useAuthStore as useAuth } from '../store/authStore';
 import { useChatStore as useChat } from '../store/chatStore';
@@ -1347,6 +1347,8 @@ export default function ChatPage() {
     }
   }, [messages, hasMore, nextCursor, activeConversationId, loadedMessagesConversationId]);
 
+  const isTargetUserDisabled = conv && !conv.isGroup && conv.users.some((u: any) => u._id !== currentUserId && u.isDisabled);
+
   return (
     <div className="chat-page-layout">
       <div className="chat-page">
@@ -1360,13 +1362,15 @@ export default function ChatPage() {
           >
             <ChevronLeft size={20} />
           </button>
-          <div className="chat-header-avatar">
-            {headerAvatarUrl ? (
+          <div className="chat-header-avatar" style={isTargetUserDisabled ? { background: 'var(--bg-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center' } : {}}>
+            {isTargetUserDisabled ? (
+              <UserX size={20} style={{ color: 'var(--text-muted)' }} />
+            ) : headerAvatarUrl ? (
               <img src={headerAvatarUrl} alt={convName} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
             ) : (
               <span>{convName.slice(0, 2).toUpperCase()}</span>
             )}
-            {isOtherOnline && <span className="online-dot" style={{ position: 'absolute', bottom: 1, right: 1 }} />}
+            {isOtherOnline && !isTargetUserDisabled && <span className="online-dot" style={{ position: 'absolute', bottom: 1, right: 1 }} />}
           </div>
           <div>
             <div className="chat-header-name">{convName}</div>
@@ -1507,6 +1511,11 @@ export default function ChatPage() {
         </div>
       )}
 
+      {isTargetUserDisabled ? (
+        <div style={{ padding: '16px', background: 'var(--bg-primary)', textAlign: 'center', color: 'var(--text-secondary)', borderTop: '1px solid var(--border)', fontSize: '13px' }}>
+          Người này hiện không có mặt trên HaloChat. 
+        </div>
+      ) : (
       <div className="composer">
         <input
           ref={imageInputRef}
@@ -1640,6 +1649,7 @@ export default function ChatPage() {
           </>
         )}
       </div>
+      )}
     </div>
 
       {/* Info Sidebar */}
@@ -1674,14 +1684,16 @@ export default function ChatPage() {
             <div className="info-sidebar-avatar-wrap">
               <div 
                 className="info-sidebar-avatar"
-                style={{ cursor: conv?.avatar?.url ? 'pointer' : 'default' }}
+                style={{ cursor: conv?.avatar?.url ? 'pointer' : 'default', ...(isTargetUserDisabled ? { background: 'var(--bg-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center' } : {}) }}
                 onClick={() => {
                   if (conv?.avatar?.url) {
                     setSelectedGroupMedia({ url: conv.avatar.url, type: 'image' });
                   }
                 }}
               >
-                {conv?.avatar?.url ? (
+                {isTargetUserDisabled ? (
+                  <UserX size={36} style={{ color: 'var(--text-muted)' }} />
+                ) : conv?.avatar?.url ? (
                   <img src={conv.avatar.url} alt={convName} />
                 ) : headerAvatarUrl ? (
                   <img src={headerAvatarUrl} alt={convName} />

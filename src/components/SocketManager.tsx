@@ -4,8 +4,13 @@ import { useChatStore } from '../store/chatStore';
 import { connectSocket, disconnectSocket } from '../services/socket';
 import { normalizeId } from '../utils/chat';
 import { normalizeMessage } from '../services/messages';
+import { useToast } from '../context/ToastContext';
+import { useNavigate } from 'react-router-dom';
 
 export default function SocketManager() {
+  const toast = useToast();
+  const navigate = useNavigate();
+
   useEffect(() => {
     // We subscribe to the store instead of calling hook directly to avoid unnecessary re-renders of the manager component
     const unsubAuth = useAuthStore.subscribe((state, prevState) => {
@@ -164,6 +169,23 @@ export default function SocketManager() {
         void useChatStore.getState().fetchConversations({ silent: true });
       };
 
+      const onUserDisabled = (data: { userId: string }) => {
+        const userId = normalizeId(data.userId);
+        if (!userId) return;
+
+        if (userId === currentUserId) {
+          useAuthStore.getState().logout().then(() => {
+             toast.warning('Tài khoản của bạn đã bị vô hiệu hóa.');
+             navigate('/login');
+          });
+          return;
+        }
+
+        // Cập nhật UI ngay lập tức
+        useChatStore.getState().setOnline((prev) => ({ ...prev, [userId]: false }));
+        void useChatStore.getState().fetchConversations({ silent: true });
+      };
+
       sock.on('connect', onConnect);
       sock.on('disconnect', onDisconnect);
       sock.on('user:unseen-message', onUnseenMessage);
@@ -182,6 +204,7 @@ export default function SocketManager() {
       sock.on('message:updated', onMessageUpdated);
       sock.on('chat:message-deleted', onMessageDeleted);
       sock.on('user:mark-read', onMarkRead);
+      sock.on('user:disabled', onUserDisabled);
 
       if (sock.connected) {
         chatStore.setIsSocketConnected(true);

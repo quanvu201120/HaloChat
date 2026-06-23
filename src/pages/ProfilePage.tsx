@@ -1,5 +1,8 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
 import { useAuthStore as useAuth } from '../store/authStore';
 import { usersApi, parseError } from '../services/api';
 import { useToast } from '../context/ToastContext';
@@ -8,16 +11,30 @@ import ConfirmModal from '../components/ConfirmModal';
 import UpdateEmailModal from '../components/UpdateEmailModal';
 import MediaLightbox from '../components/MediaLightbox';
 
+const profileSchema = z.object({
+  name: z.string().optional(),
+  phone: z.string().optional(),
+  address: z.string().optional(),
+});
+
+type ProfileFormValues = z.infer<typeof profileSchema>;
+
 export function ProfilePageContent() {
   const navigate = useNavigate();
   const { user, logoutAll, updateUser, logout } = useAuth();
   const toast = useToast();
 
-  const [form, setForm] = useState({
-    _id: user?._id || '',
-    name: user?.name || '',
-    phone: user?.phone || '',
-    address: user?.address || '',
+  const {
+    register,
+    handleSubmit,
+    formState: { errors }
+  } = useForm<ProfileFormValues>({
+    resolver: zodResolver(profileSchema),
+    defaultValues: {
+      name: user?.name || '',
+      phone: user?.phone || '',
+      address: user?.address || '',
+    }
   });
   const [isLoading, setIsLoading] = useState(false);
   const [logoutAllLoading, setLogoutAllLoading] = useState(false);
@@ -47,14 +64,13 @@ export function ProfilePageContent() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const onSubmit = async (data: ProfileFormValues) => {
     setIsLoading(true);
     try {
       const payload = {
-        name: form.name.trim(),
-        phone: form.phone.trim() || null,
-        address: form.address.trim() || null,
+        name: data.name?.trim() || '',
+        phone: data.phone?.trim() || null,
+        address: data.address?.trim() || null,
       };
 
       const res = await usersApi.update(payload);
@@ -63,12 +79,6 @@ export function ProfilePageContent() {
         ...updated,
         phone: updated.phone || '',
         address: updated.address || ''
-      });
-      setForm({
-        _id: updated?._id || form._id,
-        name: updated?.name || '',
-        phone: updated?.phone || '',
-        address: updated?.address || '',
       });
       toast.success('Cập nhật hồ sơ thành công!');
     } catch (err: any) {
@@ -184,10 +194,11 @@ export function ProfilePageContent() {
       isDanger: true,
       confirmText: 'Vẫn muốn vô hiệu hóa',
       countdown: 5,
-    action: () => {
-      handleDisableSelfStep3();
-    }
-  });
+      action: () => {
+        handleDisableSelfStep3();
+        return false;
+      }
+    });
   };
 
   const handleDisableSelf = () => {
@@ -196,10 +207,11 @@ export function ProfilePageContent() {
       message: 'Bạn có chắc chắn muốn vô hiệu hóa tài khoản? Bạn sẽ bị đăng xuất và không thể đăng nhập lại cho đến khi liên hệ quản trị viên.',
       isDanger: true,
       confirmText: 'Tiếp tục',
-    action: () => {
+      action: () => {
         handleDisableSelfStep2();
-    }
-  });
+        return false;
+      }
+    });
   };
 
   return (
@@ -350,7 +362,7 @@ export function ProfilePageContent() {
             </div>
           </div>
 
-          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <form onSubmit={handleSubmit(onSubmit)} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
             {/* Email readonly */}
             <div className="form-group">
               <label className="form-label" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -383,14 +395,14 @@ export function ProfilePageContent() {
                 </label>
                 <input
                   id="profile-name"
-                  className="form-input"
+                  className={`form-input ${errors.name ? 'is-invalid' : ''}`}
                   placeholder="VD: Nguyễn Văn A"
-                  value={form.name}
-                  onChange={(e) => setForm({ ...form, name: e.target.value })}
+                  {...register('name')}
                 />
                 <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
                   Để trống nếu bạn muốn xóa tên hiển thị.
                 </span>
+                {errors.name && <div className="error-message" style={{ color: 'var(--error-color)', fontSize: '13px', marginTop: '4px' }}>{errors.name.message}</div>}
               </div>
 
               <div className="form-group">
@@ -401,14 +413,14 @@ export function ProfilePageContent() {
                 </label>
                 <input
                   id="profile-phone"
-                  className="form-input"
+                  className={`form-input ${errors.phone ? 'is-invalid' : ''}`}
                   placeholder="VD: 0912345678"
-                  value={form.phone}
-                  onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                  {...register('phone')}
                 />
                 <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
                   Có thể xóa số điện thoại bằng cách để trống.
                 </span>
+                {errors.phone && <div className="error-message" style={{ color: 'var(--error-color)', fontSize: '13px', marginTop: '4px' }}>{errors.phone.message}</div>}
               </div>
             </div>
 
@@ -420,14 +432,14 @@ export function ProfilePageContent() {
               </label>
               <input
                 id="profile-address"
-                className="form-input"
+                className={`form-input ${errors.address ? 'is-invalid' : ''}`}
                 placeholder="VD: TP. Hồ Chí Minh"
-                value={form.address}
-                onChange={(e) => setForm({ ...form, address: e.target.value })}
+                {...register('address')}
               />
               <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
                 Có thể xóa địa chỉ bằng cách để trống.
               </span>
+              {errors.address && <div className="error-message" style={{ color: 'var(--error-color)', fontSize: '13px', marginTop: '4px' }}>{errors.address.message}</div>}
             </div>
 
             <button

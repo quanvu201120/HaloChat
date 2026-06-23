@@ -11,6 +11,7 @@ export interface ConversationUser {
     url?: string;
   };
   lastOnlineAt?: string;
+  isDisabled?: boolean;
 }
 
 export interface Conversation {
@@ -32,6 +33,7 @@ function normalizeConversationUser(raw: any): ConversationUser {
     email: String(raw?.email ?? ''),
     avatar: raw?.avatar,
     lastOnlineAt: raw?.lastOnlineAt,
+    isDisabled: Boolean(raw?.isDisabled),
   };
 }
 

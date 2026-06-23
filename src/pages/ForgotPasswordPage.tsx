@@ -1,11 +1,30 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
 import { authApi, parseError } from '../services/api';
 import { useToast } from '../context/ToastContext';
 import { useTheme } from '../context/ThemeContext';
 import { Mail, KeyRound, Eye, EyeOff, ArrowLeft, CheckCircle, Moon, Sun } from 'lucide-react';
 
 type Step = 'email' | 'reset';
+
+const emailSchema = z.object({
+  email: z.string().email('Email không hợp lệ'),
+});
+
+const resetSchema = z.object({
+  code: z.string().min(1, 'Vui lòng nhập mã xác nhận'),
+  password: z.string().min(6, 'Mật khẩu phải có ít nhất 6 ký tự'),
+  confirmPassword: z.string()
+}).refine(data => data.password === data.confirmPassword, {
+  message: 'Mật khẩu xác nhận không khớp',
+  path: ['confirmPassword']
+});
+
+type EmailFormValues = z.infer<typeof emailSchema>;
+type ResetFormValues = z.infer<typeof resetSchema>;
 
 export default function ForgotPasswordPage() {
   const navigate = useNavigate();
@@ -14,23 +33,26 @@ export default function ForgotPasswordPage() {
 
   const [step, setStep] = useState<Step>('email');
   const [email, setEmail] = useState('');
-  const [code, setCode] = useState('');
-  const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
   const [showPwd, setShowPwd] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
+  const emailForm = useForm<EmailFormValues>({
+    resolver: zodResolver(emailSchema),
+    defaultValues: { email: '' },
+  });
+
+  const resetForm = useForm<ResetFormValues>({
+    resolver: zodResolver(resetSchema),
+    defaultValues: { code: '', password: '', confirmPassword: '' },
+  });
+
   // Step 1: Gửi email
-  const handleSendEmail = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!email.trim()) {
-      toast.error('Vui lòng nhập email');
-      return;
-    }
+  const onEmailSubmit = async (data: EmailFormValues) => {
     setIsLoading(true);
     try {
-      await authApi.forgotPassword(email.trim());
+      await authApi.forgotPassword(data.email.trim());
+      setEmail(data.email.trim());
       toast.success('Đã gửi mã đặt lại mật khẩu! Kiểm tra email của bạn.');
       setStep('reset');
     } catch (err: any) {
@@ -41,23 +63,10 @@ export default function ForgotPasswordPage() {
   };
 
   // Step 2: Đặt lại mật khẩu với code
-  const handleResetPassword = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!code.trim()) {
-      toast.error('Vui lòng nhập mã xác nhận');
-      return;
-    }
-    if (password.length < 6) {
-      toast.error('Mật khẩu phải có ít nhất 6 ký tự');
-      return;
-    }
-    if (password !== confirmPassword) {
-      toast.error('Mật khẩu xác nhận không khớp');
-      return;
-    }
+  const onResetSubmit = async (data: ResetFormValues) => {
     setIsLoading(true);
     try {
-      await authApi.resetPassword({ email, code: code.trim(), password, confirmPassword });
+      await authApi.resetPassword({ email, code: data.code.trim(), password: data.password, confirmPassword: data.confirmPassword });
       toast.success('Đặt lại mật khẩu thành công! Vui lòng đăng nhập.');
       navigate('/login', { replace: true });
     } catch (err: any) {
@@ -153,19 +162,19 @@ export default function ForgotPasswordPage() {
               <p className="login-subtitle">Nhập email để nhận mã đặt lại mật khẩu</p>
             </div>
 
-            <form className="login-form" onSubmit={handleSendEmail}>
+            <form className="login-form" onSubmit={emailForm.handleSubmit(onEmailSubmit)}>
               <div className="form-group">
                 <label className="form-label" htmlFor="forgot-email">Địa chỉ Email</label>
                 <input
                   id="forgot-email"
-                  className="form-input"
+                  className={`form-input ${emailForm.formState.errors.email ? 'is-invalid' : ''}`}
                   type="email"
                   placeholder="your@email.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  {...emailForm.register('email')}
                   autoFocus
                   autoComplete="email"
                 />
+                {emailForm.formState.errors.email && <div className="error-message" style={{ color: 'var(--error-color)', fontSize: '13px', marginTop: '4px' }}>{emailForm.formState.errors.email.message}</div>}
               </div>
 
               <button
@@ -173,7 +182,7 @@ export default function ForgotPasswordPage() {
                 type="submit"
                 className="btn btn-primary"
                 disabled={isLoading}
-                style={{ width: '100%', justifyContent: 'center', padding: '11px' }}
+                style={{ width: '100%', justifyContent: 'center', padding: '11px', marginTop: '16px' }}
               >
                 {isLoading ? (
                   <><div className="loading-spinner" style={{ width: 16, height: 16 }} /> Đang gửi...</>
@@ -182,7 +191,7 @@ export default function ForgotPasswordPage() {
                 )}
               </button>
 
-              <div style={{ textAlign: 'center', fontSize: '13px', color: 'var(--text-muted)' }}>
+              <div style={{ textAlign: 'center', fontSize: '13px', color: 'var(--text-muted)', marginTop: '16px' }}>
                 Nhớ mật khẩu rồi?{' '}
                 <Link to="/login" style={{ color: 'var(--accent-primary)', textDecoration: 'none', fontWeight: 600 }}>
                   Đăng nhập
@@ -206,19 +215,19 @@ export default function ForgotPasswordPage() {
               </p>
             </div>
 
-            <form className="login-form" onSubmit={handleResetPassword}>
+            <form className="login-form" onSubmit={resetForm.handleSubmit(onResetSubmit)}>
               <div className="form-group">
                 <label className="form-label" htmlFor="reset-code">Mã xác nhận</label>
                 <input
                   id="reset-code"
-                  className="form-input"
+                  className={`form-input ${resetForm.formState.errors.code ? 'is-invalid' : ''}`}
                   type="text"
                   placeholder="Nhập mã từ email..."
-                  value={code}
-                  onChange={(e) => setCode(e.target.value)}
+                  {...resetForm.register('code')}
                   autoFocus
                   style={{ letterSpacing: '2px', fontSize: '16px', textAlign: 'center' }}
                 />
+                {resetForm.formState.errors.code && <div className="error-message" style={{ color: 'var(--error-color)', fontSize: '13px', marginTop: '4px' }}>{resetForm.formState.errors.code.message}</div>}
               </div>
 
               <div className="form-group">
@@ -226,11 +235,10 @@ export default function ForgotPasswordPage() {
                 <div style={{ position: 'relative' }}>
                   <input
                     id="reset-password"
-                    className="form-input"
+                    className={`form-input ${resetForm.formState.errors.password ? 'is-invalid' : ''}`}
                     type={showPwd ? 'text' : 'password'}
                     placeholder="Tối thiểu 6 ký tự"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
+                    {...resetForm.register('password')}
                     style={{ paddingRight: '44px' }}
                   />
                   <button type="button" onClick={() => setShowPwd(v => !v)}
@@ -238,6 +246,7 @@ export default function ForgotPasswordPage() {
                     {showPwd ? <EyeOff size={16} /> : <Eye size={16} />}
                   </button>
                 </div>
+                {resetForm.formState.errors.password && <div className="error-message" style={{ color: 'var(--error-color)', fontSize: '13px', marginTop: '4px' }}>{resetForm.formState.errors.password.message}</div>}
               </div>
 
               <div className="form-group">
@@ -245,24 +254,18 @@ export default function ForgotPasswordPage() {
                 <div style={{ position: 'relative' }}>
                   <input
                     id="reset-confirm"
-                    className="form-input"
+                    className={`form-input ${resetForm.formState.errors.confirmPassword ? 'is-invalid' : ''}`}
                     type={showConfirm ? 'text' : 'password'}
                     placeholder="Nhập lại mật khẩu mới"
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    style={{
-                      paddingRight: '44px',
-                      borderColor: confirmPassword && password !== confirmPassword ? 'var(--error)' : '',
-                    }}
+                    {...resetForm.register('confirmPassword')}
+                    style={{ paddingRight: '44px' }}
                   />
                   <button type="button" onClick={() => setShowConfirm(v => !v)}
                     style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}>
                     {showConfirm ? <EyeOff size={16} /> : <Eye size={16} />}
                   </button>
                 </div>
-                {confirmPassword && password !== confirmPassword && (
-                  <span className="form-error">Mật khẩu không khớp</span>
-                )}
+                {resetForm.formState.errors.confirmPassword && <div className="error-message" style={{ color: 'var(--error-color)', fontSize: '13px', marginTop: '4px' }}>{resetForm.formState.errors.confirmPassword.message}</div>}
               </div>
 
               <button
@@ -270,7 +273,7 @@ export default function ForgotPasswordPage() {
                 type="submit"
                 className="btn btn-primary"
                 disabled={isLoading}
-                style={{ width: '100%', justifyContent: 'center', padding: '11px' }}
+                style={{ width: '100%', justifyContent: 'center', padding: '11px', marginTop: '24px' }}
               >
                 {isLoading ? (
                   <><div className="loading-spinner" style={{ width: 16, height: 16 }} /> Đang xử lý...</>

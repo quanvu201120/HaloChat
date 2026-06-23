@@ -1,5 +1,6 @@
 import { memo } from 'react';
 import { Link } from 'react-router-dom';
+import { UserX } from 'lucide-react';
 import type { Conversation } from '../services/conversations';
 
 function getConversationName(conv: Conversation, currentUserId: string): string {
@@ -20,6 +21,12 @@ function getInitials(name: string): string {
   const parts = name.trim().split(' ');
   if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
   return name.slice(0, 2).toUpperCase();
+}
+
+function getIsTargetUserDisabled(conv: Conversation, currentUserId: string): boolean {
+  if (conv.isGroup) return false;
+  const other = conv.users.find((u) => u._id !== currentUserId);
+  return !!(other as any)?.isDisabled;
 }
 
 function getLastMessagePreview(conv: Conversation, currentUserId: string): string {
@@ -71,6 +78,7 @@ function ConversationItem({
   const name = getConversationName(conv, currentUserId);
   const avatarUrl = getConversationAvatar(conv, currentUserId);
   const initials = getInitials(name);
+  const isTargetUserDisabled = getIsTargetUserDisabled(conv, currentUserId);
   const preview = getLastMessagePreview(conv, currentUserId);
   const timeStr = conv.lastMessage?.createdAt
     ? formatTime(conv.lastMessage.createdAt)
@@ -83,12 +91,16 @@ function ConversationItem({
     >
       {/* Avatar */}
       <div className="conv-avatar-wrap">
-        {avatarUrl ? (
+        {isTargetUserDisabled ? (
+          <div className="conv-avatar" style={{ background: 'var(--bg-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <UserX size={20} style={{ color: 'var(--text-muted)' }} />
+          </div>
+        ) : avatarUrl ? (
           <img src={avatarUrl} alt={name} className="conv-avatar-img" />
         ) : (
           <div className="conv-avatar">{initials}</div>
         )}
-        {isOnline && <span className="online-dot" />}
+        {isOnline && !isTargetUserDisabled && <span className="online-dot" />}
       </div>
 
       {/* Info */}

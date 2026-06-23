@@ -1,39 +1,47 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
 import { authApi, parseError } from '../services/api';
 import { useToast } from '../context/ToastContext';
 import { useTheme } from '../context/ThemeContext';
 import { UserPlus, Eye, EyeOff, Moon, Sun } from 'lucide-react';
+
+const registerSchema = z.object({
+  email: z.string().email('Email không hợp lệ'),
+  password: z.string().min(6, 'Mật khẩu phải có ít nhất 6 ký tự'),
+  confirmPassword: z.string()
+}).refine(data => data.password === data.confirmPassword, {
+  message: 'Mật khẩu xác nhận không khớp',
+  path: ['confirmPassword']
+});
+
+type RegisterFormValues = z.infer<typeof registerSchema>;
 
 export default function RegisterPage() {
   const navigate = useNavigate();
   const toast = useToast();
   const { theme, toggleTheme } = useTheme();
 
-  // RegisterAuthDto: { email, password, confirmPassword } — không có name
-  const [form, setForm] = useState({ email: '', password: '', confirmPassword: '' });
   const [showPwd, setShowPwd] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!form.email || !form.password) {
-      toast.error('Email và mật khẩu là bắt buộc');
-      return;
-    }
-    if (form.password.length < 6) {
-      toast.error('Mật khẩu phải có ít nhất 6 ký tự');
-      return;
-    }
-    if (form.password !== form.confirmPassword) {
-      toast.error('Mật khẩu xác nhận không khớp');
-      return;
-    }
+  const {
+    register,
+    handleSubmit,
+    formState: { errors }
+  } = useForm<RegisterFormValues>({
+    resolver: zodResolver(registerSchema),
+    defaultValues: { email: '', password: '', confirmPassword: '' }
+  });
+
+  const onSubmit = async (data: RegisterFormValues) => {
     setIsLoading(true);
     try {
-      await authApi.register(form);
+      await authApi.register({ email: data.email, password: data.password, confirmPassword: data.confirmPassword });
       toast.success('Đăng ký thành công! Vui lòng nhập mã xác nhận được gửi về email.');
-      navigate('/active-account', { state: { email: form.email } });
+      navigate('/active-account', { state: { email: data.email } });
     } catch (err: any) {
       toast.error(parseError(err));
     } finally {
@@ -70,18 +78,18 @@ export default function RegisterPage() {
           <p className="login-subtitle">Đăng ký để sử dụng hệ thống</p>
         </div>
 
-        <form className="login-form" onSubmit={handleSubmit}>
+        <form className="login-form" onSubmit={handleSubmit(onSubmit)}>
           <div className="form-group">
             <label className="form-label" htmlFor="reg-email">Email *</label>
             <input
               id="reg-email"
-              className="form-input"
+              className={`form-input ${errors.email ? 'is-invalid' : ''}`}
               type="email"
               placeholder="your@email.com"
-              value={form.email}
-              onChange={(e) => setForm({ ...form, email: e.target.value })}
+              {...register('email')}
               autoFocus
             />
+            {errors.email && <div className="error-message" style={{ color: 'var(--error-color)', fontSize: '13px', marginTop: '4px' }}>{errors.email.message}</div>}
           </div>
 
           <div className="form-group">
@@ -89,11 +97,10 @@ export default function RegisterPage() {
             <div style={{ position: 'relative' }}>
               <input
                 id="reg-password"
-                className="form-input"
+                className={`form-input ${errors.password ? 'is-invalid' : ''}`}
                 type={showPwd ? 'text' : 'password'}
                 placeholder="Tối thiểu 6 ký tự"
-                value={form.password}
-                onChange={(e) => setForm({ ...form, password: e.target.value })}
+                {...register('password')}
                 style={{ paddingRight: '44px' }}
               />
               <button type="button" onClick={() => setShowPwd(v => !v)}
@@ -101,22 +108,19 @@ export default function RegisterPage() {
                 {showPwd ? <EyeOff size={16} /> : <Eye size={16} />}
               </button>
             </div>
+            {errors.password && <div className="error-message" style={{ color: 'var(--error-color)', fontSize: '13px', marginTop: '4px' }}>{errors.password.message}</div>}
           </div>
 
           <div className="form-group">
             <label className="form-label" htmlFor="reg-confirm">Xác nhận mật khẩu *</label>
             <input
               id="reg-confirm"
-              className="form-input"
+              className={`form-input ${errors.confirmPassword ? 'is-invalid' : ''}`}
               type="password"
               placeholder="Nhập lại mật khẩu"
-              value={form.confirmPassword}
-              onChange={(e) => setForm({ ...form, confirmPassword: e.target.value })}
-              style={{ borderColor: form.confirmPassword && form.password !== form.confirmPassword ? 'var(--error)' : '' }}
+              {...register('confirmPassword')}
             />
-            {form.confirmPassword && form.password !== form.confirmPassword && (
-              <span className="form-error">Mật khẩu không khớp</span>
-            )}
+            {errors.confirmPassword && <div className="error-message" style={{ color: 'var(--error-color)', fontSize: '13px', marginTop: '4px' }}>{errors.confirmPassword.message}</div>}
           </div>
 
           <button
@@ -124,7 +128,7 @@ export default function RegisterPage() {
             type="submit"
             className="btn btn-primary"
             disabled={isLoading}
-            style={{ width: '100%', justifyContent: 'center', padding: '11px' }}
+            style={{ width: '100%', justifyContent: 'center', padding: '11px', marginTop: '24px' }}
           >
             {isLoading
               ? <><div className="loading-spinner" style={{ width: 16, height: 16 }} /> Đang đăng ký...</>
@@ -132,7 +136,7 @@ export default function RegisterPage() {
             }
           </button>
 
-          <div style={{ textAlign: 'center', fontSize: '13px', color: 'var(--text-muted)' }}>
+          <div style={{ textAlign: 'center', fontSize: '13px', color: 'var(--text-muted)', marginTop: '16px' }}>
             Đã có tài khoản?{' '}
             <Link to="/login" style={{ color: 'var(--accent-primary)', textDecoration: 'none', fontWeight: 600 }}>
               Đăng nhập

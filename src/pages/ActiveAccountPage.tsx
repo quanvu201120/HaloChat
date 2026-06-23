@@ -1,9 +1,19 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
 import { authApi, parseError } from '../services/api';
 import { useToast } from '../context/ToastContext';
 import { useTheme } from '../context/ThemeContext';
 import { ShieldCheck, RefreshCw, ArrowLeft, Moon, Sun } from 'lucide-react';
+
+const activeSchema = z.object({
+  email: z.string().email('Email không hợp lệ'),
+  code: z.string().min(1, 'Vui lòng nhập mã kích hoạt')
+});
+
+type ActiveFormValues = z.infer<typeof activeSchema>;
 
 /**
  * Trang kích hoạt tài khoản.
@@ -19,8 +29,16 @@ export default function ActiveAccountPage() {
   // Email có thể được truyền từ Login/Register qua router state
   const emailFromState = (location.state as any)?.email || '';
 
-  const [email, setEmail] = useState(emailFromState);
-  const [code, setCode] = useState('');
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+    getValues,
+  } = useForm<ActiveFormValues>({
+    resolver: zodResolver(activeSchema),
+    defaultValues: { email: emailFromState, code: '' }
+  });
+
   const [isLoading, setIsLoading] = useState(false);
   const [resendLoading, setResendLoading] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
@@ -32,19 +50,10 @@ export default function ActiveAccountPage() {
     return () => clearTimeout(timer);
   }, [resendCooldown]);
 
-  const handleActivate = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!email.trim()) {
-      toast.error('Vui lòng nhập email đã đăng ký');
-      return;
-    }
-    if (!code.trim()) {
-      toast.error('Vui lòng nhập mã kích hoạt');
-      return;
-    }
+  const onActivateSubmit = async (data: ActiveFormValues) => {
     setIsLoading(true);
     try {
-      await authApi.active(email.trim(), code.trim());
+      await authApi.active(data.email.trim(), data.code.trim());
       toast.success('Kích hoạt tài khoản thành công! Vui lòng đăng nhập.');
       navigate('/login', { replace: true });
     } catch (err: any) {
@@ -56,13 +65,14 @@ export default function ActiveAccountPage() {
 
   const handleResend = async () => {
     if (resendCooldown > 0) return;
-    if (!email.trim()) {
+    const currentEmail = getValues('email');
+    if (!currentEmail || !currentEmail.trim()) {
       toast.error('Vui lòng nhập email để gửi lại mã kích hoạt');
       return;
     }
     setResendLoading(true);
     try {
-      await authApi.resendCode(email.trim());
+      await authApi.resendCode(currentEmail.trim());
       toast.success('Đã gửi lại mã kích hoạt. Kiểm tra email!');
       setResendCooldown(60);
     } catch (err: any) {
@@ -114,22 +124,22 @@ export default function ActiveAccountPage() {
           </p>
         </div>
 
-        <form className="login-form" onSubmit={handleActivate}>
+        <form className="login-form" onSubmit={handleSubmit(onActivateSubmit)}>
           <div className="form-group">
             <label className="form-label" htmlFor="activation-email">
               Email
             </label>
             <input
               id="activation-email"
-              className="form-input"
+              className={`form-input ${errors.email ? 'is-invalid' : ''}`}
               type="email"
               placeholder="email@example.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              {...register('email')}
               autoFocus={!emailFromState}
               readOnly={Boolean(emailFromState)}
               style={emailFromState ? { opacity: 0.7, cursor: 'not-allowed' } : undefined}
             />
+            {errors.email && <div className="error-message" style={{ color: 'var(--error-color)', fontSize: '13px', marginTop: '4px' }}>{errors.email.message}</div>}
           </div>
 
           <div className="form-group">
@@ -138,14 +148,14 @@ export default function ActiveAccountPage() {
             </label>
             <input
               id="activation-code"
-              className="form-input"
+              className={`form-input ${errors.code ? 'is-invalid' : ''}`}
               type="text"
               placeholder="Nhập mã từ email..."
-              value={code}
-              onChange={(e) => setCode(e.target.value)}
+              {...register('code')}
               autoFocus={Boolean(emailFromState)}
               style={{ letterSpacing: '2px', fontSize: '16px', textAlign: 'center' }}
             />
+            {errors.code && <div className="error-message" style={{ color: 'var(--error-color)', fontSize: '13px', marginTop: '4px' }}>{errors.code.message}</div>}
           </div>
 
           <button
@@ -153,7 +163,7 @@ export default function ActiveAccountPage() {
             type="submit"
             className="btn btn-primary"
             disabled={isLoading}
-            style={{ width: '100%', justifyContent: 'center', padding: '11px' }}
+            style={{ width: '100%', justifyContent: 'center', padding: '11px', marginTop: '16px' }}
           >
             {isLoading ? (
               <><div className="loading-spinner" style={{ width: 16, height: 16 }} /> Đang kích hoạt...</>
@@ -162,7 +172,7 @@ export default function ActiveAccountPage() {
             )}
           </button>
 
-          <div style={{ textAlign: 'center' }}>
+          <div style={{ textAlign: 'center', marginTop: '16px' }}>
             <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>Chưa nhận được email? </span>
             <button
               type="button"

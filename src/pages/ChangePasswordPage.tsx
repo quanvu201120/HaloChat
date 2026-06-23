@@ -1,13 +1,24 @@
 import { useState } from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
 import { authApi, parseError } from '../services/api';
 import { useToast } from '../context/ToastContext';
 import { KeyRound, Eye, EyeOff, ShieldCheck } from 'lucide-react';
 
-type PasswordForm = {
-  passwordOld: string;
-  passwordNew: string;
-  confirmPassword: string;
-};
+const changePasswordSchema = z.object({
+  passwordOld: z.string().min(1, 'Vui lòng nhập mật khẩu hiện tại'),
+  passwordNew: z.string().min(6, 'Mật khẩu mới phải có ít nhất 6 ký tự'),
+  confirmPassword: z.string()
+}).refine(data => data.passwordNew === data.confirmPassword, {
+  message: 'Mật khẩu xác nhận không khớp',
+  path: ['confirmPassword']
+}).refine(data => data.passwordOld !== data.passwordNew, {
+  message: 'Mật khẩu mới phải khác mật khẩu cũ',
+  path: ['passwordNew']
+});
+
+type ChangePasswordFormValues = z.infer<typeof changePasswordSchema>;
 
 type PasswordVisibility = {
   old: boolean;
@@ -15,7 +26,7 @@ type PasswordVisibility = {
   confirm: boolean;
 };
 
-type PasswordField = keyof PasswordForm;
+type PasswordField = keyof ChangePasswordFormValues;
 type PasswordVisibilityKey = keyof PasswordVisibility;
 
 function PasswordInput({
@@ -23,18 +34,18 @@ function PasswordInput({
   label,
   field,
   showKey,
-  form,
+  register,
+  error,
   show,
-  onChange,
   onToggle,
 }: {
   id: string;
   label: string;
   field: PasswordField;
   showKey: PasswordVisibilityKey;
-  form: PasswordForm;
+  register: any;
+  error?: string;
   show: PasswordVisibility;
-  onChange: (field: PasswordField, value: string) => void;
   onToggle: (key: PasswordVisibilityKey) => void;
 }) {
   return (
@@ -43,11 +54,10 @@ function PasswordInput({
       <div style={{ position: 'relative' }}>
         <input
           id={id}
-          className="form-input"
+          className={`form-input ${error ? 'is-invalid' : ''}`}
           type={show[showKey] ? 'text' : 'password'}
           placeholder="••••••••"
-          value={form[field]}
-          onChange={(e) => onChange(field, e.target.value)}
+          {...register(field)}
           style={{ paddingRight: '44px' }}
         />
         <button
@@ -67,17 +77,24 @@ function PasswordInput({
           {show[showKey] ? <EyeOff size={16} /> : <Eye size={16} />}
         </button>
       </div>
+      {error && <div className="error-message" style={{ color: 'var(--error-color)', fontSize: '13px', marginTop: '4px' }}>{error}</div>}
     </div>
   );
 }
 
 export default function ChangePasswordPage() {
   const toast = useToast();
-  const [form, setForm] = useState<PasswordForm>({
-    passwordOld: '',
-    passwordNew: '',
-    confirmPassword: '',
+  
+  const {
+    register,
+    handleSubmit,
+    reset,
+    formState: { errors }
+  } = useForm<ChangePasswordFormValues>({
+    resolver: zodResolver(changePasswordSchema),
+    defaultValues: { passwordOld: '', passwordNew: '', confirmPassword: '' }
   });
+
   const [show, setShow] = useState<PasswordVisibility>({
     old: false,
     new: false,
@@ -85,38 +102,16 @@ export default function ChangePasswordPage() {
   });
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleFieldChange = (field: PasswordField, value: string) => {
-    setForm((prev) => ({ ...prev, [field]: value }));
-  };
-
   const handleToggleVisibility = (key: PasswordVisibilityKey) => {
     setShow((prev) => ({ ...prev, [key]: !prev[key] }));
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!form.passwordOld || !form.passwordNew || !form.confirmPassword) {
-      toast.error('Vui lòng điền đầy đủ thông tin');
-      return;
-    }
-    if (form.passwordNew.length < 6) {
-      toast.error('Mật khẩu mới phải có ít nhất 6 ký tự');
-      return;
-    }
-    if (form.passwordNew !== form.confirmPassword) {
-      toast.error('Mật khẩu xác nhận không khớp');
-      return;
-    }
-    if (form.passwordOld === form.passwordNew) {
-      toast.error('Mật khẩu mới phải khác mật khẩu cũ');
-      return;
-    }
-
+  const onSubmit = async (data: ChangePasswordFormValues) => {
     setIsLoading(true);
     try {
-      await authApi.changePassword(form);
+      await authApi.changePassword({ passwordOld: data.passwordOld, passwordNew: data.passwordNew, confirmPassword: data.confirmPassword });
       toast.success('Đổi mật khẩu thành công!');
-      setForm({ passwordOld: '', passwordNew: '', confirmPassword: '' });
+      reset();
     } catch (err: any) {
       toast.error(parseError(err));
     } finally {
@@ -155,15 +150,15 @@ export default function ChangePasswordPage() {
             </div>
           </div>
 
-          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <form onSubmit={handleSubmit(onSubmit)} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
             <PasswordInput
               id="pwd-old"
               label="Mật khẩu hiện tại"
               field="passwordOld"
               showKey="old"
-              form={form}
+              register={register}
+              error={errors.passwordOld?.message}
               show={show}
-              onChange={handleFieldChange}
               onToggle={handleToggleVisibility}
             />
             <div className="divider" />
@@ -172,9 +167,9 @@ export default function ChangePasswordPage() {
               label="Mật khẩu mới"
               field="passwordNew"
               showKey="new"
-              form={form}
+              register={register}
+              error={errors.passwordNew?.message}
               show={show}
-              onChange={handleFieldChange}
               onToggle={handleToggleVisibility}
             />
             <PasswordInput
@@ -182,21 +177,18 @@ export default function ChangePasswordPage() {
               label="Xác nhận mật khẩu mới"
               field="confirmPassword"
               showKey="confirm"
-              form={form}
+              register={register}
+              error={errors.confirmPassword?.message}
               show={show}
-              onChange={handleFieldChange}
               onToggle={handleToggleVisibility}
             />
-            {form.confirmPassword && form.passwordNew !== form.confirmPassword && (
-              <span className="form-error" style={{ marginTop: '-8px' }}>Mật khẩu không khớp</span>
-            )}
 
             <button
               id="btn-change-password"
               type="submit"
               className="btn btn-primary"
               disabled={isLoading}
-              style={{ alignSelf: 'flex-start', padding: '10px 24px' }}
+              style={{ alignSelf: 'flex-start', padding: '10px 24px', marginTop: '8px' }}
             >
               {isLoading
                 ? <><div className="loading-spinner" style={{ width: 14, height: 14 }} /> Đang lưu...</>

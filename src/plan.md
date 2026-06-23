@@ -74,16 +74,16 @@ Checkpoint:
 
 ## Phase 3 - Form stack
 
-- [ ] Cai `react-hook-form` va `zod`
-- [ ] Tao schema cho login / register / forgot password / change password
-- [ ] Migrate tung form mot
-- [ ] Chuan hoa message validation va error display
-- [ ] Giam toi da state nhap lieu thu cong bang `useState`
+- [x] Cai `react-hook-form` va `zod`
+- [x] Tao schema cho login / register / forgot password / change password
+- [x] Migrate tung form mot
+- [x] Chuan hoa message validation va error display
+- [x] Giam toi da state nhap lieu thu cong bang `useState`
 
 Checkpoint:
 
-- [ ] Form submit hoat dong on
-- [ ] Validation hien thi dung va nhat quan
+- [x] Form submit hoat dong on
+- [x] Validation hien thi dung va nhat quan
 
 ## Phase 4 - Animation
 
