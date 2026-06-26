@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@hookform/resolvers": "^5.4.0",
+    "@tailwindcss/vite": "^4.3.1",
     "@tanstack/react-query": "^5.101.0",
     "axios": "^1.16.1",
     "emoji-picker-react": "^4.19.1",
@@ -22,6 +23,7 @@
     "react-hot-toast": "^2.6.0",
     "react-router-dom": "^7.15.1",
     "socket.io-client": "^4.8.3",
+    "tailwindcss": "^4.3.1",
     "zod": "^4.4.3",
     "zustand": "^5.0.14"
   },

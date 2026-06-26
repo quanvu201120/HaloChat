@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { X, UserPlus, Users, Check, RefreshCcw } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useAvailableUsers } from '../hooks/useAvailableUsers';
+import { useRelationships } from '../hooks/useRelationships';
 import { conversationsApi } from '../services/conversations';
 import { parseError } from '../services/api';
 import { useAuthStore as useAuth } from '../store/authStore';
@@ -13,6 +13,7 @@ interface UserResult {
   _id: string;
   name?: string;
   email: string;
+  phone?: string;
   image?: string;
 }
 
@@ -28,20 +29,20 @@ export default function CreateConversationModal({ isOpen, onClose }: Props) {
   const navigate = useNavigate();
 
   const [tab, setTab] = useState<'direct' | 'group'>('direct');
-  const [search] = useState('');
+  const [search, setSearch] = useState('');
   const [selected, setSelected] = useState<UserResult[]>([]);
   const [groupName, setGroupName] = useState('');
   const [isCreating, setIsCreating] = useState(false);
 
-  const { users: allAvailableUsers, isLoading: isSearching, refetch } = useAvailableUsers();
-
-  const allUsers = useMemo(() => allAvailableUsers.filter((u) => u._id !== user?._id), [allAvailableUsers, user?._id]);
+  const { friends } = useRelationships();
 
   const results = useMemo(() => {
-    if (!search.trim()) return allUsers;
+    if (!search.trim()) return friends;
     const q = search.toLowerCase();
-    return allUsers.filter((u) => (u.name || '').toLowerCase().includes(q) || u.email.toLowerCase().includes(q));
-  }, [search, allUsers]);
+    return friends.filter((u) => 
+      (u.name || '').toLowerCase().includes(q)
+    );
+  }, [search, friends]);
 
   const toggleSelect = (u: UserResult) => {
     setSelected((prev) => {
@@ -112,9 +113,6 @@ export default function CreateConversationModal({ isOpen, onClose }: Props) {
             <div className="modal-header">
           <span className="modal-title">{tab === 'direct' ? 'Chat với bạn bè' : 'Tạo nhóm chat'}</span>
           <div style={{ display: 'flex', gap: '4px' }}>
-            <button className="icon-btn" title="Làm mới danh sách" onClick={() => refetch()}>
-              <RefreshCcw size={16} className={isSearching ? 'rotating' : ''} />
-            </button>
             <button className="icon-btn" onClick={onClose}><X size={18} /></button>
           </div>
         </div>
@@ -159,18 +157,14 @@ export default function CreateConversationModal({ isOpen, onClose }: Props) {
             </div>
           )}
 
-          {/* <div className="form-group">
-            <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '8px'  }}>
-              Chon nguoi dung
-              {isSearching && <div className="loading-spinner" style={{ width: 14, height: 14 }} />}
-            </label>
+          <div className="form-group" style={{ marginBottom: '12px' }}>
             <input
               className="form-input"
-              placeholder="Tim theo ten hoac email..."
+              placeholder="Tìm theo tên bạn bè..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
-          </div> */}
+          </div>
 
           {selected.length > 0 && (
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
@@ -203,7 +197,7 @@ export default function CreateConversationModal({ isOpen, onClose }: Props) {
           )}
 
           {results.length > 0 && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', maxHeight: '220px', overflowY: 'auto' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', maxHeight: '350px', overflowY: 'auto', paddingRight: '4px' }}>
               {results.map((u) => {
                 const isSelected = !!selected.find((s) => s._id === u._id);
                 return (

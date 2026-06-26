@@ -1,5 +1,6 @@
 /* ===== Google Fonts ===== */
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+@import "tailwindcss";
 
 /* ===== CSS RESET & VARIABLES ===== */
 *, *::before, *::after {
@@ -1372,7 +1373,7 @@ html, body, #root {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 14px 20px;
+  padding: 10px 16px;
   background: var(--bg-composer);
   backdrop-filter: blur(12px);
   border-top: 1px solid var(--border);
@@ -1382,12 +1383,12 @@ html, body, #root {
 
 .composer-input {
   flex: 1;
-  padding: 12px 18px;
+  padding: 10px 16px;
   background: var(--bg-secondary);
   border: 1px solid transparent;
-  border-radius: 24px;
+  border-radius: 20px;
   color: var(--text-primary);
-  font-size: 15px;
+  font-size: 14.5px;
   font-family: inherit;
   outline: none;
   transition: all 0.2s cubic-bezier(0.1, 0.8, 0.2, 1);
@@ -1404,8 +1405,8 @@ html, body, #root {
 .composer-input::placeholder { color: var(--text-muted); }
 
 .composer-send {
-  width: 40px;
-  height: 40px;
+  width: 36px;
+  height: 36px;
   border-radius: 50%;
   border: none;
   background: var(--bg-secondary);
@@ -2718,6 +2719,9 @@ tbody tr:last-child td {
   .msg-bubble:not(.media-only) {
     max-width: 72%;
   }
+  .sidebar-header {
+    padding-left: 60px; /* Space for the hamburger menu */
+  }
 }
 
 @media (max-width: 700px) {
@@ -2885,30 +2889,65 @@ tbody tr:last-child td {
   display: flex;
   align-items: center;
 }
-
-/* ===== RESPONSIVE MOBILE LAYOUT ===== */
+/* ===== RESPONSIVE MOBILE LAYOUT ===== */
 .mobile-back-btn {
   display: none !important;
 }
 
 @media (max-width: 768px) {
-  /* When only sidebar should be shown */
-  .app-layout.mobile-sidebar-only .chat-sidebar {
-    display: flex;
-    width: 100%;
-    min-width: 100%;
-  }
-  .app-layout.mobile-sidebar-only .chat-main {
-    display: none;
+  .app-layout {
+    position: relative;
+    overflow: hidden;
   }
 
-  /* When only main content should be shown */
+  .chat-sidebar {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100% !important;
+    min-width: 100% !important;
+    height: 100%;
+    z-index: 10;
+    transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+
+  .chat-main {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100% !important;
+    min-width: 100% !important;
+    height: 100%;
+    z-index: 20;
+    transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+    background: var(--bg-primary);
+    box-shadow: -8px 0 24px rgba(0, 0, 0, 0.1);
+  }
+
+  /* State: Show Sidebar (Hide Main) */
+  .app-layout.mobile-sidebar-only .chat-sidebar {
+    display: flex;
+    transform: translateX(0);
+    opacity: 1;
+    pointer-events: auto;
+  }
+  .app-layout.mobile-sidebar-only .chat-main {
+    display: flex;
+    transform: translateX(100%);
+    pointer-events: none;
+  }
+
+  /* State: Show Main (Hide Sidebar) */
   .app-layout.mobile-main-only .chat-sidebar {
-    display: none;
+    display: flex;
+    transform: translateX(-30%);
+    opacity: 0;
+    pointer-events: none;
   }
   .app-layout.mobile-main-only .chat-main {
     display: flex;
-    width: 100%;
+    transform: translateX(0);
+    pointer-events: auto;
   }
 
   /* Make sure right sidebar takes full width on mobile */
@@ -3001,5 +3040,16 @@ tbody tr:last-child td {
     width: 36px;
     height: 36px;
     font-size: 20px;
+  }
+}
+
+.profile-form-col {
+  grid-column: 2;
+  grid-row: 1 / 4;
+}
+@media (max-width: 800px) {
+  .profile-form-col {
+    grid-column: 1;
+    grid-row: auto;
   }
 }

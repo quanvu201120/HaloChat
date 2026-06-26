@@ -141,6 +141,8 @@ export default function ChatPage() {
   const [selectedGroupMedia, setSelectedGroupMedia] = useState<{ url: string; type: 'image' | 'video' } | null>(null);
   const groupAvatarMenuRef = useRef<HTMLDivElement>(null);
 
+  const isTempConversation = activeConversationId.startsWith('temp_');
+
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (groupAvatarMenuRef.current && !groupAvatarMenuRef.current.contains(event.target as Node)) {
@@ -385,6 +387,11 @@ export default function ChatPage() {
       setConv(syncedConversation);
     }
 
+    if (isTempConversation) {
+      setIsLoadingConv(false);
+      return;
+    }
+
     setIsLoadingConv(true);
     conversationsApi.getOne(activeConversationId)
       .then((res) => {
@@ -412,7 +419,7 @@ export default function ChatPage() {
   }, [activeConversationId, conv, hasLoadedConversations, isLoadingConv, navigate, toast]);
 
   useEffect(() => {
-    if (!activeConversationId || !isSocketConnected) return;
+    if (!activeConversationId || !isSocketConnected || isTempConversation) return;
 
     joinConversation(activeConversationId)
       .then((result) => {
@@ -460,6 +467,12 @@ export default function ChatPage() {
     setVoiceBlob(null);
     setVoiceUrl('');
     setVoiceMimeType('audio/webm');
+
+    if (isTempConversation) {
+      setIsLoadingMsgs(false);
+      setLoadedMessagesConversationId(activeConversationId);
+      return;
+    }
 
     messagesApi.getList(activeConversationId)
       .then((res) => {
@@ -523,7 +536,7 @@ export default function ChatPage() {
   }, [activeConversationId]);
 
   const fetchSidebarMedia = useCallback(async (type: MediaResourceTypeEnum, isLoadMore = false) => {
-    if (!activeConversationId) return;
+    if (!activeConversationId || isTempConversation) return;
     if (isLoadingSidebarMedia[type]) return;
     if (isLoadMore && !sidebarMediaHasMore[type]) return;
     if (!isLoadMore && hasFetchedSidebarMedia[type]) return;
@@ -1563,6 +1576,7 @@ export default function ChatPage() {
                 className={`icon-btn mobile-plus-btn${showMediaMenu ? ' active' : ''}`}
                 title="Đính kèm"
                 onClick={() => setShowMediaMenu((prev) => !prev)}
+                disabled={isTempConversation}
               >
                 <Plus size={24} />
               </button>
@@ -1593,7 +1607,7 @@ export default function ChatPage() {
             <input
               ref={inputRef}
               className="composer-input"
-              placeholder={editingMessageId ? 'Chỉnh sửa tin nhắn...' : 'Nhập tin nhắn...'}
+              placeholder={isTempConversation ? 'Đang khởi tạo...' : editingMessageId ? 'Chỉnh sửa tin nhắn...' : 'Nhập tin nhắn...'}
               value={text}
               onChange={(event) => handleTextChange(event.target.value)}
               onKeyDown={(event) => {
@@ -1605,6 +1619,7 @@ export default function ChatPage() {
               onBlur={() => {
                 if (activeConversationId) stopTyping(activeConversationId);
               }}
+              disabled={isTempConversation}
             />
             <div style={{ position: 'relative' }}>
               <button 
@@ -1618,6 +1633,7 @@ export default function ChatPage() {
                   }
                   setShowEmojiPicker((prev) => !prev);
                 }}
+                disabled={isTempConversation}
               >
                 <Smile size={24} />
               </button>
@@ -1641,7 +1657,7 @@ export default function ChatPage() {
             <button
               className={`composer-send${text.trim() ? ' active' : ''}`}
               onClick={handleSend}
-              disabled={!text.trim()}
+              disabled={!text.trim() || isTempConversation}
               title={editingMessageId ? 'Lưu thay đổi' : 'Gửi'}
             >
               <Send size={24} />

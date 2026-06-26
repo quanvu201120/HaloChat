@@ -285,3 +285,13 @@ export const usersApi = {
 
   disableSelf: () => apiWithCookies.patch('/users/me/disable'),
 };
+
+export const relationshipsApi = {
+  getRelationships: () => api.get('/relationships'),
+  create: (data: { targetUserId: string }) => api.post('/relationships', data),
+  block: (data: { targetUserId: string }) => api.patch('/relationships/block', data),
+  unblock: (data: { targetUserId: string }) => api.patch('/relationships/unblock', data),
+  accept: (id: string, data: { targetUserId: string }) => api.patch(`/relationships/${id}/accept`, data),
+  rejectOrRemove: (id: string, data: { targetUserId: string }) => api.patch(`/relationships/${id}/rejectOrRemove`, data),
+  unfriend: (id: string, data: { targetUserId: string }) => api.patch(`/relationships/${id}/unfriend`, data),
+};

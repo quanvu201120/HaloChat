@@ -107,8 +107,22 @@ export default function Sidebar() {
         {/* Conversation list */}
         <div className="conv-list">
           {isLoadingConversations ? (
-            <div className="conv-list-loading">
-              <div className="loading-spinner" />
+            <div className="w-full">
+              {[...Array(6)].map((_, i) => (
+                <div key={i} className="conv-item animate-pulse" style={{ pointerEvents: 'none' }}>
+                  <div className="conv-avatar-wrap">
+                    <div className="conv-avatar bg-gray-200 dark:bg-gray-700" style={{ color: 'transparent' }} />
+                  </div>
+                  <div className="conv-info" style={{ gap: '8px' }}>
+                    <div className="conv-name-row">
+                      <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-1/2" />
+                    </div>
+                    <div className="conv-preview-row">
+                      <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-3/4" />
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
           ) : filtered.length === 0 ? (
             <div className="conv-list-empty">
@@ -145,42 +159,7 @@ export default function Sidebar() {
           )}
         </div>
 
-        {/* Footer */}
-        <div className="sidebar-footer-chat" style={{ padding: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid var(--border)' }}>
-          <button
-            className="sidebar-profile-btn"
-            onClick={() => navigate('/profile')}
-            title="Hồ sơ cá nhân"
-            style={{ padding: 0, background: 'none', width: 'auto' }}
-          >
-            <div className="user-avatar" style={{ 
-              width: '36px', height: '36px', 
-              backgroundImage: user?.avatar?.url ? `url(${user.avatar.url})` : 'linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))',
-              backgroundSize: 'cover', backgroundPosition: 'center',
-              borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
-              color: 'white', fontWeight: 600, fontSize: '14px'
-            }}>
-              {!user?.avatar?.url && getInitials()}
-            </div>
-          </button>
-
-          <button
-            className="icon-btn"
-            title={theme === 'dark' ? 'Chế độ sáng' : 'Chế độ tối'}
-            onClick={toggleTheme}
-          >
-            {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
-          </button>
-          
-          <button
-            className="icon-btn"
-            title="Đăng xuất"
-            onClick={handleLogout}
-            style={{ color: 'var(--error)' }}
-          >
-            <LogOut size={18} />
-          </button>
-        </div>
+        {/* Footer removed and moved to NavigationSidebar */}
       </aside>
 
       <CreateConversationModal 

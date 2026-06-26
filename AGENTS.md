@@ -12,14 +12,18 @@ Behavioral guidelines to reduce common LLM coding mistakes.
 **Tradeoff:** These guidelines bias toward caution over speed. For trivial tasks, use judgment.
 
 ## 1. Think Before Coding
+
 **Don't assume. Don't hide confusion. Surface tradeoffs.**
+
 - State your assumptions explicitly. If uncertain, ask.
 - If multiple interpretations exist, present them - don't pick silently.
 - If a simpler approach exists, say so. Push back when warranted.
 - If something is unclear, stop. Name what's confusing. Ask.
 
 ## 2. Simplicity First
+
 **Minimum code that solves the problem. Nothing speculative.**
+
 - No features beyond what was asked.
 - No abstractions for single-use code.
 - No "flexibility" or "configurability" that wasn't requested.
@@ -27,7 +31,9 @@ Behavioral guidelines to reduce common LLM coding mistakes.
 - If you write 200 lines and it could be 50, rewrite it.
 
 ## 3. Surgical Changes
+
 **Touch only what you must. Clean up only your own mess.**
+
 - Don't "improve" adjacent code, comments, or formatting.
 - Don't refactor things that aren't broken.
 - Match existing style, even if you'd do it differently.
@@ -36,7 +42,9 @@ Behavioral guidelines to reduce common LLM coding mistakes.
 - Don't remove pre-existing dead code unless asked.
 
 ## 4. Goal-Driven Execution
+
 **Define success criteria. Loop until verified.**
+
 - "Add validation" → "Write tests for invalid inputs, then make them pass"
 - "Fix the bug" → "Write a test that reproduces it, then make it pass"
 - "Refactor X" → "Ensure tests pass before and after"
@@ -716,25 +724,13 @@ Treat it as the source of truth for changes in this repo.
 - Context-based global state
 - Hand-written CSS in `src/index.css`
 
-## Refactor Direction
-
-Use these technologies for the new architecture:
+## Technologies
 
 - `@tanstack/react-query` for server state, caching, loading, and mutations
 - `zustand` for lightweight global state, especially chat/session UI state
 - `react-hook-form` + `zod` for forms and validation
 - `framer-motion` for modal, sidebar, and overlay animations
-- `tailwindcss` for UI migration away from large vanilla CSS
-
-## Priority Order
-
-1. Audit and understand current flow before changing code.
-2. Move API fetching to React Query first.
-3. Move shared chat state from Context to Zustand.
-4. Convert forms to React Hook Form + Zod.
-5. Add Framer Motion where UI transitions matter.
-6. Migrate styling gradually to Tailwind.
-7. Remove dead code, unused CSS, and duplicate state after each phase.
+- `tailwindcss` for UI
 
 ## Working Rules
 
@@ -774,9 +770,3 @@ Use these technologies for the new architecture:
 - Do not migrate to Tailwind in a way that breaks existing layout parity.
 - Do not introduce unnecessary abstractions.
 - Do not remove Context or CSS until the replacement is stable.
-
-## Checkpoint Rule
-
-- Update `src/plan.md` after each meaningful milestone.
-- Mark tasks complete only when the code is actually in place and verified.
-- If a change touches auth, chat, or socket flows, verify those flows before moving on.

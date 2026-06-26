@@ -16,6 +16,7 @@ import EmptyStatePage from './pages/EmptyStatePage';
 import ChatPage from './pages/ChatPage';
 import ProfilePage from './pages/ProfilePage';
 import ChangePasswordPage from './pages/ChangePasswordPage';
+import FriendsPage from './pages/FriendsPage';
 
 function ChatRoute() {
   const { conversationId } = useParams();
@@ -45,6 +46,10 @@ export default function App() {
               {/* Protected routes (wrapped in AppLayout + ChatProvider) */}
               <Route element={<AppLayout />}>
                 <Route index element={<EmptyStatePage />} />
+                <Route path="/friends" element={<FriendsPage />} />
+                <Route path="/requests" element={<FriendsPage />} />
+                <Route path="/sent-requests" element={<FriendsPage />} />
+                <Route path="/blocked" element={<FriendsPage />} />
                 <Route path="/chat/:conversationId" element={<ChatRoute />} />
                 <Route path="/profile" element={<ProfilePage />} />
                 <Route path="/change-password" element={<ChangePasswordPage />} />
