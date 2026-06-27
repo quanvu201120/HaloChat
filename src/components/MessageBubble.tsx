@@ -23,6 +23,7 @@ interface Props {
   onDelete?: () => void;
   onToggleReaction?: (type: string) => void;
   onMediaClick?: (media: any) => void;
+  disableActions?: boolean;
 }
 
 export const REACTIONS = [
@@ -278,13 +279,13 @@ export default function MessageBubble({
 
   return (
     <div
-      className={`msg-row${isMe ? ' me' : ' other'}${showActions && !isSenderDisabled ? ' show-actions' : ''}`}
-      onMouseEnter={() => !isSenderDisabled && setShowActions(true)}
+      className={`msg-row${isMe ? ' me' : ' other'}${showActions && !isSenderDisabled && !disableActions ? ' show-actions' : ''}`}
+      onMouseEnter={() => !isSenderDisabled && !disableActions && setShowActions(true)}
       onMouseLeave={() => {
         setShowActions(false);
         setShowReactionPicker(false);
       }}
-      onClick={() => !isSenderDisabled && setShowActions((prev) => !prev)}
+      onClick={() => !isSenderDisabled && !disableActions && setShowActions((prev) => !prev)}
     >
       {showSenderName && senderName && (
         <div className="msg-sender-name" style={{ marginLeft: '40px' }}>{senderName}</div>

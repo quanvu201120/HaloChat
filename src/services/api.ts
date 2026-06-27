@@ -238,6 +238,8 @@ export const usersApi = {
   getAll: (params?: { current?: number; pageSize?: number; [key: string]: any }) =>
     api.get('/users', { params }),
 
+  search: (query: string) => api.get('/users/search', { params: { query } }),
+
   getOne: (id: string) => api.get(`/users/${id}`),
 
   // CreateUserDto: { name*, email*, password*, confirmPassword*, phone?, address?, role? }
@@ -288,7 +290,7 @@ export const usersApi = {
 
 export const relationshipsApi = {
   getRelationships: () => api.get('/relationships'),
-  create: (data: { targetUserId: string }) => api.post('/relationships', data),
+  create: (data: { targetUserId: string }) => api.post('/relationships', { recipient: data.targetUserId }),
   block: (data: { targetUserId: string }) => api.patch('/relationships/block', data),
   unblock: (data: { targetUserId: string }) => api.patch('/relationships/unblock', data),
   accept: (id: string, data: { targetUserId: string }) => api.patch(`/relationships/${id}/accept`, data),

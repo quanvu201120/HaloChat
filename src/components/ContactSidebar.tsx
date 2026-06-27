@@ -1,12 +1,14 @@
 import { NavLink, useNavigate } from 'react-router-dom';
 import { Contact, Users, UserPlus, User, ArrowUpRight, ChevronLeft } from 'lucide-react';
+import { useRelationships } from '../hooks/useRelationships';
 
 export default function ContactSidebar() {
   const navigate = useNavigate();
+  const { receivedRequests } = useRelationships();
 
   const menuItems = [
     { icon: <Contact size={20} />, label: 'Danh sách bạn bè', path: '/friends' },
-    { icon: <UserPlus size={20} />, label: 'Lời mời kết bạn', path: '/requests' },
+    { icon: <UserPlus size={20} />, label: 'Lời mời kết bạn', path: '/requests', badge: receivedRequests.length },
     { 
       icon: (
         <div style={{ position: 'relative', width: 20, height: 20 }}>
@@ -39,10 +41,22 @@ export default function ContactSidebar() {
           >
             {({ isActive }) => (
               <>
-                <div style={{ color: isActive ? '#3b82f6' : 'inherit' }} className="scale-[1.2] md:scale-100">
+                <div style={{ color: isActive ? '#3b82f6' : 'inherit' }} className="scale-[1.2] md:scale-100 relative">
                   {item.icon}
+                  {typeof item.badge === 'number' && item.badge > 0 && (
+                    <span className="md:hidden absolute -top-1 -right-1 flex items-center justify-center min-w-[16px] h-[16px] px-[5px] bg-[#ef4444] text-white text-[9px] font-bold rounded-full shadow-sm leading-none">
+                      {item.badge > 99 ? '99+' : item.badge}
+                    </span>
+                  )}
                 </div>
-                <span className="hidden md:inline text-[15px]">{item.label}</span>
+                <div className="hidden md:flex items-center gap-1.5">
+                  <span className="text-[15px]">{item.label}</span>
+                  {typeof item.badge === 'number' && item.badge > 0 && (
+                    <span className="flex items-center justify-center min-w-[20px] h-[20px] px-[6px] bg-[#ef4444] text-white text-[11px] font-bold rounded-full shadow-sm leading-none">
+                      {item.badge > 99 ? '99+' : item.badge}
+                    </span>
+                  )}
+                </div>
               </>
             )}
           </NavLink>

@@ -7,10 +7,11 @@ import {
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   Send, Phone, Video, Info, Smile, Paperclip, Image, Mic, Square, X,
-  Camera, Trash2, LogOut, ShieldOff, Check, Pencil, UserPlus, UserMinus, Crown, History, ChevronDown, ChevronRight, ChevronLeft, FileText, Search, Plus, Download, Edit2, UserX
+  Camera, Trash2, LogOut, ShieldOff, Check, Pencil, UserPlus, UserMinus, Crown, History, ChevronDown, ChevronRight, ChevronLeft, FileText, Search, Plus, Download, Edit2, UserX, UserCheck
 } from 'lucide-react';
 import { useAuthStore as useAuth } from '../store/authStore';
 import { useChatStore as useChat } from '../store/chatStore';
+import { useRelationships } from '../hooks/useRelationships';
 import {
   conversationsApi, normalizeConversation, type Conversation,
 } from '../services/conversations';
@@ -119,10 +120,15 @@ export default function ChatPage() {
     typing,
     clearUnread,
     isSocketConnected,
-    setUsersOnline,
-    hasLoadedConversations,
     syncConversationMessage,
     refetchConversations,
+    patchConversation,
+    mergeConversation,
+    fetchConversationById,
+    hasLoadedConversations,
+    setUsersOnline,
+    setMessageRequestContext,
+    setConversations,
   } = useChat();
   const toast = useToast();
 
@@ -247,9 +253,136 @@ export default function ChatPage() {
     : null;
   const isOtherOnline = otherUser ? online[otherUser._id] === true : false;
   const convName = conv ? getConversationName(conv, currentUserId) : '...';
+  const { block, unblock, rawRelationships, isLoading: isLoadingRelationships } = useRelationships();
+
+  const currentRelationship = useMemo(() => {
+    if (!otherUser || !rawRelationships) return null;
+    return rawRelationships.find((r: any) => 
+      (r.requester?._id === currentUserId && r.recipient?._id === otherUser._id) ||
+      (r.recipient?._id === currentUserId && r.requester?._id === otherUser._id)
+    );
+  }, [otherUser, rawRelationships, currentUserId]);
+
+  const isBlocked = currentRelationship?.status === 'BLOCKED';
+  const iBlockedThem = isBlocked && currentRelationship?.blockedBy === currentUserId;
+  const theyBlockedMe = isBlocked && currentRelationship?.blockedBy !== currentUserId;
+
   const headerAvatarUrl = conv?.isGroup 
     ? (conv.avatar?.url || '') 
     : (otherUser?.avatar?.url || '');
+
+  const isMessageRequest = conv && !conv.acceptedBy?.includes(currentUserId);
+
+  useEffect(() => {
+    if (isMessageRequest) {
+      setShowInfo(false);
+    }
+  }, [isMessageRequest]);
+
+  const handleAcceptRequest = async () => {
+    if (!conv) return;
+    try {
+      await conversationsApi.accept(conv._id);
+      const updatedAcceptedBy = [...(conv.acceptedBy || []), currentUserId];
+      patchConversation(conv._id, (c) => ({
+        ...c,
+        acceptedBy: updatedAcceptedBy,
+      }));
+      setConv((prev) => prev ? { ...prev, acceptedBy: updatedAcceptedBy } : prev);
+      // Mark as read now that we've accepted
+      const latestMsg = messages.length > 0 ? messages[messages.length - 1] : null;
+      if (latestMsg && conv._id) {
+        markReadSocket(conv._id, latestMsg._id, () => {
+          clearUnread(conv._id);
+        });
+      }
+      toast.success('Đã chấp nhận kết nối');
+    } catch {
+      toast.error('Có lỗi xảy ra khi chấp nhận');
+    }
+  };
+
+  const handleBlockRequest = () => {
+    if (!otherUser || !conv) return;
+    setConfirmAction({
+      title: 'Chặn người dùng',
+      message: `Bạn có chắc chắn muốn chặn ${otherUser.name || otherUser.email}?`,
+      isDanger: true,
+      confirmText: 'Chặn',
+      action: async () => {
+        try {
+          await block({ targetUserId: otherUser._id });
+          toast.success('Đã chặn người dùng');
+        } catch {
+          toast.error('Có lỗi xảy ra khi chặn');
+        }
+      }
+    });
+  };
+
+  const handleUnblockRequest = () => {
+    if (!otherUser) return;
+    setConfirmAction({
+      title: 'Bỏ chặn người dùng',
+      message: `Bạn có chắc chắn muốn bỏ chặn ${otherUser.name || otherUser.email}?`,
+      isDanger: false,
+      confirmText: 'Bỏ chặn',
+      action: async () => {
+        try {
+          await unblock({ targetUserId: otherUser._id });
+          toast.success('Đã bỏ chặn người dùng');
+        } catch {
+          toast.error('Có lỗi xảy ra khi bỏ chặn');
+        }
+      }
+    });
+  };
+
+  const handleDeleteRequest = () => {
+    if (!conv) return;
+    setConfirmAction({
+      title: 'Xóa tin nhắn chờ',
+      message: 'Bạn có chắc chắn muốn xóa cuộc trò chuyện này?',
+      isDanger: true,
+      confirmText: 'Xóa',
+      action: async () => {
+        try {
+          await conversationsApi.hideHistory(conv._id);
+          toast.success('Đã xóa tin nhắn chờ');
+          hasHandledMissingConversationRef.current = true; // Prevent false error toast
+          setConversations((prev) => prev.filter((c) => c._id !== conv._id));
+          refetchConversations();
+          navigate('/message-requests');
+        } catch {
+          toast.error('Có lỗi xảy ra khi xóa');
+        }
+      }
+    });
+  };
+
+  const handleLeaveGroupRequest = () => {
+    if (!conv) return;
+    setConfirmAction({
+      title: 'Rời nhóm',
+      message: 'Bạn có chắc chắn muốn rời nhóm này?',
+      isDanger: true,
+      confirmText: 'Rời nhóm',
+      action: async () => {
+        try {
+          isLeavingOrDisbandingRef.current = true;
+          await conversationsApi.leaveGroup(conv._id);
+          toast.success('Đã rời nhóm');
+          hasHandledMissingConversationRef.current = true;
+          setConversations((prev) => prev.filter((c) => c._id !== conv._id));
+          refetchConversations();
+          navigate('/message-requests');
+        } catch {
+          isLeavingOrDisbandingRef.current = false;
+          toast.error('Có lỗi xảy ra khi rời nhóm');
+        }
+      }
+    });
+  };
 
   // Tick counter to refresh relative time display every minute
   const [, setTick] = useState(0);
@@ -321,8 +454,9 @@ export default function ChatPage() {
   }, [isRecordingVoice]);
 
   const markConversationRead = useCallback((latestMessage?: Message | null) => {
-    if (!activeConversationId || !latestMessage) return;
+    if (!activeConversationId || !latestMessage || !conv) return;
     if (getSenderId(latestMessage) === currentUserId) return;
+    if (!conv.acceptedBy?.includes(currentUserId)) return;
 
     markReadSocket(activeConversationId, latestMessage._id, () => {
       clearUnread(activeConversationId);
@@ -372,6 +506,9 @@ export default function ChatPage() {
     return 'Đã xem';
   }, [getReadersForMessage]);
 
+  const conversationsRef = useRef(conversations);
+  conversationsRef.current = conversations;
+
   useEffect(() => {
     hasHandledMissingConversationRef.current = false;
     const requestId = ++conversationRequestIdRef.current;
@@ -382,7 +519,8 @@ export default function ChatPage() {
       return;
     }
 
-    const syncedConversation = conversations.find((item) => item._id === activeConversationId);
+    // Snapshot from store for initial render (without making store a dependency)
+    const syncedConversation = conversationsRef.current.find((item) => item._id === activeConversationId);
     if (syncedConversation) {
       setConv(syncedConversation);
     }
@@ -396,7 +534,10 @@ export default function ChatPage() {
     conversationsApi.getOne(activeConversationId)
       .then((res) => {
         if (conversationRequestIdRef.current !== requestId) return;
-        setConv(normalizeConversation(res.data?.data ?? res.data));
+        const freshConv = normalizeConversation(res.data?.data ?? res.data);
+        setConv(freshConv);
+        // Sync fresh user data (avatar, name...) back into the sidebar store
+        patchConversation(freshConv._id, (prev) => ({ ...prev, users: freshConv.users, avatar: freshConv.avatar }));
       })
       .catch((error) => {
         if (conversationRequestIdRef.current !== requestId) return;
@@ -407,7 +548,7 @@ export default function ChatPage() {
         if (conversationRequestIdRef.current !== requestId) return;
         setIsLoadingConv(false);
       });
-  }, [activeConversationId, conversations]);
+  }, [activeConversationId]);
 
   useEffect(() => {
     if (!activeConversationId || !hasLoadedConversations || isLoadingConv || conv) return;
@@ -735,7 +876,10 @@ export default function ChatPage() {
       setConv((prev) => (prev ? { ...prev, name: data.name } : prev));
     };
 
-    const onMemberAdded = () => {};
+    const onMemberAdded = (data: { conversationId: string; addedMemberIds: string[] }) => {
+      if (normalizeId(data.conversationId) !== activeConversationId) return;
+      refetchConversations();
+    };
 
     const onMemberRemoved = (data: { conversationId: string; removedMemberId: string }) => {
       if (normalizeId(data.conversationId) !== activeConversationId) return;
@@ -746,6 +890,13 @@ export default function ChatPage() {
         navigate('/', { replace: true });
         return;
       }
+      // Update local state to remove the user who left
+      setConv((prev) => {
+        if (!prev) return prev;
+        return { ...prev, users: prev.users.filter((u) => u._id !== data.removedMemberId) };
+      });
+      // Also update the global list if needed
+      refetchConversations();
     };
 
     const onConversationDisbanded = (data: { conversationId: string }) => {
@@ -756,6 +907,15 @@ export default function ChatPage() {
       navigate('/', { replace: true });
     };
 
+    const onAdminChanged = (data: { conversationId: string; newAdminId: string }) => {
+      const convId = normalizeId(data.conversationId);
+      if (convId === activeConversationId) {
+        setConv((prev) => (prev ? { ...prev, adminGroupId: data.newAdminId } : prev));
+      }
+      patchConversation(convId, (prev) => ({ ...prev, adminGroupId: data.newAdminId }));
+      refetchConversations();
+    };
+
     socket.on('chat:new-message', onNewMessage);
     socket.on('message:updated', onMessageUpdated);
     socket.on('chat:message-deleted', onMessageDeleted);
@@ -764,6 +924,7 @@ export default function ChatPage() {
     socket.on('conversation:member-added', onMemberAdded);
     socket.on('conversation:member-removed', onMemberRemoved);
     socket.on('conversation:disbanded', onConversationDisbanded);
+    socket.on('conversation:admin-changed', onAdminChanged);
 
     return () => {
       socket.off('chat:new-message', onNewMessage);
@@ -774,6 +935,7 @@ export default function ChatPage() {
       socket.off('conversation:member-added', onMemberAdded);
       socket.off('conversation:member-removed', onMemberRemoved);
       socket.off('conversation:disbanded', onConversationDisbanded);
+      socket.off('conversation:admin-changed', onAdminChanged);
     };
   }, [
     activeConversationId,
@@ -1400,17 +1562,23 @@ export default function ChatPage() {
           </div>
         </div>
 
-        <div className="chat-header-actions">
-          <button className="icon-btn" title="Gọi thoại">
-            <Phone size={18} />
-          </button>
-          <button className="icon-btn" title="Video call">
-            <Video size={18} />
-          </button>
-          <button className={`icon-btn${showInfo ? ' active' : ''}`} title="Thông tin hội thoại" onClick={() => setShowInfo((v) => !v)}>
-            <Info size={18} />
-          </button>
-        </div>
+        {!isMessageRequest && !isLoadingConv && !isLoadingRelationships && (
+          <div className="chat-header-actions">
+            {!isBlocked && (
+              <>
+                <button className="icon-btn" title="Gọi thoại">
+                  <Phone size={18} />
+                </button>
+                <button className="icon-btn" title="Video call">
+                  <Video size={18} />
+                </button>
+              </>
+            )}
+            <button className={`icon-btn${showInfo ? ' active' : ''}`} title="Thông tin hội thoại" onClick={() => setShowInfo((v) => !v)}>
+              <Info size={18} />
+            </button>
+          </div>
+        )}
       </div>
 
       <div
@@ -1467,6 +1635,7 @@ export default function ChatPage() {
                   setLightboxMedias([media]);
                   setLightboxIndex(0);
                 }}
+                disableActions={isMessageRequest || isBlocked}
               />
             );
           })
@@ -1528,7 +1697,60 @@ export default function ChatPage() {
         <div style={{ padding: '16px', background: 'var(--bg-primary)', textAlign: 'center', color: 'var(--text-secondary)', borderTop: '1px solid var(--border)', fontSize: '13px' }}>
           Người này hiện không có mặt trên HaloChat. 
         </div>
-      ) : (
+      ) : isMessageRequest ? (
+        <div style={{ padding: '16px', background: 'var(--bg-primary)', textAlign: 'center', borderTop: '1px solid var(--border)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
+          <span style={{ fontSize: '14px', color: 'var(--text-primary)' }}>
+            {conv?.isGroup ? 'Bạn có lời mời tham gia nhóm này.' : 'Người này muốn kết nối với bạn.'}
+          </span>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button 
+              className="btn btn-primary" 
+              onClick={handleAcceptRequest}
+            >
+              Chấp nhận
+            </button>
+            <button 
+              className="btn" 
+              style={{ background: '#fff', color: '#000', border: '1px solid #d1d5db' }}
+              onClick={handleDeleteRequest}
+            >
+              Xóa
+            </button>
+            {conv?.isGroup ? (
+              <button 
+                className="btn" 
+                style={{ background: '#ef4444', color: '#fff', border: 'none' }}
+                onClick={handleLeaveGroupRequest}
+              >
+                Rời nhóm
+              </button>
+            ) : (
+              <button 
+                className="btn" 
+                style={{ background: '#ef4444', color: '#fff', border: 'none' }}
+                onClick={handleBlockRequest}
+              >
+                Chặn
+              </button>
+            )}
+          </div>
+        </div>
+      ) : isBlocked ? (
+        <div className="composer" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '16px', background: 'var(--bg-secondary)', color: 'var(--text-muted)' }}>
+          {iBlockedThem ? (
+            <span>
+              Bạn đã chặn người này.{' '}
+              <span 
+                style={{ color: 'var(--primary)', cursor: 'pointer', fontWeight: 600, textDecoration: 'underline' }}
+                onClick={handleUnblockRequest}
+              >
+                Bỏ chặn
+              </span>{' '}
+              để gửi tin nhắn.
+            </span>
+          ) : 'Không thể gửi tin nhắn. Bạn đã bị chặn.'}
+        </div>
+      ) : isLoadingConv || isLoadingRelationships ? null : (
       <div className="composer">
         <input
           ref={imageInputRef}
@@ -2156,17 +2378,18 @@ export default function ChatPage() {
           </div>
 
           {/* Danger Zone */}
-          <div className="info-sidebar-danger-zone">
-            <button
+          {(!isLoadingConv && !isLoadingRelationships) && (
+            <div className="info-sidebar-danger-zone">
+              <button
               className="info-danger-btn leave"
-              style={{ marginBottom: conv?.isGroup ? '8px' : '0' }}
+              style={{ marginBottom: '8px' }}
               onClick={handleHideHistory}
             >
               <History size={16} />
               <span>Xóa lịch sử chat</span>
             </button>
             
-            {conv?.isGroup && (
+            {conv?.isGroup ? (
               isGroupAdmin ? (
                 <button className="info-danger-btn disband" onClick={handleDisbandGroup}>
                   <ShieldOff size={16} />
@@ -2178,8 +2401,26 @@ export default function ChatPage() {
                   <span>Rời nhóm</span>
                 </button>
               )
-            )}
+            ) : iBlockedThem ? (
+              <button 
+                className="info-danger-btn" 
+                style={{ color: 'var(--primary)', borderColor: 'var(--primary)' }}
+                onClick={handleUnblockRequest}
+              >
+                <UserCheck size={16} />
+                <span>Bỏ chặn</span>
+              </button>
+            ) : !isBlocked ? (
+              <button 
+                className="info-danger-btn disband" 
+                onClick={handleBlockRequest}
+              >
+                <UserX size={16} />
+                <span>Chặn</span>
+              </button>
+            ) : null}
           </div>
+          )}
         </div>
       </div>
 

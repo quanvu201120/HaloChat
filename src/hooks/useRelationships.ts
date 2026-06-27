@@ -81,8 +81,8 @@ export function useRelationships() {
     mutationFn: async ({ relationshipId, targetUserId }: { relationshipId: string; targetUserId: string }) => {
       await relationshipsApi.unfriend(relationshipId, { targetUserId });
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['relationships'] });
+    onSuccess: async () => {
+      await queryClient.refetchQueries({ queryKey: ['relationships'] });
     },
   });
 
@@ -90,8 +90,17 @@ export function useRelationships() {
     mutationFn: async ({ targetUserId }: { targetUserId: string }) => {
       await relationshipsApi.block({ targetUserId });
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['relationships'] });
+    onSuccess: async () => {
+      await queryClient.refetchQueries({ queryKey: ['relationships'] });
+    },
+  });
+
+  const createMutation = useMutation({
+    mutationFn: async ({ targetUserId }: { targetUserId: string }) => {
+      await relationshipsApi.create({ targetUserId });
+    },
+    onSuccess: async () => {
+      await queryClient.refetchQueries({ queryKey: ['relationships'] });
     },
   });
 
@@ -99,8 +108,8 @@ export function useRelationships() {
     mutationFn: async ({ targetUserId }: { targetUserId: string }) => {
       await relationshipsApi.unblock({ targetUserId });
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['relationships'] });
+    onSuccess: async () => {
+      await queryClient.refetchQueries({ queryKey: ['relationships'] });
     },
   });
 
@@ -108,8 +117,8 @@ export function useRelationships() {
     mutationFn: async ({ relationshipId, targetUserId }: { relationshipId: string; targetUserId: string }) => {
       await relationshipsApi.accept(relationshipId, { targetUserId });
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['relationships'] });
+    onSuccess: async () => {
+      await queryClient.refetchQueries({ queryKey: ['relationships'] });
     },
   });
 
@@ -117,13 +126,19 @@ export function useRelationships() {
     mutationFn: async ({ relationshipId, targetUserId }: { relationshipId: string; targetUserId: string }) => {
       await relationshipsApi.rejectOrRemove(relationshipId, { targetUserId });
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['relationships'] });
+    onSuccess: async () => {
+      await queryClient.refetchQueries({ queryKey: ['relationships'] });
     },
   });
 
+  const rawRelationships = useMemo(() => {
+    if (!query.data || !Array.isArray(query.data)) return [];
+    return query.data;
+  }, [query.data]);
+
   return {
     ...query,
+    rawRelationships,
     friends,
     sentRequests,
     receivedRequests,
@@ -138,5 +153,7 @@ export function useRelationships() {
     isAccepting: acceptMutation.isPending,
     rejectOrRemove: rejectOrRemoveMutation.mutateAsync,
     isRejectingOrRemoving: rejectOrRemoveMutation.isPending,
+    sendRequest: createMutation.mutateAsync,
+    isSendingRequest: createMutation.isPending,
   };
 }

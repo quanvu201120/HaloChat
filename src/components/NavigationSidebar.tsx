@@ -4,6 +4,8 @@ import { MessageCircle, Users, MessageSquareDashed, Ban, Moon, Sun, LogOut } fro
 import { useAuthStore as useAuth } from '../store/authStore';
 import { useTheme } from '../context/ThemeContext';
 import { useToast } from '../context/ToastContext';
+import { useRelationships } from '../hooks/useRelationships';
+import { useChatStore } from '../store/chatStore';
 import ConfirmModal from './ConfirmModal';
 
 interface NavigationSidebarProps {
@@ -17,6 +19,10 @@ export default function NavigationSidebar({ isOpen, setIsOpen }: NavigationSideb
   const toast = useToast();
   const location = useLocation();
   const navigate = useNavigate();
+  const { receivedRequests } = useRelationships();
+  const { unread, conversations, setMessageRequestContext } = useChatStore();
+  const unreadMessageCount = conversations.filter(c => c.acceptedBy?.includes(user?._id || '') && unread[c._id]).length;
+  const pendingRequestCount = conversations.filter(c => !c.acceptedBy?.includes(user?._id || '')).length;
 
   const [confirmAction, setConfirmAction] = useState<{
     title: string;
@@ -28,7 +34,7 @@ export default function NavigationSidebar({ isOpen, setIsOpen }: NavigationSideb
 
   const isChatRoute = location.pathname === '/' || location.pathname.startsWith('/chat');
   const isFriendsRoute = location.pathname === '/friends';
-  const isRequestsRoute = location.pathname === '/requests';
+  const isMessageRequestsRoute = location.pathname === '/message-requests';
   const isBlockedRoute = location.pathname === '/blocked';
   const isProfileRoute = location.pathname === '/profile';
 
@@ -80,10 +86,17 @@ export default function NavigationSidebar({ isOpen, setIsOpen }: NavigationSideb
         <div className="flex flex-col items-center gap-2 md:gap-4 w-full">
           <button
             className={`${baseItemClass} ${hoverClass} ${isChatRoute ? activeClass : ''}`}
-            onClick={() => { navigate('/'); setIsOpen(false); }}
+            onClick={() => { setMessageRequestContext(false); navigate('/'); setIsOpen(false); }}
             title="Đoạn chat"
           >
-            <MessageCircle className={iconSizeClass} />
+            <div className="relative">
+              <MessageCircle className={iconSizeClass} />
+              {unreadMessageCount > 0 && (
+                <span className="absolute -top-1 -right-1 flex items-center justify-center min-w-[16px] h-[16px] px-[5px] bg-[#ef4444] text-white text-[9px] font-bold rounded-full shadow-sm leading-none">
+                  {unreadMessageCount > 99 ? '99+' : unreadMessageCount}
+                </span>
+              )}
+            </div>
             <span className="text-[15px] font-medium block md:hidden">Đoạn chat</span>
           </button>
           <button
@@ -91,15 +104,27 @@ export default function NavigationSidebar({ isOpen, setIsOpen }: NavigationSideb
             onClick={() => { navigate('/friends'); setIsOpen(false); }}
             title="Bạn bè"
           >
-            <Users className={iconSizeClass} />
+            <div className="relative">
+              <Users className={iconSizeClass} />
+              {receivedRequests.length > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-[#ef4444] rounded-full border-[1.5px] border-[var(--bg-card)]"></span>
+              )}
+            </div>
             <span className="text-[15px] font-medium block md:hidden">Bạn bè</span>
           </button>
           <button
-            className={`${baseItemClass} ${hoverClass} ${isRequestsRoute ? activeClass : ''}`}
-            onClick={() => { navigate('/requests'); setIsOpen(false); }}
+            className={`${baseItemClass} ${hoverClass} ${isMessageRequestsRoute ? activeClass : ''}`}
+            onClick={() => { setMessageRequestContext(true); navigate('/message-requests'); setIsOpen(false); }}
             title="Tin nhắn chờ"
           >
-            <MessageSquareDashed className={iconSizeClass} />
+            <div className="relative">
+              <MessageSquareDashed className={iconSizeClass} />
+              {pendingRequestCount > 0 && (
+                <span className="absolute -top-1 -right-1 flex items-center justify-center min-w-[16px] h-[16px] px-[5px] bg-[#ef4444] text-white text-[9px] font-bold rounded-full shadow-sm leading-none">
+                  {pendingRequestCount > 99 ? '99+' : pendingRequestCount}
+                </span>
+              )}
+            </div>
             <span className="text-[15px] font-medium block md:hidden">Tin nhắn chờ</span>
           </button>
           <button

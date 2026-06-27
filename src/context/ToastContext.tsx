@@ -2,7 +2,7 @@ import { createContext, useContext, useState, useCallback } from 'react';
 import type { ReactNode } from 'react';
 import { CheckCircle, XCircle, AlertTriangle, X } from 'lucide-react';
 
-type ToastType = 'success' | 'error' | 'warning';
+type ToastType = 'success' | 'error' | 'warning' | 'info';
 
 interface Toast {
   id: string;
@@ -15,6 +15,7 @@ interface ToastContextType {
     success: (msg: string) => void;
     error: (msg: string) => void;
     warning: (msg: string) => void;
+    info: (msg: string) => void;
   };
 }
 
@@ -28,7 +29,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     setToasts((prev) => [...prev, { id, type, message }]);
     setTimeout(() => {
       setToasts((prev) => prev.filter((t) => t.id !== id));
-    }, 3500);
+    }, 1000);
   }, []);
 
   const remove = (id: string) => setToasts((prev) => prev.filter((t) => t.id !== id));
@@ -37,6 +38,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     success: (msg: string) => addToast('success', msg),
     error: (msg: string) => addToast('error', msg),
     warning: (msg: string) => addToast('warning', msg),
+    info: (msg: string) => addToast('info', msg),
   };
 
   return (
@@ -48,6 +50,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
             {t.type === 'success' && <CheckCircle size={16} color="var(--success)" />}
             {t.type === 'error' && <XCircle size={16} color="var(--error)" />}
             {t.type === 'warning' && <AlertTriangle size={16} color="var(--warning)" />}
+            {t.type === 'info' && <CheckCircle size={16} color="var(--accent-primary)" />}
             <span className="toast-msg">{t.message}</span>
             <button
               onClick={() => remove(t.id)}

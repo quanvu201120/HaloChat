@@ -6,6 +6,7 @@ import { normalizeId } from '../utils/chat';
 import { normalizeMessage } from '../services/messages';
 import { useToast } from '../context/ToastContext';
 import { useNavigate } from 'react-router-dom';
+import { queryClient } from '../lib/queryClient';
 
 export default function SocketManager() {
   const toast = useToast();
@@ -158,7 +159,13 @@ export default function SocketManager() {
 
       const onGroupCreated = () => { void useChatStore.getState().refetchConversations({ silent: true }); };
       const onConversationRestored = () => { void useChatStore.getState().refetchConversations({ silent: true }); };
-      const onAdminChanged = () => { void useChatStore.getState().refetchConversations({ silent: true }); };
+      const onAdminChanged = (data: { conversationId: string; newAdminId: string }) => {
+        const convId = normalizeId(data.conversationId);
+        if (convId) {
+          useChatStore.getState().patchConversation(convId, (prev) => ({ ...prev, adminGroupId: data.newAdminId }));
+        }
+        void useChatStore.getState().refetchConversations({ silent: true });
+      };
       const onMemberAdded = () => { void useChatStore.getState().refetchConversations({ silent: true }); };
       const onMemberRemoved = (data: { conversationId: string; removedMemberId: string }) => {
         const removedMemberId = normalizeId(data.removedMemberId);
@@ -186,6 +193,27 @@ export default function SocketManager() {
         void useChatStore.getState().refetchConversations({ silent: true });
       };
 
+      const onRelationshipCreated = () => {
+        void queryClient.invalidateQueries({ queryKey: ['relationships'] });
+      };
+
+      const onRelationshipAccepted = () => {
+        void queryClient.invalidateQueries({ queryKey: ['relationships'] });
+        void useChatStore.getState().refetchConversations({ silent: true });
+      };
+
+      const onRelationshipDeleted = () => {
+        void queryClient.invalidateQueries({ queryKey: ['relationships'] });
+      };
+
+      const onRelationshipBlocked = () => {
+        void queryClient.invalidateQueries({ queryKey: ['relationships'] });
+      };
+
+      const onRelationshipUnblocked = () => {
+        void queryClient.invalidateQueries({ queryKey: ['relationships'] });
+      };
+
       sock.on('connect', onConnect);
       sock.on('disconnect', onDisconnect);
       sock.on('user:unseen-message', onUnseenMessage);
@@ -205,6 +233,11 @@ export default function SocketManager() {
       sock.on('chat:message-deleted', onMessageDeleted);
       sock.on('user:mark-read', onMarkRead);
       sock.on('user:disabled', onUserDisabled);
+      sock.on('relationship:created', onRelationshipCreated);
+      sock.on('relationship:accepted', onRelationshipAccepted);
+      sock.on('relationship:deleted', onRelationshipDeleted);
+      sock.on('relationship:blocked', onRelationshipBlocked);
+      sock.on('relationship:unblocked', onRelationshipUnblocked);
 
       if (sock.connected) {
         chatStore.setIsSocketConnected(true);

@@ -2,6 +2,7 @@ import { memo } from 'react';
 import { Link } from 'react-router-dom';
 import { UserX } from 'lucide-react';
 import type { Conversation } from '../services/conversations';
+import { useChatStore } from '../store/chatStore';
 
 function getConversationName(conv: Conversation, currentUserId: string): string {
   if (conv.isGroup) return conv.name || 'Nhóm chưa đặt tên';
@@ -84,10 +85,14 @@ function ConversationItem({
     ? formatTime(conv.lastMessage.createdAt)
     : '';
 
+  const { setMessageRequestContext } = useChatStore();
+  const isMessageRequest = !conv.acceptedBy?.includes(currentUserId);
+
   return (
     <Link
       className={`conv-item${isActive ? ' active' : ''}${hasUnread ? ' unread' : ''}`}
       to={`/chat/${conv._id}`}
+      onClick={() => setMessageRequestContext(isMessageRequest)}
     >
       {/* Avatar */}
       <div className="conv-avatar-wrap">

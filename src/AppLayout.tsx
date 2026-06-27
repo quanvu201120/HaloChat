@@ -20,9 +20,10 @@ export default function AppLayout() {
 
   const isChatRoute =
     location.pathname === '/' ||
+    location.pathname === '/message-requests' ||
     location.pathname.startsWith('/chat');
-  const isSidebarOnlyRoute = location.pathname === '/';
-  const isOuterPage = ['/', '/friends', '/requests', '/blocked'].includes(location.pathname);
+  const isSidebarOnlyRoute = location.pathname === '/' || location.pathname === '/message-requests';
+  const isOuterPage = ['/', '/friends', '/requests', '/blocked', '/message-requests'].includes(location.pathname);
   const isContactRoute = ['/friends', '/sent-requests', '/requests', '/group-requests'].some(p => location.pathname.startsWith(p));
 
   return (

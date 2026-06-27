@@ -1,21 +1,17 @@
 import { useMemo, useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation } from 'react-router-dom';
 import {
-  Search, PenSquare, LogOut, MessageSquarePlus, Moon, Sun
+  Search, PenSquare, MessageSquarePlus, UserPlus
 } from 'lucide-react';
 import { useAuthStore as useAuth } from '../store/authStore';
-import { useToast } from '../context/ToastContext';
 import { useChatStore as useChat } from '../store/chatStore';
 import ConversationItem from './ConversationItem';
 import CreateConversationModal from './CreateConversationModal';
+import AddFriendModal from './AddFriendModal';
 import ConfirmModal from './ConfirmModal';
-import { useTheme } from '../context/ThemeContext';
 
 export default function Sidebar() {
-  const { user, logout } = useAuth();
-  const { theme, toggleTheme } = useTheme();
-  const toast = useToast();
-  const navigate = useNavigate();
+  const { user } = useAuth();
   const location = useLocation();
   const conversationId = location.pathname.startsWith('/chat/')
     ? decodeURIComponent(location.pathname.slice('/chat/'.length).split('/')[0] ?? '')
@@ -25,10 +21,12 @@ export default function Sidebar() {
     isLoadingConversations,
     unread,
     online,
+    isInMessageRequestContext,
   } = useChat();
 
   const [search, setSearch] = useState('');
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showAddFriendModal, setShowAddFriendModal] = useState(false);
   const [confirmAction, setConfirmAction] = useState<{
     title: string;
     message: string;
@@ -37,41 +35,23 @@ export default function Sidebar() {
     action: () => void | Promise<void>;
   } | null>(null);
 
-  const handleLogout = () => {
-    setConfirmAction({
-      title: 'Đăng xuất',
-      message: 'Bạn có chắc chắn muốn đăng xuất?',
-      isDanger: true,
-      confirmText: 'Đăng xuất',
-      action: async () => {
-        try {
-          await logout();
-          toast.success('Đăng xuất thành công!');
-          navigate('/login');
-        } catch {
-          toast.error('Đăng xuất thất bại');
-        }
-      }
-    });
-  };
-
-  const getInitials = () => {
-    const n = user?.name || user?.email || 'U';
-    const parts = n.trim().split(' ');
-    if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-    return n.slice(0, 2).toUpperCase();
-  };
-
   const currentUserId = user?._id || '';
 
+  const isRequestContext = isInMessageRequestContext || location.pathname === '/message-requests';
+
   const filtered = useMemo(() => conversations.filter((c) => {
+    const isAccepted = c.acceptedBy?.includes(currentUserId);
+    
+    if (isRequestContext && isAccepted) return false;
+    if (!isRequestContext && !isAccepted) return false;
+
     if (!search.trim()) return true;
     const q = search.toLowerCase();
     const name = c.isGroup
       ? (c.name || '').toLowerCase()
       : c.users.map((u) => (u.name || u.email || '').toLowerCase()).join(' ');
     return name.includes(q);
-  }), [conversations, search]);
+  }), [conversations, search, isRequestContext, currentUserId]);
 
   return (
     <>
@@ -80,15 +60,28 @@ export default function Sidebar() {
         <div className="sidebar-header">
           <div className="sidebar-brand">
             <div className="sidebar-brand-icon">💬</div>
-            <span className="sidebar-brand-name">HaloChat</span>
+            <span className="sidebar-brand-name">
+            {isRequestContext ? 'Tin nhắn chờ' : 'HaloChat'}
+            </span>
           </div>
-          <button
-            className="icon-btn"
-            title="Tạo cuộc trò chuyện"
-            onClick={() => setShowCreateModal(true)}
-          >
-            <PenSquare size={18} />
-          </button>
+          {!isRequestContext && (
+            <div style={{ display: 'flex', gap: '4px' }}>
+              <button
+                className="icon-btn"
+                title="Thêm bạn bè"
+                onClick={() => setShowAddFriendModal(true)}
+              >
+                <UserPlus size={18} />
+              </button>
+              <button
+                className="icon-btn"
+                title="Tạo cuộc trò chuyện"
+                onClick={() => setShowCreateModal(true)}
+              >
+                <PenSquare size={18} />
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Search */}
@@ -131,6 +124,10 @@ export default function Sidebar() {
                   <Search size={32} style={{ opacity: 0.3 }} />
                   <p>Không tìm thấy</p>
                 </>
+              ) : isRequestContext ? (
+                <>
+                  <p>Không có tin nhắn chờ</p>
+                </>
               ) : (
                 <>
                   <MessageSquarePlus size={32} style={{ opacity: 0.3 }} />
@@ -165,6 +162,11 @@ export default function Sidebar() {
       <CreateConversationModal 
         isOpen={showCreateModal} 
         onClose={() => setShowCreateModal(false)} 
+      />
+
+      <AddFriendModal
+        isOpen={showAddFriendModal}
+        onClose={() => setShowAddFriendModal(false)}
       />
 
       <ConfirmModal

@@ -1,10 +1,10 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { X, UserPlus, Users, Check, RefreshCcw } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRelationships } from '../hooks/useRelationships';
 import { conversationsApi } from '../services/conversations';
-import { parseError } from '../services/api';
+import { parseError, usersApi } from '../services/api';
 import { useAuthStore as useAuth } from '../store/authStore';
 import { useChatStore as useChat } from '../store/chatStore';
 import { useToast } from '../context/ToastContext';
@@ -34,15 +34,85 @@ export default function CreateConversationModal({ isOpen, onClose }: Props) {
   const [groupName, setGroupName] = useState('');
   const [isCreating, setIsCreating] = useState(false);
 
-  const { friends } = useRelationships();
+  const [serverResult, setServerResult] = useState<UserResult | null>(null);
+  const [isSearching, setIsSearching] = useState(false);
 
-  const results = useMemo(() => {
+  const { friends } = useRelationships();
+  const debounceRef = useRef<NodeJS.Timeout | null>(null);
+
+  const isValidSearch = (query: string) => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const phoneRegex = /^\+?[0-9]{9,15}$/;
+    return emailRegex.test(query) || phoneRegex.test(query);
+  };
+
+  useEffect(() => {
+    if (!isOpen) {
+      setSearch('');
+      setSelected([]);
+      setGroupName('');
+      setServerResult(null);
+      setIsSearching(false);
+      setTab('direct');
+    }
+  }, [isOpen]);
+
+  useEffect(() => {
+    const trimmed = search.trim();
+    if (!trimmed) {
+      setServerResult(null);
+      return;
+    }
+
+    if (!isValidSearch(trimmed)) {
+      setServerResult(null);
+      return;
+    }
+
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(async () => {
+      const localFound = friends.find(u => u.email === trimmed || u.phone === trimmed);
+      if (localFound) {
+        setServerResult(null);
+        return;
+      }
+
+      setIsSearching(true);
+      try {
+        const res = await usersApi.search(trimmed);
+        const u = res.data?.data || res.data;
+        if (u && u._id !== user?._id) {
+          setServerResult(u);
+        }
+      } catch {
+        setServerResult(null);
+      } finally {
+        setIsSearching(false);
+      }
+    }, 500);
+
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, [search, friends, user?._id]);
+
+  const localResults = useMemo(() => {
     if (!search.trim()) return friends;
     const q = search.toLowerCase();
     return friends.filter((u) => 
-      (u.name || '').toLowerCase().includes(q)
+      (u.name || '').toLowerCase().includes(q) ||
+      u.email.toLowerCase().includes(q) ||
+      (u.phone || '').includes(q)
     );
   }, [search, friends]);
+
+  const results = useMemo(() => {
+    const combined = [...localResults];
+    if (serverResult && !combined.find((u) => u._id === serverResult._id)) {
+      combined.push(serverResult);
+    }
+    return combined;
+  }, [localResults, serverResult]);
 
   const toggleSelect = (u: UserResult) => {
     setSelected((prev) => {
@@ -160,7 +230,7 @@ export default function CreateConversationModal({ isOpen, onClose }: Props) {
           <div className="form-group" style={{ marginBottom: '12px' }}>
             <input
               className="form-input"
-              placeholder="Tìm theo tên bạn bè..."
+              placeholder="Tìm theo tên, email hoặc số điện thoại"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
@@ -196,7 +266,19 @@ export default function CreateConversationModal({ isOpen, onClose }: Props) {
             </div>
           )}
 
-          {results.length > 0 && (
+          {isSearching && (
+            <div style={{ textAlign: 'center', padding: '10px', fontSize: '13px', color: 'var(--text-muted)' }}>
+              Đang tìm kiếm...
+            </div>
+          )}
+
+          {!isSearching && results.length === 0 && search.trim() !== '' && (
+            <div style={{ textAlign: 'center', padding: '10px', fontSize: '13px', color: 'var(--text-muted)' }}>
+              Không tìm thấy người dùng phù hợp.
+            </div>
+          )}
+
+          {!isSearching && results.length > 0 && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', maxHeight: '350px', overflowY: 'auto', paddingRight: '4px' }}>
               {results.map((u) => {
                 const isSelected = !!selected.find((s) => s._id === u._id);

@@ -13,7 +13,11 @@ import MediaLightbox from '../components/MediaLightbox';
 
 const profileSchema = z.object({
   name: z.string().optional(),
-  phone: z.string().optional(),
+  phone: z.string()
+    .optional()
+    .refine((val) => !val || /^(0|\+84)(3|5|7|8|9)[0-9]{8}$/.test(val), {
+      message: 'Số điện thoại không hợp lệ',
+    }),
   address: z.string().optional(),
 });
 
@@ -515,9 +519,7 @@ export function ProfilePageContent() {
                   placeholder="VD: Nguyễn Văn A"
                   {...register('name')}
                 />
-                <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-                  Để trống nếu bạn muốn xóa tên hiển thị.
-                </span>
+               
                 {errors.name && <div className="error-message" style={{ color: 'var(--error-color)', fontSize: '13px', marginTop: '4px' }}>{errors.name.message}</div>}
               </div>
 
@@ -533,9 +535,7 @@ export function ProfilePageContent() {
                   placeholder="VD: 0912345678"
                   {...register('phone')}
                 />
-                <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-                  Có thể xóa số điện thoại bằng cách để trống.
-                </span>
+               
                 {errors.phone && <div className="error-message" style={{ color: 'var(--error-color)', fontSize: '13px', marginTop: '4px' }}>{errors.phone.message}</div>}
               </div>
             </div>
@@ -552,9 +552,7 @@ export function ProfilePageContent() {
                 placeholder="VD: TP. Hồ Chí Minh"
                 {...register('address')}
               />
-              <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-                Có thể xóa địa chỉ bằng cách để trống.
-              </span>
+             
               {errors.address && <div className="error-message" style={{ color: 'var(--error-color)', fontSize: '13px', marginTop: '4px' }}>{errors.address.message}</div>}
             </div>
 

@@ -46,6 +46,7 @@ export default function App() {
               {/* Protected routes (wrapped in AppLayout + ChatProvider) */}
               <Route element={<AppLayout />}>
                 <Route index element={<EmptyStatePage />} />
+                <Route path="/message-requests" element={<EmptyStatePage />} />
                 <Route path="/friends" element={<FriendsPage />} />
                 <Route path="/requests" element={<FriendsPage />} />
                 <Route path="/sent-requests" element={<FriendsPage />} />

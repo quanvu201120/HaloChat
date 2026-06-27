@@ -61,6 +61,8 @@ interface ChatState {
   patchConversation: (conversationId: string, updater: (conversation: Conversation) => Conversation) => void;
   mergeConversation: (incoming: Conversation) => void;
   hydratePresence: (list: Conversation[]) => Promise<void>;
+  isInMessageRequestContext: boolean;
+  setMessageRequestContext: (value: boolean) => void;
 }
 
 export const useChatStore = create<ChatState>((set, get) => ({
@@ -71,7 +73,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
   online: {},
   typing: {},
   isSocketConnected: false,
+  isInMessageRequestContext: false,
 
+  setMessageRequestContext: (value) => set({ isInMessageRequestContext: value }),
   setIsSocketConnected: (connected) => set({ isSocketConnected: connected }),
   
   setConversations: (updater) => set((state) => ({ 

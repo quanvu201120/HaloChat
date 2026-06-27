@@ -22,8 +22,8 @@ export interface Conversation {
   adminGroupId?: string;
   lastMessage?: Message;
   avatar?: { url: string };
-  updatedAt: string;
   readReceipts?: Record<string, string>;
+  acceptedBy?: string[];
 }
 
 function normalizeConversationUser(raw: any): ConversationUser {
@@ -48,6 +48,7 @@ export function normalizeConversation(raw: any): Conversation {
     avatar: raw?.avatar,
     updatedAt: raw?.updatedAt ?? new Date().toISOString(),
     readReceipts: normalizeReadReceipts(raw?.readReceipts),
+    acceptedBy: Array.isArray(raw?.acceptedBy) ? raw.acceptedBy.map(String) : [],
   };
 }
 
@@ -96,4 +97,8 @@ export const conversationsApi = {
 
   changeAdmin: (id: string, newAdminId: string) =>
     api.patch(`/conversations/${id}/change-admin`, { newAdminId }),
+
+  accept: (id: string) => api.patch<void>(`/conversations/${id}/accept`),
+
+  blockAndDelete: (id: string) => api.delete<void>(`/conversations/${id}/block-and-delete`),
 };
