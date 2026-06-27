@@ -10,7 +10,18 @@ import { useTheme } from '../context/ThemeContext';
 import { Eye, EyeOff, LogIn, Moon, Sun } from 'lucide-react';
 
 const loginSchema = z.object({
-  email: z.string().email('Email không hợp lệ'),
+  identifier: z.string()
+    .min(1, 'Email hoặc Số điện thoại không được để trống')
+    .refine(
+      (val) => {
+        const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val);
+        const isPhone = /^(?:0|\+84)[3|5|7|8|9][0-9]{8}$/.test(val);
+        return isEmail || isPhone;
+      },
+      {
+        message: 'Vui lòng nhập Email hoặc Số điện thoại hợp lệ',
+      }
+    ),
   password: z.string().min(1, 'Mật khẩu không được để trống'),
 });
 
@@ -30,19 +41,17 @@ export default function LoginPage() {
     formState: { errors },
   } = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
-    defaultValues: { email: '', password: '' },
+    defaultValues: { identifier: '', password: '' },
+    mode: 'onSubmit',
+    reValidateMode: 'onChange',
   });
 
   // Nếu đã đăng nhập rồi thì redirect về trang chính
-  useEffect(() => {
-    if (user && accessToken) {
-      navigate('/', { replace: true });
-    }
-  }, [user, accessToken, navigate]);
+
 
   const onSubmit = async (data: LoginFormValues) => {
     try {
-      await login(data.email, data.password);
+      await login(data.identifier, data.password);
       toast.success('Đăng nhập thành công!');
       navigate('/', { replace: true });
     } catch (err: any) {
@@ -56,7 +65,7 @@ export default function LoginPage() {
 
       if (isInactive) {
         toast.warning('Tài khoản chưa được kích hoạt. Vui lòng nhập mã xác nhận.');
-        navigate('/active-account', { state: { email: data.email } });
+        navigate('/active-account', { state: { email: data.identifier } });
       } else {
         toast.error(msg);
       }
@@ -92,17 +101,17 @@ export default function LoginPage() {
 
         <form className="login-form" onSubmit={handleSubmit(onSubmit)}>
           <div className="form-group">
-            <label className="form-label" htmlFor="login-email">Email</label>
+            <label className="form-label" htmlFor="login-identifier">Email / Số điện thoại</label>
             <input
-              id="login-email"
-              className={`form-input ${errors.email ? 'is-invalid' : ''}`}
-              type="email"
-              placeholder="email@example.com"
-              {...register('email')}
+              id="login-identifier"
+              className={`form-input ${errors.identifier ? 'is-invalid' : ''}`}
+              type="text"
+              placeholder="Nhập email hoặc SĐT"
+              {...register('identifier')}
               autoFocus
-              autoComplete="email"
+              autoComplete="username"
             />
-            {errors.email && <div className="error-message" style={{ color: 'var(--error-color)', fontSize: '13px', marginTop: '4px' }}>{errors.email.message}</div>}
+            {errors.identifier && <div className="error-message" style={{ color: 'var(--error-color)', fontSize: '13px', marginTop: '4px' }}>{errors.identifier.message}</div>}
           </div>
 
           <div className="form-group">

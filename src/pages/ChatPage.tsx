@@ -43,7 +43,14 @@ import ConfirmModal from '../components/ConfirmModal';
 import MessageReadersModal from '../components/MessageReadersModal';
 import MessageReactionsModal from '../components/MessageReactionsModal';
 import { normalizeId } from '../utils/chat';
+import { CHAT_DEFAULTS, MESSAGE_PREVIEWS, MIME_TYPES, TIMING } from '../constants/chat';
 
+/**
+ * Formats a given number of seconds into an mm:ss string.
+ *
+ * @param {number} seconds - The duration in seconds.
+ * @returns {string} The formatted duration string (e.g., "01:30").
+ */
 function formatDuration(seconds: number): string {
   const m = Math.floor(seconds / 60);
   const s = Math.floor(seconds % 60);
@@ -54,27 +61,55 @@ type LocalMessage = Message & {
   _error?: boolean;
 };
 
+/**
+ * Retrieves the display name of a conversation.
+ * For groups, it returns the group name or a default fallback.
+ * For 1-on-1 chats, it returns the other user's name or a default fallback.
+ *
+ * @param {Conversation} conv - The conversation object.
+ * @param {string} currentUserId - The ID of the currently logged-in user.
+ * @returns {string} The resolved conversation name.
+ */
 function getConversationName(conv: Conversation, currentUserId: string): string {
-  if (conv.isGroup) return conv.name || 'Nhóm chưa đặt tên';
+  if (conv.isGroup) return conv.name || CHAT_DEFAULTS.GROUP_NAME;
   const other = conv.users.find((u) => u._id !== currentUserId);
-  return other?.name || other?.email || 'Người dùng';
+  return other?.name || other?.email || CHAT_DEFAULTS.USER_NAME;
 }
 
+/**
+ * Extracts the normalized ID of the sender from a message.
+ *
+ * @param {Message} message - The message object.
+ * @returns {string} The normalized sender ID.
+ */
 function getSenderId(message: Message): string {
   return normalizeId(typeof message.sender === 'string' ? message.sender : message.sender?._id);
 }
 
+/**
+ * Gets a short preview text for a message that is being replied to.
+ * Returns different fallback strings based on message type.
+ *
+ * @param {Message | null} replyTarget - The message being replied to, or null.
+ * @returns {string} The preview text.
+ */
 function getReplyTargetPreview(replyTarget: Message | null) {
   if (!replyTarget) return '';
-  if (replyTarget.isDeleted) return 'Tin nhắn đã thu hồi';
-  if (replyTarget.type === 'text') return replyTarget.content || 'Tin nhắn văn bản';
-  if (replyTarget.type === 'image') return 'Hình ảnh';
-  if (replyTarget.type === 'video') return 'Video';
-  if (replyTarget.type === 'voice') return 'Tin nhắn thoại';
-  if (replyTarget.type === 'file') return 'Tệp đính kèm';
-  return 'Tin nhắn';
+  if (replyTarget.isDeleted) return MESSAGE_PREVIEWS.RECALLED;
+  if (replyTarget.type === 'text') return replyTarget.content || MESSAGE_PREVIEWS.TEXT;
+  if (replyTarget.type === 'image') return MESSAGE_PREVIEWS.IMAGE;
+  if (replyTarget.type === 'video') return MESSAGE_PREVIEWS.VIDEO;
+  if (replyTarget.type === 'voice') return MESSAGE_PREVIEWS.VOICE;
+  if (replyTarget.type === 'file') return MESSAGE_PREVIEWS.FILE;
+  return CHAT_DEFAULTS.MESSAGE_FALLBACK;
 }
 
+/**
+ * Determines the appropriate file extension for a voice message based on its MIME type.
+ *
+ * @param {string} mimeType - The MIME type of the audio file.
+ * @returns {string} The determined file extension (e.g., 'webm', 'mp3').
+ */
 function getVoiceFileExtension(mimeType: string) {
   if (mimeType.includes('ogg')) return 'ogg';
   if (mimeType.includes('wav')) return 'wav';
@@ -84,6 +119,15 @@ function getVoiceFileExtension(mimeType: string) {
   return 'webm';
 }
 
+/**
+ * Checks whether an incoming message is likely the server's confirmation
+ * of an optimistic local message (sent before server acknowledgment).
+ *
+ * @param {LocalMessage} candidate - The local optimistic message.
+ * @param {Message} incoming - The incoming message from the server.
+ * @param {string} currentUserId - The ID of the currently logged-in user.
+ * @returns {boolean} True if they likely match, otherwise false.
+ */
 function isLikelyOptimisticMatch(candidate: LocalMessage, incoming: Message, currentUserId: string) {
   if (!candidate._id.startsWith('opt_')) return false;
   if (getSenderId(incoming) !== currentUserId) return false;
@@ -161,7 +205,7 @@ export default function ChatPage() {
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [voiceBlob, setVoiceBlob] = useState<Blob | null>(null);
   const [voiceUrl, setVoiceUrl] = useState<string>('');
-  const [voiceMimeType, setVoiceMimeType] = useState('audio/webm');
+  const [voiceMimeType, setVoiceMimeType] = useState(MIME_TYPES.WEBM_AUDIO);
   const [isRecordingVoice, setIsRecordingVoice] = useState(false);
   const [recordingDuration, setRecordingDuration] = useState(0);
   const [showInfo, setShowInfo] = useState(false);
@@ -388,7 +432,7 @@ export default function ChatPage() {
   const [, setTick] = useState(0);
   useEffect(() => {
     if (conv?.isGroup || isOtherOnline) return;
-    const interval = setInterval(() => setTick((t) => t + 1), 60_000);
+    const interval = setInterval(() => setTick((t) => t + 1), TIMING.RELATIVE_TIME_REFRESH_MS);
     return () => clearInterval(interval);
   }, [conv?.isGroup, isOtherOnline]);
 
@@ -430,7 +474,7 @@ export default function ChatPage() {
     }
     setVoiceBlob(null);
     setVoiceUrl('');
-    setVoiceMimeType('audio/webm');
+    setVoiceMimeType(MIME_TYPES.WEBM_AUDIO);
   }, [voiceUrl]);
 
   useEffect(() => () => {
@@ -607,7 +651,7 @@ export default function ChatPage() {
     setText('');
     setVoiceBlob(null);
     setVoiceUrl('');
-    setVoiceMimeType('audio/webm');
+    setVoiceMimeType(MIME_TYPES.WEBM_AUDIO);
 
     if (isTempConversation) {
       setIsLoadingMsgs(false);

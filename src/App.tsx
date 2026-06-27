@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate, useParams } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useParams, Outlet } from 'react-router-dom';
 import { useEffect } from 'react';
 import { useAuthStore } from './store/authStore';
 import { ToastProvider } from './context/ToastContext';
@@ -23,6 +23,14 @@ function ChatRoute() {
   return <ChatPage key={conversationId} />;
 }
 
+function PublicLayout() {
+  const { user, accessToken } = useAuthStore();
+  if (user && accessToken) {
+    return <Navigate to="/" replace />;
+  }
+  return <Outlet />;
+}
+
 function AppInit() {
   useEffect(() => {
     return useAuthStore.getState().init();
@@ -38,10 +46,12 @@ export default function App() {
         <ToastProvider>
             <Routes>
               {/* Public routes */}
-              <Route path="/login" element={<LoginPage />} />
-              <Route path="/register" element={<RegisterPage />} />
-              <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-              <Route path="/active-account" element={<ActiveAccountPage />} />
+              <Route element={<PublicLayout />}>
+                <Route path="/login" element={<LoginPage />} />
+                <Route path="/register" element={<RegisterPage />} />
+                <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+                <Route path="/active-account" element={<ActiveAccountPage />} />
+              </Route>
 
               {/* Protected routes (wrapped in AppLayout + ChatProvider) */}
               <Route element={<AppLayout />}>

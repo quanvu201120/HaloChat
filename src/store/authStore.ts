@@ -26,7 +26,7 @@ interface AuthState {
   user: User | null;
   accessToken: string | null;
   isLoading: boolean;
-  login: (email: string, password: string) => Promise<void>;
+  login: (identifier: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   logoutAll: () => Promise<void>;
   updateUser: (data: Partial<User>) => void;
@@ -43,10 +43,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   accessToken: localStorage.getItem('accessToken'),
   isLoading: false,
 
-  login: async (email: string, password: string) => {
+  login: async (identifier: string, password: string) => {
     set({ isLoading: true });
     try {
-      const res = await authApi.login(email, password);
+      const res = await authApi.login(identifier, password);
       const payload = res.data?.data || res.data;
       const { accessToken, user } = payload;
       

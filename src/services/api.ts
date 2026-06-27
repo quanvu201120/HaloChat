@@ -174,8 +174,8 @@ api.interceptors.response.use(
 // ===== AUTH =====
 export const authApi = {
   // LocalStrategy: usernameField = 'email' → gửi { email, password }
-  login: (email: string, password: string) =>
-    apiWithCookies.post('/auth/login', { email, password }),
+  login: (identifier: string, password: string) =>
+    apiWithCookies.post('/auth/login', { identifier, password }),
 
   // Logout cần cookie refreshToken → dùng apiWithCookies
   logout: () => apiWithCookies.post('/auth/logout'),

@@ -38,6 +38,7 @@
   /* Status */
   --success: #059669;
   --error: #dc2626;
+  --error-color: var(--error);
   --warning: #d97706;
   --info: #2563eb;
 
