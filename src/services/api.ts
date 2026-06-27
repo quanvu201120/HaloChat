@@ -4,10 +4,10 @@ const envApiOrigin = import.meta.env.VITE_API_ORIGIN?.trim();
 
 const defaultOrigin = window.location.hostname === 'localhost' 
   ? 'http://localhost:8080' 
-  : `http://${window.location.hostname}:8080`;
+  : ''; // Trả về rỗng để tự động bắt Same-Origin (domain hiện tại)
 
-export const API_ORIGIN = envApiOrigin || defaultOrigin;
-export const API_BASE_URL = `${API_ORIGIN}/api/v1`;
+export const API_ORIGIN = envApiOrigin !== undefined ? envApiOrigin : defaultOrigin;
+export const API_BASE_URL = API_ORIGIN ? `${API_ORIGIN}/api/v1` : '/api/v1';
 
 const AUTH_STORAGE_EVENT = 'halochat-auth-storage';
 
@@ -220,7 +220,7 @@ export const authApi = {
 };
 
 export const systemApi = {
-  getHello: () => axios.get(API_ORIGIN, {
+  getHello: () => axios.get(API_ORIGIN || '/', {
     headers: (() => {
       const token = localStorage.getItem('accessToken');
       return token ? { Authorization: `Bearer ${token}` } : undefined;
