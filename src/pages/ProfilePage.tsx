@@ -6,10 +6,11 @@ import { z } from 'zod';
 import { useAuthStore as useAuth } from '../store/authStore';
 import { usersApi, parseError } from '../services/api';
 import { useToast } from '../context/ToastContext';
-import { UserCircle, Save, Phone, MapPin, Mail, Shield, Activity, LogOut, Camera, Trash2, AlertTriangle, Edit2, ChevronLeft } from 'lucide-react';
+import { UserCircle, Save, Phone, MapPin, Mail, Shield, Activity, LogOut, Camera, Trash2, AlertTriangle, Edit2, ChevronLeft, Calendar, Users, FileText } from 'lucide-react';
 import ConfirmModal from '../components/ConfirmModal';
 import UpdateEmailModal from '../components/UpdateEmailModal';
 import MediaLightbox from '../components/MediaLightbox';
+import { UserRole } from '../constants/roles';
 
 const profileSchema = z.object({
   name: z.string().optional(),
@@ -18,19 +19,28 @@ const profileSchema = z.object({
     .refine((val) => !val || /^(0|\+84)(3|5|7|8|9)[0-9]{8}$/.test(val), {
       message: 'Số điện thoại không hợp lệ',
     }),
-  address: z.string().optional(),
+  address: z.string().max(150).optional(),
+  dateOfBirth: z.string().optional().refine((val) => {
+    if (!val) return true;
+    const d = new Date(val);
+    if (isNaN(d.getTime())) return false;
+    return d <= new Date();
+  }, { message: 'Ngày sinh không được lớn hơn ngày hiện tại' }),
+  gender: z.string().optional(),
+  bio: z.string().max(250).optional(),
 });
 
 type ProfileFormValues = z.infer<typeof profileSchema>;
 
 export function ProfilePageContent() {
   const navigate = useNavigate();
-  const { user, logoutAll, updateUser, logout } = useAuth();
+  const { user, logoutAll, updateUser, localLogout } = useAuth();
   const toast = useToast();
 
   const {
     register,
     handleSubmit,
+    watch,
     formState: { errors }
   } = useForm<ProfileFormValues>({
     resolver: zodResolver(profileSchema),
@@ -38,6 +48,11 @@ export function ProfilePageContent() {
       name: user?.name || '',
       phone: user?.phone || '',
       address: user?.address || '',
+      dateOfBirth: (user?.dateOfBirth && !isNaN(new Date(user.dateOfBirth).getTime())) 
+        ? new Date(user.dateOfBirth).toISOString().split('T')[0] 
+        : '',
+      gender: user?.gender || '',
+      bio: user?.bio || '',
     }
   });
   const [isLoading, setIsLoading] = useState(false);
@@ -76,6 +91,9 @@ export function ProfilePageContent() {
         name: data.name?.trim() || '',
         phone: data.phone?.trim() || null,
         address: data.address?.trim() || null,
+        dateOfBirth: data.dateOfBirth || null,
+        gender: data.gender || null,
+        bio: data.bio?.trim() || null,
       };
 
       const res = await usersApi.update(payload);
@@ -83,7 +101,10 @@ export function ProfilePageContent() {
       updateUser({
         ...updated,
         phone: updated.phone || '',
-        address: updated.address || ''
+        address: updated.address || '',
+        dateOfBirth: updated.dateOfBirth || '',
+        gender: updated.gender || '',
+        bio: updated.bio || '',
       });
       toast.success('Cập nhật hồ sơ thành công!');
     } catch (err: any) {
@@ -177,7 +198,7 @@ export function ProfilePageContent() {
         try {
           await usersApi.disableSelf();
           toast.success('Tài khoản đã bị vô hiệu hóa.');
-          await logout();
+          localLogout();
           navigate('/login', { replace: true });
         } catch (err: any) {
           toast.error(parseError(err));
@@ -420,7 +441,7 @@ export function ProfilePageContent() {
           <div className="profile-name">{user?.name || 'Chưa đặt tên'}</div>
           <div className="profile-email">{user?.email}</div>
 
-          {user?.role === 'ADMIN' && (
+          {[UserRole.ADMIN, UserRole.SUPER_ADMIN].includes((user?.role as UserRole) || '') && (
             <span className="badge badge-info" style={{ marginTop: '4px' }}>
               {user?.role}
             </span>
@@ -483,9 +504,28 @@ export function ProfilePageContent() {
           </div>
 
           <form onSubmit={handleSubmit(onSubmit)} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <div className="form-group">
+              <label className="form-label" htmlFor="profile-bio" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                  <FileText size={13} /> Tiểu sử
+                </span>
+                <span style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 'normal' }}>
+                  {(watch('bio') || '').length}/250
+                </span>
+              </label>
+              <textarea
+                id="profile-bio"
+                className={`form-input ${errors.bio ? 'is-invalid' : ''}`}
+                placeholder="Giới thiệu đôi nét về bạn..."
+                rows={3}
+                maxLength={250}
+                {...register('bio')}
+              />
+              {errors.bio && <div className="error-message" style={{ color: 'var(--error-color)', fontSize: '13px', marginTop: '4px' }}>{errors.bio.message}</div>}
+            </div>
             {/* Email readonly */}
             <div className="form-group">
-              <label className="form-label" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div className="form-label" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
                   <Mail size={13} /> Email
                 </span>
@@ -497,7 +537,7 @@ export function ProfilePageContent() {
                 >
                   <Edit2 size={12} style={{ marginRight: '4px' }} /> Cập nhật
                 </button>
-              </label>
+              </div>
               <input
                 className="form-input"
                 value={user?.email || ''}
@@ -541,20 +581,63 @@ export function ProfilePageContent() {
             </div>
 
             <div className="form-group">
-              <label className="form-label" htmlFor="profile-address">
+              <label className="form-label" htmlFor="profile-address" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
                   <MapPin size={13} /> Địa chỉ
+                </span>
+                <span style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 'normal' }}>
+                  {(watch('address') || '').length}/150
                 </span>
               </label>
               <input
                 id="profile-address"
                 className={`form-input ${errors.address ? 'is-invalid' : ''}`}
                 placeholder="VD: TP. Hồ Chí Minh"
+                maxLength={150}
                 {...register('address')}
               />
              
               {errors.address && <div className="error-message" style={{ color: 'var(--error-color)', fontSize: '13px', marginTop: '4px' }}>{errors.address.message}</div>}
             </div>
+
+            <div className="form-row">
+              <div className="form-group">
+                <label className="form-label" htmlFor="profile-dob">
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                    <Calendar size={13} /> Ngày sinh
+                  </span>
+                </label>
+                <input
+                  id="profile-dob"
+                  type="date"
+                  className={`form-input ${errors.dateOfBirth ? 'is-invalid' : ''}`}
+                  {...register('dateOfBirth')}
+                />
+                {errors.dateOfBirth && <div className="error-message" style={{ color: 'var(--error-color)', fontSize: '13px', marginTop: '4px' }}>{errors.dateOfBirth.message}</div>}
+              </div>
+
+              <div className="form-group">
+                <label className="form-label" htmlFor="profile-gender">
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                    <Users size={13} /> Giới tính
+                  </span>
+                </label>
+                <select
+                  id="profile-gender"
+                  className={`form-input ${errors.gender ? 'is-invalid' : ''}`}
+                  {...register('gender')}
+                  style={{ appearance: 'auto' }}
+                >
+                  <option value="">Chọn giới tính</option>
+                  <option value="MALE">Nam</option>
+                  <option value="FEMALE">Nữ</option>
+                  <option value="OTHER">Khác</option>
+                </select>
+                {errors.gender && <div className="error-message" style={{ color: 'var(--error-color)', fontSize: '13px', marginTop: '4px' }}>{errors.gender.message}</div>}
+              </div>
+            </div>
+
+            
 
             <button
               id="btn-save-profile"

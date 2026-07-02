@@ -57,8 +57,14 @@ export function normalizeConversations(raw: any): Conversation[] {
   return raw.map(normalizeConversation);
 }
 
+export interface ListConversationResponse {
+  conversations: Conversation[];
+  nextCursor?: string | null;
+}
+
 export const conversationsApi = {
-  getAll: () => api.get<{ data: Conversation[] }>('/conversations'),
+  getAll: (cursor?: string) => 
+    api.get<{ data: ListConversationResponse }>(`/conversations${cursor ? `?cursor=${cursor}` : ''}`),
 
   getOne: (id: string) => api.get<{ data: Conversation }>(`/conversations/${id}`),
 

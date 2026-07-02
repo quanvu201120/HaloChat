@@ -8,6 +8,7 @@ import { useAuthStore as useAuth } from '../store/authStore';
 import { useToast } from '../context/ToastContext';
 import { useChatStore as useChat } from '../store/chatStore';
 import { conversationsApi } from '../services/conversations';
+import ConfirmModal from './ConfirmModal';
 
 interface Props {
   isOpen: boolean;
@@ -32,6 +33,7 @@ export default function AddFriendModal({ isOpen, onClose }: Props) {
   const [result, setResult] = useState<SearchResult | null>(null);
   const [isSearching, setIsSearching] = useState(false);
   const [isNavigating, setIsNavigating] = useState(false);
+  const [userToUnblock, setUserToUnblock] = useState<SearchResult | null>(null);
   
   const {
     friends,
@@ -213,7 +215,7 @@ export default function AddFriendModal({ isOpen, onClose }: Props) {
         return (
           <button 
             className="btn btn-secondary" 
-            onClick={() => unblock({ targetUserId: result._id })}
+            onClick={() => setUserToUnblock(result)}
             disabled={isUnblocking}
           >
             <Unlock size={16} /> Bỏ chặn
@@ -247,7 +249,8 @@ export default function AddFriendModal({ isOpen, onClose }: Props) {
   };
 
   return (
-    <AnimatePresence>
+    <>
+      <AnimatePresence>
       {isOpen && (
         <motion.div 
           className="modal-overlay" 
@@ -337,5 +340,27 @@ export default function AddFriendModal({ isOpen, onClose }: Props) {
         </motion.div>
       )}
     </AnimatePresence>
+
+    <ConfirmModal
+      isOpen={!!userToUnblock}
+      onCancel={() => setUserToUnblock(null)}
+      onConfirm={async () => {
+        if (userToUnblock) {
+          try {
+            await unblock({ targetUserId: userToUnblock._id });
+            toast.success('Đã bỏ chặn người dùng');
+            setUserToUnblock(null);
+          } catch (err) {
+            toast.error(parseError(err) || 'Không thể bỏ chặn');
+          }
+        }
+      }}
+      title="Bỏ chặn người dùng"
+      message={`Bạn có chắc chắn muốn bỏ chặn ${userToUnblock?.name || userToUnblock?.email || 'người dùng này'} không? Họ sẽ có thể tìm thấy và nhắn tin cho bạn.`}
+      confirmText="Bỏ chặn"
+      cancelText="Hủy"
+      isDanger={true}
+    />
+    </>
   );
 }

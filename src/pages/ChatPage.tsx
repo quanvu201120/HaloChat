@@ -315,7 +315,8 @@ export default function ChatPage() {
     ? (conv.avatar?.url || '') 
     : (otherUser?.avatar?.url || '');
 
-  const isMessageRequest = conv && !conv.acceptedBy?.includes(currentUserId);
+  const isFriend = !conv?.isGroup && currentRelationship?.status === 'ACCEPTED';
+  const isMessageRequest = conv && !isFriend && !conv.acceptedBy?.includes(currentUserId);
 
   useEffect(() => {
     if (isMessageRequest) {
@@ -1606,7 +1607,7 @@ export default function ChatPage() {
           </div>
         </div>
 
-        {!isMessageRequest && !isLoadingConv && !isLoadingRelationships && (
+        {!isMessageRequest && (
           <div className="chat-header-actions">
             {!isBlocked && (
               <>
@@ -1794,7 +1795,7 @@ export default function ChatPage() {
             </span>
           ) : 'Không thể gửi tin nhắn. Bạn đã bị chặn.'}
         </div>
-      ) : isLoadingConv || isLoadingRelationships ? null : (
+      ) : (
       <div className="composer">
         <input
           ref={imageInputRef}

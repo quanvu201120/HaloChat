@@ -122,6 +122,7 @@ export default function MessageBubble({
   onDelete,
   onToggleReaction,
   onMediaClick,
+  disableActions,
 }: Props) {
   const [showActions, setShowActions] = useState(false);
   const [showStatus, setShowStatus] = useState(false);

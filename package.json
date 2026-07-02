@@ -14,6 +14,7 @@
     "@hookform/resolvers": "^5.4.0",
     "@tailwindcss/vite": "^4.3.1",
     "@tanstack/react-query": "^5.101.0",
+    "@types/recharts": "^1.8.29",
     "axios": "^1.16.1",
     "emoji-picker-react": "^4.19.1",
     "framer-motion": "^12.40.0",
@@ -23,8 +24,10 @@
     "react-hook-form": "^7.80.0",
     "react-hot-toast": "^2.6.0",
     "react-router-dom": "^7.15.1",
+    "recharts": "^3.9.0",
     "socket.io-client": "^4.8.3",
     "tailwindcss": "^4.3.1",
+    "use-debounce": "^10.1.1",
     "zod": "^4.4.3",
     "zustand": "^5.0.14"
   },

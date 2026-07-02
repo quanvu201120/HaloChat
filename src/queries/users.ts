@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { usersApi } from '../services/api';
 import { normalizeId } from '../utils/chat';
+import { UserRole } from '../constants/roles';
 
 export interface UserSummary {
   _id: string;
@@ -33,7 +34,7 @@ function normalizeUserSummary(raw: any): UserSummary {
     image: raw?.image ?? raw?.avatar?.url,
     phone: raw?.phone,
     address: raw?.address,
-    role: String(raw?.role ?? 'USER'),
+    role: String(raw?.role ?? UserRole.USER),
     isActive: Boolean(raw?.isActive),
     isDisabled: Boolean(raw?.isDisabled),
     accountType: String(raw?.accountType ?? raw?.type ?? 'LOCAL'),

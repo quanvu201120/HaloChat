@@ -22,6 +22,8 @@ export default function Sidebar() {
     unread,
     online,
     isInMessageRequestContext,
+    loadMoreConversations,
+    nextCursorConversations,
   } = useChat();
 
   const [search, setSearch] = useState('');
@@ -52,6 +54,15 @@ export default function Sidebar() {
       : c.users.map((u) => (u.name || u.email || '').toLowerCase()).join(' ');
     return name.includes(q);
   }), [conversations, search, isRequestContext, currentUserId]);
+
+  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    const { scrollTop, scrollHeight, clientHeight } = e.currentTarget;
+    if (scrollHeight - scrollTop - clientHeight < 50) {
+      if (nextCursorConversations && !isLoadingConversations) {
+        void loadMoreConversations();
+      }
+    }
+  };
 
   return (
     <>
@@ -98,8 +109,8 @@ export default function Sidebar() {
         </div>
 
         {/* Conversation list */}
-        <div className="conv-list">
-          {isLoadingConversations ? (
+        <div className="conv-list" onScroll={handleScroll}>
+          {isLoadingConversations && conversations.length === 0 ? (
             <div className="w-full">
               {[...Array(6)].map((_, i) => (
                 <div key={i} className="conv-item animate-pulse" style={{ pointerEvents: 'none' }}>
@@ -143,16 +154,23 @@ export default function Sidebar() {
               )}
             </div>
           ) : (
-            filtered.map((conv) => (
-              <ConversationItem
-                key={conv._id}
-                conv={conv}
-                currentUserId={currentUserId}
-                hasUnread={!!unread[conv._id]}
-                isActive={conversationId === conv._id}
-                isOnline={!conv.isGroup && online[conv.users.find((u) => u._id !== currentUserId)?._id || ''] === true}
-              />
-            ))
+            <>
+              {filtered.map((conv) => (
+                <ConversationItem
+                  key={conv._id}
+                  conv={conv}
+                  currentUserId={currentUserId}
+                  hasUnread={!!unread[conv._id]}
+                  isActive={conversationId === conv._id}
+                  isOnline={!conv.isGroup && online[conv.users.find((u) => u._id !== currentUserId)?._id || ''] === true}
+                />
+              ))}
+              {isLoadingConversations && conversations.length > 0 && (
+                <div style={{ padding: '16px', textAlign: 'center', color: '#6b7280', fontSize: '12px' }}>
+                  Đang tải thêm...
+                </div>
+              )}
+            </>
           )}
         </div>
 

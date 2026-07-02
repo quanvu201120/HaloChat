@@ -5,6 +5,7 @@ import Modal from '../components/Modal';
 import { useToast } from '../context/ToastContext';
 import { parseError, usersApi } from '../services/api';
 import { fetchUserDetail, useUsersListQuery, type UserSummary } from '../queries/users';
+import { UserRole } from '../constants/roles';
 
 const PAGE_SIZE = 10;
 
@@ -15,7 +16,7 @@ const defaultCreate = {
   confirmPassword: '',
   phone: '',
   address: '',
-  role: 'USER',
+  role: UserRole.USER,
 };
 
 const defaultEdit = {
@@ -24,7 +25,7 @@ const defaultEdit = {
   email: '',
   phone: '',
   address: '',
-  role: 'USER',
+  role: UserRole.USER,
 };
 
 export default function UsersPage() {
@@ -173,7 +174,8 @@ export default function UsersPage() {
       email: user.email || '',
       phone: user.phone || '',
       address: user.address || '',
-      role: user.role || 'USER',
+      role: user.role || UserRole.USER,
+      isActive: user.isActive,
     });
     setShowEdit(true);
   };
@@ -288,7 +290,7 @@ export default function UsersPage() {
                     </td>
                     <td>{u.name || <span style={{ color: 'var(--text-muted)' }}>—</span>}</td>
                     <td>
-                      <span className={`badge ${u.role === 'ADMIN' ? 'badge-info' : 'badge-warning'}`}>{u.role}</span>
+                      <span className={`badge ${u.role === UserRole.SUPER_ADMIN ? 'badge-error' : u.role === UserRole.ADMIN ? 'badge-info' : 'badge-warning'}`}>{u.role}</span>
                     </td>
                     <td><span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{u.accountType}</span></td>
                     <td>
@@ -418,8 +420,9 @@ export default function UsersPage() {
               value={createForm.role}
               onChange={(e) => setCreateForm({ ...createForm, role: e.target.value })}
             >
-              <option value="USER">USER</option>
-              <option value="ADMIN">ADMIN</option>
+              <option value={UserRole.USER}>USER</option>
+              <option value={UserRole.ADMIN}>ADMIN</option>
+              <option value={UserRole.SUPER_ADMIN}>SUPER_ADMIN</option>
             </select>
           </div>
         </div>
@@ -466,8 +469,9 @@ export default function UsersPage() {
           <div className="form-group">
             <label className="form-label">Vai tro</label>
             <select className="form-select" value={editForm.role} onChange={(e) => setEditForm({ ...editForm, role: e.target.value })}>
-              <option value="USER">USER</option>
-              <option value="ADMIN">ADMIN</option>
+              <option value={UserRole.USER}>USER</option>
+              <option value={UserRole.ADMIN}>ADMIN</option>
+              <option value={UserRole.SUPER_ADMIN}>SUPER_ADMIN</option>
             </select>
           </div>
         </div>

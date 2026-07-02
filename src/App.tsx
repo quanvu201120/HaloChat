@@ -17,6 +17,7 @@ import ChatPage from './pages/ChatPage';
 import ProfilePage from './pages/ProfilePage';
 import ChangePasswordPage from './pages/ChangePasswordPage';
 import FriendsPage from './pages/FriendsPage';
+import AdminPage from './pages/AdminPage';
 
 function ChatRoute() {
   const { conversationId } = useParams();
@@ -65,6 +66,9 @@ export default function App() {
                 <Route path="/profile" element={<ProfilePage />} />
                 <Route path="/change-password" element={<ChangePasswordPage />} />
               </Route>
+
+              {/* Admin Route - Full Screen (Outside AppLayout) */}
+              <Route path="/admin" element={<AdminPage />} />
 
               {/* Catch-all redirect */}
               <Route path="*" element={<Navigate to="/" replace />} />

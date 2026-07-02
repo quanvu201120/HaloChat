@@ -770,3 +770,11 @@ Treat it as the source of truth for changes in this repo.
 - Do not migrate to Tailwind in a way that breaks existing layout parity.
 - Do not introduce unnecessary abstractions.
 - Do not remove Context or CSS until the replacement is stable.
+
+## Admin Security Rules
+
+- **Strict No Pre-fetching**: Admin data must never be queried or pre-fetched until the user has successfully passed the admin password verification (`isAdminVerified === true`).
+- **Strict No Caching**: Data fetched within the Admin scope must NOT be cached persistently. If using tools like `@tanstack/react-query` or `zustand`, configure them to immediately drop the admin data when the admin page unmounts (`gcTime: 0`, `staleTime: 0`, or manual state clearing).
+- **Strict No Local Storage**: Never save any sensitive admin-related data or configuration to `localStorage` or `sessionStorage`. Admin state must live exclusively in temporary client memory and clear upon F5 or unmounting.
+- **Strict Unmount on Blur/Leave**: The admin verification state must instantly be revoked if the browser tab loses focus (e.g., via `visibilitychange` event) or if the user navigates away from the Admin page.
+- **Strict Component Isolation**: Admin content must be strictly isolated into a separate inner component (e.g. `AdminDashboard`) that is conditionally rendered based on verification. When verification is lost, this inner component must be completely unmounted to guarantee that all local state, hooks, and half-filled forms are 100% destroyed, forcing a clean slate upon re-entry.

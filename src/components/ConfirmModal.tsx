@@ -1,5 +1,5 @@
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Modal from './Modal';
 
 interface ConfirmModalProps {
@@ -27,11 +27,13 @@ export default function ConfirmModal({
 }: ConfirmModalProps) {
   const [timer, setTimer] = useState(countdown);
   const [isLoading, setIsLoading] = useState(false);
+  const isProcessingRef = useRef(false);
 
   useEffect(() => {
     if (isOpen) {
       setTimer(countdown);
       setIsLoading(false);
+      isProcessingRef.current = false;
     }
   }, [isOpen, countdown]);
 
@@ -58,6 +60,8 @@ export default function ConfirmModal({
             className={`btn ${isDanger ? 'btn-danger' : 'btn-primary'}`}
             disabled={timer > 0 || isLoading}
             onClick={async () => {
+              if (isProcessingRef.current) return;
+              isProcessingRef.current = true;
               try {
                 setIsLoading(true);
                 const shouldClose = await onConfirm();
@@ -67,6 +71,7 @@ export default function ConfirmModal({
               } finally {
                 // If it doesn't close, or if there's an error, we turn off loading state
                 setIsLoading(false);
+                isProcessingRef.current = false;
               }
             }}
           >

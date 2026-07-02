@@ -7,15 +7,20 @@ import {
   subscribeAuthStorage
 } from '../services/api';
 
+import { UserRole } from '../constants/roles';
+
 export interface User {
   _id: string;
   email: string;
   name?: string;
-  role: string;
+  role: UserRole | string;
   isActive: boolean;
   accountType: string;
   phone?: string;
   address?: string;
+  dateOfBirth?: string;
+  gender?: string;
+  bio?: string;
   avatar?: {
     _id?: string;
     url?: string;
@@ -26,10 +31,13 @@ interface AuthState {
   user: User | null;
   accessToken: string | null;
   isLoading: boolean;
+  isAdminVerified: boolean;
   login: (identifier: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   logoutAll: () => Promise<void>;
+  localLogout: () => void;
   updateUser: (data: Partial<User>) => void;
+  setAdminVerified: (status: boolean) => void;
   init: () => () => void; // call this on app mount to subscribe to storage
 }
 
@@ -42,6 +50,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   user: readStoredUser(),
   accessToken: localStorage.getItem('accessToken'),
   isLoading: false,
+  isAdminVerified: false,
+
+  setAdminVerified: (status: boolean) => set({ isAdminVerified: status }),
 
   login: async (identifier: string, password: string) => {
     set({ isLoading: true });
@@ -72,6 +83,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     } catch {
       // ignore
     }
+    clearStoredAuth();
+    set({ user: null, accessToken: null });
+  },
+
+  localLogout: () => {
     clearStoredAuth();
     set({ user: null, accessToken: null });
   },

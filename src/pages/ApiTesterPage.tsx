@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { api, authApi, API_BASE_URL, systemApi } from '../services/api';
 import { useToast } from '../context/ToastContext';
+import { UserRole } from '../constants/roles';
 import { Play, ChevronDown, ChevronUp, FlaskConical } from 'lucide-react';
 
 interface Endpoint {
@@ -79,9 +80,9 @@ const ENDPOINTS: Endpoint[] = [
     defaultParams: { id: '' },
   },
   {
-    id: 'users-create', group: 'Users', method: 'POST', path: '/users',
+    id: 'user-create', group: 'Users', method: 'POST', path: '/users',
     description: 'Tạo user mới (ADMIN)', requireAuth: true,
-    defaultBody: { name: 'Test User', email: 'newuser@example.com', password: '123456', confirmPassword: '123456', role: 'USER' },
+    defaultBody: { name: 'Test User', email: 'newuser@example.com', password: '123456', confirmPassword: '123456', role: UserRole.USER },
   },
   {
     id: 'users-update', group: 'Users', method: 'PATCH', path: '/users',

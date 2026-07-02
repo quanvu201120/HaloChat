@@ -1,9 +1,8 @@
-import { NavLink, useNavigate } from 'react-router-dom';
-import { Contact, Users, UserPlus, User, ArrowUpRight, ChevronLeft } from 'lucide-react';
+import { NavLink } from 'react-router-dom';
+import { Contact, Users, UserPlus, User, ArrowUpRight, AlignLeft } from 'lucide-react';
 import { useRelationships } from '../hooks/useRelationships';
 
 export default function ContactSidebar() {
-  const navigate = useNavigate();
   const { receivedRequests } = useRelationships();
 
   const menuItems = [
@@ -23,13 +22,8 @@ export default function ContactSidebar() {
 
   return (
     <div className="relative flex items-center justify-center w-full px-2 md:px-0 mb-5 shrink-0">
-      <button 
-        onClick={() => navigate('/')}
-        className="icon-btn mobile-back-btn absolute left-0 z-10"
-        title="Quay lại"
-      >
-        <ChevronLeft size={24} />
-      </button>
+      {/* The global menu button from AppLayout handles the mobile menu toggle. We just need the tabs centered here. */}
+
       <div className="flex w-[260px] md:w-full justify-center md:justify-start bg-[var(--bg-secondary)] rounded-xl border border-[var(--border)] p-1">
         {menuItems.map((item, idx) => (
           <NavLink 

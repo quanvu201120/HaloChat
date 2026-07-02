@@ -1,16 +1,18 @@
 import React, { useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Search, ArrowUpDown, ChevronDown, MoreHorizontal, Check, ChevronLeft } from 'lucide-react';
+import { Search, ArrowUpDown, ChevronDown, MoreHorizontal, Check, ChevronLeft, AlignLeft, Ban, MapPin, Calendar, User as UserIcon, MessageSquare, UserX, UserMinus } from 'lucide-react';
 import { useRelationships } from '../hooks/useRelationships';
 import { conversationsApi } from '../services/conversations';
 import { useChatStore as useChat } from '../store/chatStore';
 import { useAuthStore as useAuth } from '../store/authStore';
 import ConfirmModal from '../components/ConfirmModal';
+import Modal from '../components/Modal';
 import { useToast } from '../context/ToastContext';
 export default function FriendsPage() {
   const location = useLocation();
   const navigate = useNavigate();
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
+  const [selectedUserForInfo, setSelectedUserForInfo] = useState<any>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
   const [isSortDropdownOpen, setIsSortDropdownOpen] = useState(false);
@@ -106,6 +108,7 @@ export default function FriendsPage() {
             { _id: user?._id, name: user?.name, email: user?.email, avatar: user?.avatar },
             { _id: friend._id, name: friend.name, email: friend.email, avatar: friend.avatar }
           ],
+          acceptedBy: [user?._id],
           updatedAt: new Date().toISOString(),
           isOptimistic: true
         };
@@ -229,12 +232,27 @@ export default function FriendsPage() {
     }
   };
 
-  return (
+  return (  
     <div 
       className="flex flex-col flex-1 w-full bg-transparent"
       onClick={() => { setActiveDropdown(null); setIsSortDropdownOpen(false); }}
     >
-      <div className="flex flex-col flex-1 bg-[var(--bg-secondary)] rounded-2xl border border-[var(--border)] overflow-hidden">
+      {location.pathname === '/blocked' && (
+        <div className="sidebar-header" style={{ borderBottom: 'none', marginTop:'-7px' }}>
+          <div className="sidebar-brand">
+            <div className="sidebar-brand-icon" style={{ background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', boxShadow: 'none' }}>
+              <Ban size={18} strokeWidth={2.5} />
+            </div>
+            <span className="sidebar-brand-name">
+              {title} ({totalFriends})
+            </span>
+          </div>
+        </div>
+      )}
+
+      <div 
+        className="flex flex-col flex-1 bg-[var(--bg-secondary)] rounded-2xl border border-[var(--border)] overflow-hidden"
+      >
       <style>
         {`
           .friend-row {
@@ -257,22 +275,31 @@ export default function FriendsPage() {
           .custom-dropdown-btn.danger:hover {
             background-color: rgba(220, 38, 38, 0.1);
           }
+          .modal-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            width: 100%;
+            padding: 0 16px;
+          }
+          .modal-actions button {
+            white-space: nowrap;
+            flex: 1 1 calc(50% - 6px);
+          }
+          @media (min-width: 768px) {
+            .modal-actions button {
+              flex: 1 1 0%;
+            }
+          }
         `}
       </style>
 
-      {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '16px', backgroundColor: 'var(--bg-card)', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
-        {location.pathname === '/blocked' && (
-          <button 
-            className="icon-btn mobile-back-btn" 
-            onClick={() => navigate('/')}
-            title="Quay lại"
-          >
-            <ChevronLeft size={24} />
-          </button>
-        )}
-        <span style={{ fontWeight: 600, fontSize: '15px', color: 'var(--text-primary)' }}>{title} ({totalFriends})</span>
-      </div>
+      {/* Header for non-blocked tabs */}
+      {location.pathname !== '/blocked' && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '16px', backgroundColor: 'var(--bg-card)', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
+          <span className="md:ml-0 ml-12" style={{ fontWeight: 600, fontSize: '15px', color: 'var(--text-primary)' }}>{title} ({totalFriends})</span>
+        </div>
+      )}
 
       {/* Main content area */}
       <div className="p-2 md:p-4" style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
@@ -356,7 +383,8 @@ export default function FriendsPage() {
                       <div 
                         key={friend._id} 
                         className="friend-row"
-                        style={{ display: 'flex', alignItems: 'center', gap: '16px', position: 'relative', padding: '12px', borderRadius: '8px', cursor: 'pointer' }}
+                        style={{ display: 'flex', alignItems: 'center', gap: '16px', position: 'relative', padding: '12px', borderRadius: '8px', cursor: currentTab === '/blocked' ? 'default' : 'pointer' }}
+                        onClick={() => currentTab !== '/blocked' && setSelectedUserForInfo(friend)}
                       >
                         {/* Avatar */}
                         <div 
@@ -383,97 +411,16 @@ export default function FriendsPage() {
                           {friend.name || friend.email}
                         </div>
 
-                        {/* 3 Dots */}
-                        <button 
-                          className="friend-row-more"
-                          style={{ padding: '8px', borderRadius: '50%', backgroundColor: 'transparent', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setActiveDropdown(activeDropdown === friend._id ? null : friend._id);
-                          }}
-                        >
-                          <MoreHorizontal size={20} style={{ color: '#6b7280' }} />
-                        </button>
-
-                        {/* Dropdown Menu */}
-                        {activeDropdown === friend._id && (
-                          <div 
-                            style={{
-                              position: 'absolute', right: '16px', top: '100%', marginTop: '-8px',
-                              backgroundColor: 'var(--bg-card)', borderRadius: '8px',
-                              boxShadow: '0 4px 20px rgba(0,0,0,0.15)', zIndex: 50,
-                              minWidth: '200px', padding: '8px 0',
-                              border: '1px solid var(--border)'
-                            }}
-                            onClick={(e) => e.stopPropagation()}
+                        {/* Actions per tab */}
+                        {currentTab === '/blocked' && (
+                          <button
+                            onClick={(e) => handleAction('unblock', friend, e)}
+                            style={{ padding: '6px 12px', borderRadius: '6px', backgroundColor: 'transparent', border: '1px solid var(--border)', cursor: 'pointer', color: '#3b82f6', fontSize: '13px', fontWeight: 500, transition: 'background-color 0.2s' }}
+                            onMouseOver={(e) => e.currentTarget.style.backgroundColor = 'rgba(59, 130, 246, 0.1)'}
+                            onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
                           >
-                            <button 
-                              className="custom-dropdown-btn"
-                              style={{ width: '100%', textAlign: 'left', padding: '12px 20px', fontSize: '14px', background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-primary)', transition: 'background-color 0.2s' }}
-                              onClick={(e) => handleAction('info', friend, e)}
-                            >
-                              Nhắn tin
-                            </button>
-                            <div style={{ height: '1px', backgroundColor: 'var(--border)', margin: '4px 0' }} />
-                            
-                            {currentTab === '/friends' && (
-                              <>
-                                <button 
-                                  className="custom-dropdown-btn"
-                                  style={{ width: '100%', textAlign: 'left', padding: '12px 20px', fontSize: '14px', background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-primary)', transition: 'background-color 0.2s' }}
-                                  onClick={(e) => handleAction('block', friend, e)}
-                                >
-                                  Chặn người này
-                                </button>
-                                <button 
-                                  className="custom-dropdown-btn danger"
-                                  style={{ width: '100%', textAlign: 'left', padding: '12px 20px', fontSize: '14px', background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--error)', transition: 'background-color 0.2s' }}
-                                  onClick={(e) => handleAction('unfriend', friend, e)}
-                                >
-                                  Xóa bạn
-                                </button>
-                              </>
-                            )}
-
-                            {currentTab === '/requests' && (
-                              <>
-                                <button 
-                                  className="custom-dropdown-btn"
-                                  style={{ width: '100%', textAlign: 'left', padding: '12px 20px', fontSize: '14px', background: 'transparent', border: 'none', cursor: 'pointer', color: '#3b82f6', transition: 'background-color 0.2s' }}
-                                  onClick={(e) => handleAction('accept', friend, e)}
-                                >
-                                  Chấp nhận
-                                </button>
-                                <button 
-                                  className="custom-dropdown-btn danger"
-                                  style={{ width: '100%', textAlign: 'left', padding: '12px 20px', fontSize: '14px', background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--error)', transition: 'background-color 0.2s' }}
-                                  onClick={(e) => handleAction('reject', friend, e)}
-                                >
-                                  Từ chối
-                                </button>
-                              </>
-                            )}
-
-                            {currentTab === '/sent-requests' && (
-                              <button 
-                                className="custom-dropdown-btn danger"
-                                style={{ width: '100%', textAlign: 'left', padding: '12px 20px', fontSize: '14px', background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--error)', transition: 'background-color 0.2s' }}
-                                onClick={(e) => handleAction('cancel', friend, e)}
-                              >
-                                Thu hồi lời mời
-                              </button>
-                            )}
-
-                            {currentTab === '/blocked' && (
-                              <button 
-                                className="custom-dropdown-btn"
-                                style={{ width: '100%', textAlign: 'left', padding: '12px 20px', fontSize: '14px', background: 'transparent', border: 'none', cursor: 'pointer', color: '#3b82f6', transition: 'background-color 0.2s' }}
-                                onClick={(e) => handleAction('unblock', friend, e)}
-                              >
-                                Bỏ chặn
-                              </button>
-                            )}
-                          </div>
+                            Bỏ chặn
+                          </button>
                         )}
                       </div>
                     ))}
@@ -494,6 +441,199 @@ export default function FriendsPage() {
         onConfirm={confirmAction?.action || (() => {})}
         onCancel={() => setConfirmAction(null)}
       />
+
+      <Modal
+        isOpen={!!selectedUserForInfo}
+        onClose={() => setSelectedUserForInfo(null)}
+        title="Thông tin người dùng"
+      >
+        {selectedUserForInfo && (
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '0 0 24px 0', marginTop: '-12px' }}>
+            {/* Avatar */}
+            <div 
+              style={{ 
+                width: '135px', height: '135px', borderRadius: '50%', flexShrink: 0,
+                backgroundColor: 'var(--accent-primary)',
+                backgroundImage: selectedUserForInfo.avatar?.url ? `url(${selectedUserForInfo.avatar.url})` : 'none',
+                backgroundSize: 'cover', backgroundPosition: 'center',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                color: '#fff', fontWeight: 600, fontSize: '42px',
+                marginBottom: '16px',
+                boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+              }}
+            >
+              {!selectedUserForInfo.avatar?.url && (selectedUserForInfo.name || selectedUserForInfo.email || 'U').charAt(0).toUpperCase()}
+            </div>
+            
+            {/* Name */}
+            <h3 style={{ fontSize: '24px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '8px' }}>
+              {selectedUserForInfo.name || selectedUserForInfo.email}
+            </h3>
+            
+            {/* Bio */}
+            <div style={{ 
+              textAlign: 'center', color: 'var(--text-secondary)', fontSize: '15px', 
+              maxWidth: '85%', marginBottom: '24px', 
+              wordBreak: 'break-word'
+            }}>
+              {selectedUserForInfo.bio || 'Chưa có tiểu sử.'}
+            </div>
+            
+            {/* Personal Info */}
+            <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '16px', padding: '0 16px', marginBottom: '32px' }}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', color: 'var(--text-primary)' }}>
+                <div style={{ width: '36px', height: '36px', borderRadius: '50%', flexShrink: 0, backgroundColor: 'var(--bg-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#6b7280' }}>
+                  <MapPin size={18} />
+                </div>
+                <div>
+                  <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Địa chỉ</div>
+                  <div style={{ fontSize: '15px', fontWeight: 500 }}>{selectedUserForInfo.address || 'Chưa cập nhật'}</div>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', color: 'var(--text-primary)' }}>
+                <div style={{ width: '36px', height: '36px', borderRadius: '50%', backgroundColor: 'var(--bg-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#6b7280' }}>
+                  <UserIcon size={18} />
+                </div>
+                <div>
+                  <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Giới tính</div>
+                  <div style={{ fontSize: '15px', fontWeight: 500 }}>
+                    {selectedUserForInfo.gender === 'MALE' ? 'Nam' : selectedUserForInfo.gender === 'FEMALE' ? 'Nữ' : selectedUserForInfo.gender === 'OTHER' ? 'Khác' : 'Chưa cập nhật'}
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', color: 'var(--text-primary)' }}>
+                <div style={{ width: '36px', height: '36px', borderRadius: '50%', backgroundColor: 'var(--bg-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#6b7280' }}>
+                  <Calendar size={18} />
+                </div>
+                <div>
+                  <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Ngày sinh</div>
+                  <div style={{ fontSize: '15px', fontWeight: 500 }}>
+                    {selectedUserForInfo.dateOfBirth ? new Date(selectedUserForInfo.dateOfBirth).toLocaleDateString('vi-VN') : 'Chưa cập nhật'}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div className="modal-actions">
+              <button 
+                onClick={(e) => {
+                  setSelectedUserForInfo(null);
+                  handleAction('info', selectedUserForInfo, e);
+                }}
+                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', padding: '12px', borderRadius: '8px', backgroundColor: '#3b82f6', color: '#fff', border: 'none', cursor: 'pointer', fontWeight: 500, fontSize: '14px', transition: 'opacity 0.2s' }}
+                onMouseOver={(e) => (e.currentTarget.style.opacity = '0.9')}
+                onMouseOut={(e) => (e.currentTarget.style.opacity = '1')}
+              >
+                <MessageSquare size={18} />
+                Nhắn tin
+              </button>
+              
+              {currentTab === '/friends' && (
+                <>
+                  <button 
+                    onClick={(e) => {
+                      setSelectedUserForInfo(null);
+                      handleAction('unfriend', selectedUserForInfo, e);
+                    }}
+                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', padding: '12px', borderRadius: '8px', backgroundColor: 'var(--bg-secondary)', color: 'var(--text-primary)', border: '1px solid var(--border)', cursor: 'pointer', fontWeight: 500, fontSize: '14px', transition: 'background-color 0.2s' }}
+                    onMouseOver={(e) => (e.currentTarget.style.backgroundColor = 'rgba(220, 38, 38, 0.1)')}
+                    onMouseOut={(e) => (e.currentTarget.style.backgroundColor = 'var(--bg-secondary)')}
+                  >
+                    <UserMinus size={18} />
+                    Xóa bạn
+                  </button>
+
+                  <button 
+                    onClick={(e) => {
+                      setSelectedUserForInfo(null);
+                      handleAction('block', selectedUserForInfo, e);
+                    }}
+                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', padding: '12px', borderRadius: '8px', backgroundColor: 'var(--bg-secondary)', color: 'var(--error)', border: '1px solid var(--border)', cursor: 'pointer', fontWeight: 500, fontSize: '14px', transition: 'background-color 0.2s' }}
+                    onMouseOver={(e) => (e.currentTarget.style.backgroundColor = 'rgba(220, 38, 38, 0.1)')}
+                    onMouseOut={(e) => (e.currentTarget.style.backgroundColor = 'var(--bg-secondary)')}
+                  >
+                    <UserX size={18} />
+                    Chặn
+                  </button>
+                </>
+              )}
+
+              {currentTab === '/requests' && (
+                <>
+                  <button 
+                    onClick={(e) => {
+                      setSelectedUserForInfo(null);
+                      handleAction('accept', selectedUserForInfo, e);
+                    }}
+                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', padding: '12px', borderRadius: '8px', backgroundColor: '#10b981', color: '#fff', border: 'none', cursor: 'pointer', fontWeight: 500, fontSize: '14px', transition: 'opacity 0.2s' }}
+                    onMouseOver={(e) => (e.currentTarget.style.opacity = '0.9')}
+                    onMouseOut={(e) => (e.currentTarget.style.opacity = '1')}
+                  >
+                    <Check size={18} />
+                    Chấp nhận
+                  </button>
+                  <button 
+                    onClick={(e) => {
+                      setSelectedUserForInfo(null);
+                      handleAction('reject', selectedUserForInfo, e);
+                    }}
+                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', padding: '12px', borderRadius: '8px', backgroundColor: 'var(--bg-secondary)', color: 'var(--error)', border: '1px solid var(--border)', cursor: 'pointer', fontWeight: 500, fontSize: '14px', transition: 'background-color 0.2s' }}
+                    onMouseOver={(e) => (e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.1)')}
+                    onMouseOut={(e) => (e.currentTarget.style.backgroundColor = 'var(--bg-secondary)')}
+                  >
+                    <UserMinus size={18} />
+                    Từ chối
+                  </button>
+                  <button 
+                    onClick={(e) => {
+                      setSelectedUserForInfo(null);
+                      handleAction('block', selectedUserForInfo, e);
+                    }}
+                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', padding: '12px', borderRadius: '8px', backgroundColor: 'var(--bg-secondary)', color: 'var(--error)', border: '1px solid var(--border)', cursor: 'pointer', fontWeight: 500, fontSize: '14px', transition: 'background-color 0.2s' }}
+                    onMouseOver={(e) => (e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.1)')}
+                    onMouseOut={(e) => (e.currentTarget.style.backgroundColor = 'var(--bg-secondary)')}
+                  >
+                    <UserX size={18} />
+                    Chặn
+                  </button>
+                </>
+              )}
+
+              {currentTab === '/sent-requests' && (
+                <>
+                  <button 
+                    onClick={(e) => {
+                      setSelectedUserForInfo(null);
+                      handleAction('cancel', selectedUserForInfo, e);
+                    }}
+                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', padding: '12px', borderRadius: '8px', backgroundColor: 'var(--bg-secondary)', color: 'var(--error)', border: '1px solid var(--border)', cursor: 'pointer', fontWeight: 500, fontSize: '14px', transition: 'background-color 0.2s' }}
+                    onMouseOver={(e) => (e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.1)')}
+                    onMouseOut={(e) => (e.currentTarget.style.backgroundColor = 'var(--bg-secondary)')}
+                  >
+                    <UserMinus size={18} />
+                    Thu hồi
+                  </button>
+                  <button 
+                    onClick={(e) => {
+                      setSelectedUserForInfo(null);
+                      handleAction('block', selectedUserForInfo, e);
+                    }}
+                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', padding: '12px', borderRadius: '8px', backgroundColor: 'var(--bg-secondary)', color: 'var(--error)', border: '1px solid var(--border)', cursor: 'pointer', fontWeight: 500, fontSize: '14px', transition: 'background-color 0.2s' }}
+                    onMouseOver={(e) => (e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.1)')}
+                    onMouseOut={(e) => (e.currentTarget.style.backgroundColor = 'var(--bg-secondary)')}
+                  >
+                    <UserX size={18} />
+                    Chặn
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        )}
+      </Modal>
     </div>
   );
 }

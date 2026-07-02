@@ -42,6 +42,7 @@ interface ChatState {
   conversations: Conversation[];
   isLoadingConversations: boolean;
   hasLoadedConversations: boolean;
+  nextCursorConversations?: string | null;
   unread: UnreadMap;
   online: OnlineMap;
   typing: TypingMap;
@@ -54,6 +55,7 @@ interface ChatState {
   setOnline: (updater: OnlineMap | ((prev: OnlineMap) => OnlineMap)) => void;
   
   refetchConversations: (options?: { silent?: boolean }) => Promise<void>;
+  loadMoreConversations: () => Promise<void>;
   fetchConversationById: (conversationId: string) => Promise<void>;
   clearUnread: (conversationId: string) => void;
   setUsersOnline: (userIds: string[]) => void;
@@ -69,6 +71,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   conversations: [],
   isLoadingConversations: false,
   hasLoadedConversations: false,
+  nextCursorConversations: null,
   unread: {},
   online: {},
   typing: {},
@@ -164,7 +167,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
     try {
       const res = await conversationsApi.getAll();
-      const list = res.data?.data ?? (res.data as any) ?? [];
+      const list = res.data?.data?.conversations ?? (res.data?.data as any) ?? [];
+      const nextCursor = res.data?.data?.nextCursor ?? null;
       const normalized = sortConversations(normalizeConversations(list));
       
       const { user } = useAuthStore.getState();
@@ -172,6 +176,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       
       set({ 
         conversations: normalized,
+        nextCursorConversations: nextCursor,
         unread: buildUnreadMap(normalized, currentUserId),
       });
       void get().hydratePresence(normalized);
@@ -180,6 +185,35 @@ export const useChatStore = create<ChatState>((set, get) => ({
     } finally {
       if (!silent) set({ isLoadingConversations: false });
       set({ hasLoadedConversations: true });
+    }
+  },
+
+  loadMoreConversations: async () => {
+    const state = get();
+    if (!state.nextCursorConversations || state.isLoadingConversations) return;
+    
+    set({ isLoadingConversations: true });
+    try {
+      const res = await conversationsApi.getAll(state.nextCursorConversations);
+      const list = res.data?.data?.conversations ?? (res.data?.data as any) ?? [];
+      const nextCursor = res.data?.data?.nextCursor ?? null;
+      const normalized = sortConversations(normalizeConversations(list));
+      
+      const { user } = useAuthStore.getState();
+      const currentUserId = user?._id || '';
+      
+      const combined = sortConversations([...state.conversations, ...normalized]);
+      
+      set({
+        conversations: combined,
+        nextCursorConversations: nextCursor,
+        unread: buildUnreadMap(combined, currentUserId),
+      });
+      void get().hydratePresence(normalized);
+    } catch (err) {
+      console.warn('[chatStore] load more conversations failed', err);
+    } finally {
+      set({ isLoadingConversations: false });
     }
   },
   

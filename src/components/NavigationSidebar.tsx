@@ -1,12 +1,14 @@
 import { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { MessageCircle, Users, MessageSquareDashed, Ban, Moon, Sun, LogOut } from 'lucide-react';
+import { MessageCircle, Users, MessageSquareDashed, Ban, Moon, Sun, LogOut, Shield } from 'lucide-react';
 import { useAuthStore as useAuth } from '../store/authStore';
 import { useTheme } from '../context/ThemeContext';
 import { useToast } from '../context/ToastContext';
 import { useRelationships } from '../hooks/useRelationships';
 import { useChatStore } from '../store/chatStore';
 import ConfirmModal from './ConfirmModal';
+
+import { UserRole } from '../constants/roles';
 
 interface NavigationSidebarProps {
   isOpen: boolean;
@@ -36,7 +38,7 @@ export default function NavigationSidebar({ isOpen, setIsOpen }: NavigationSideb
   const isFriendsRoute = location.pathname === '/friends';
   const isMessageRequestsRoute = location.pathname === '/message-requests';
   const isBlockedRoute = location.pathname === '/blocked';
-  const isProfileRoute = location.pathname === '/profile';
+  const isAdminRoute = location.pathname.startsWith('/admin');
 
   const getInitials = () => {
     const n = user?.name || user?.email || 'U';
@@ -63,6 +65,20 @@ export default function NavigationSidebar({ isOpen, setIsOpen }: NavigationSideb
     });
   };
 
+  const handleNavigate = (path: string, action?: () => void) => {
+    if (window.innerWidth < 768 && isOpen) {
+      setIsOpen(false);
+      setTimeout(() => {
+        if (action) action();
+        navigate(path);
+      }, 300); // Đợi animation đóng sidebar hoàn tất rồi mới chuyển trang
+    } else {
+      if (action) action();
+      navigate(path);
+      setIsOpen(false);
+    }
+  };
+
   // Shared classes for navigation items
   const baseItemClass = "w-[210px] md:w-[44px] h-[44px] min-h-[44px] md:h-[44px] px-4 md:px-0 rounded-xl flex items-center justify-start md:justify-center gap-3 border-none bg-transparent text-[var(--text-muted)] cursor-pointer transition-all duration-200 relative";
   const hoverClass = "hover:bg-[var(--bg-secondary)] hover:text-[var(--text-primary)]";
@@ -86,7 +102,7 @@ export default function NavigationSidebar({ isOpen, setIsOpen }: NavigationSideb
         <div className="flex flex-col items-center gap-2 md:gap-4 w-full">
           <button
             className={`${baseItemClass} ${hoverClass} ${isChatRoute ? activeClass : ''}`}
-            onClick={() => { setMessageRequestContext(false); navigate('/'); setIsOpen(false); }}
+            onClick={() => handleNavigate('/', () => setMessageRequestContext(false))}
             title="Đoạn chat"
           >
             <div className="relative">
@@ -101,7 +117,7 @@ export default function NavigationSidebar({ isOpen, setIsOpen }: NavigationSideb
           </button>
           <button
             className={`${baseItemClass} ${hoverClass} ${isFriendsRoute ? activeClass : ''}`}
-            onClick={() => { navigate('/friends'); setIsOpen(false); }}
+            onClick={() => handleNavigate('/friends')}
             title="Bạn bè"
           >
             <div className="relative">
@@ -114,7 +130,7 @@ export default function NavigationSidebar({ isOpen, setIsOpen }: NavigationSideb
           </button>
           <button
             className={`${baseItemClass} ${hoverClass} ${isMessageRequestsRoute ? activeClass : ''}`}
-            onClick={() => { setMessageRequestContext(true); navigate('/message-requests'); setIsOpen(false); }}
+            onClick={() => handleNavigate('/message-requests', () => setMessageRequestContext(true))}
             title="Tin nhắn chờ"
           >
             <div className="relative">
@@ -129,7 +145,7 @@ export default function NavigationSidebar({ isOpen, setIsOpen }: NavigationSideb
           </button>
           <button
             className={`${baseItemClass} ${hoverClass} ${isBlockedRoute ? activeClass : ''}`}
-            onClick={() => { navigate('/blocked'); setIsOpen(false); }}
+            onClick={() => handleNavigate('/blocked')}
             title="Chặn"
           >
             <Ban className={iconSizeClass} />
@@ -144,11 +160,20 @@ export default function NavigationSidebar({ isOpen, setIsOpen }: NavigationSideb
         <div className="flex-1 w-full min-h-[16px]"></div>
 
         <div className="flex flex-col items-center gap-2 md:gap-4 w-full pt-2 md:pt-4 pb-2">
-          
+          {[UserRole.ADMIN, UserRole.SUPER_ADMIN].includes(user?.role as UserRole) && (
+            <button
+              className={`${baseItemClass} ${hoverClass} ${isAdminRoute ? activeClass : ''}`}
+              onClick={() => handleNavigate('/admin')}
+              title="Quản trị viên"
+            >
+              <Shield className={iconSizeClass} />
+              <span className="text-[15px] font-medium block md:hidden">Quản trị viên</span>
+            </button>
+          )}
 
           <button
             className={`${baseItemClass} ${hoverClass}`}
-            onClick={() => { navigate('/profile'); setIsOpen(false); }}
+            onClick={() => handleNavigate('/profile')}
             title="Hồ sơ cá nhân"
           >
             <div 

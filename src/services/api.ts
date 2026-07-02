@@ -2,11 +2,13 @@ import axios from 'axios';
 
 const envApiOrigin = import.meta.env.VITE_API_ORIGIN?.trim();
 
-const defaultOrigin = window.location.hostname === 'localhost' 
-  ? 'http://localhost:8080' 
-  : ''; // Trả về rỗng để tự động bắt Same-Origin (domain hiện tại)
+// Trong môi trường dev, backend luôn chạy ở cổng 8080 trên cùng IP/hostname
+// Điều này giúp truy cập từ điện thoại (LAN IP) tự động trỏ đúng backend
+const defaultOrigin = import.meta.env.DEV
+  ? `http://${window.location.hostname}:8080`
+  : ''; // Trả về rỗng ở production để tự động bắt Same-Origin
 
-export const API_ORIGIN = envApiOrigin !== undefined ? envApiOrigin : defaultOrigin;
+export const API_ORIGIN = envApiOrigin ? envApiOrigin : defaultOrigin;
 export const API_BASE_URL = API_ORIGIN ? `${API_ORIGIN}/api/v1` : '/api/v1';
 
 const AUTH_STORAGE_EVENT = 'halochat-auth-storage';
@@ -220,7 +222,7 @@ export const authApi = {
 };
 
 export const systemApi = {
-  getHello: () => axios.get(API_ORIGIN || '/', {
+  getHello: () => axios.get(API_BASE_URL, {
     headers: (() => {
       const token = localStorage.getItem('accessToken');
       return token ? { Authorization: `Bearer ${token}` } : undefined;
@@ -253,20 +255,26 @@ export const usersApi = {
     role?: string;
   }) => api.post('/users', data),
 
-  // UpdateUserDto: { name*, phone?, address? }
+  // UpdateUserDto: { name*, phone?, address?, dateOfBirth?, gender?, bio? }
   update: (data: {
     name: string;
     phone?: string | null;
     address?: string | null;
+    dateOfBirth?: string | null;
+    gender?: string | null;
+    bio?: string | null;
   }) => api.patch('/users/me', data),
 
-  // UpdateUserByAdminDto: { name?, email?, phone?, address?, role? }
+  // UpdateUserByAdminDto: { name?, email?, phone?, address?, role?, dateOfBirth?, gender?, bio? }
   updateByAdmin: (id: string, data: {
     name?: string;
     email?: string;
     phone?: string | null;
     address?: string | null;
     role?: string;
+    dateOfBirth?: string | null;
+    gender?: string | null;
+    bio?: string | null;
   }) => api.patch(`/users/${id}`, data),
 
   delete: (id: string) => api.delete(`/users/${id}`),

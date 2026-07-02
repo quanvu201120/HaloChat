@@ -181,10 +181,9 @@ export default function SocketManager() {
         if (!userId) return;
 
         if (userId === currentUserId) {
-          useAuthStore.getState().logout().then(() => {
-             toast.warning('Tài khoản của bạn đã bị vô hiệu hóa.');
-             navigate('/login');
-          });
+          useAuthStore.getState().localLogout();
+          toast.warning('Tài khoản của bạn đã bị vô hiệu hóa.');
+          navigate('/login');
           return;
         }
 

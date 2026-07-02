@@ -2073,7 +2073,9 @@ tbody tr:last-child td {
   width: 100%;
   max-width: 520px;
   max-height: 90vh;
-  overflow-y: auto;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
   animation: slideUp 0.2s ease;
   box-shadow: var(--shadow-lg);
 }
@@ -2084,6 +2086,7 @@ tbody tr:last-child td {
   justify-content: space-between;
   padding: 20px 24px;
   border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
 }
 
 .modal-title {
@@ -2097,6 +2100,23 @@ tbody tr:last-child td {
   display: flex;
   flex-direction: column;
   gap: 16px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+/* Custom scrollbar for modal body */
+.modal-body::-webkit-scrollbar {
+  width: 6px;
+}
+.modal-body::-webkit-scrollbar-track {
+  background: transparent;
+}
+.modal-body::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 4px;
+}
+.modal-body::-webkit-scrollbar-thumb:hover {
+  background: #9ca3af;
 }
 
 .modal-footer {
@@ -2105,6 +2125,7 @@ tbody tr:last-child td {
   justify-content: flex-end;
   padding: 16px 24px;
   border-top: 1px solid var(--border);
+  flex-shrink: 0;
 }
 
 /* ===== LOGIN / AUTH PAGES ===== */
@@ -2905,53 +2926,30 @@ tbody tr:last-child td {
   }
 
   .chat-sidebar {
-    position: absolute;
-    top: 0;
-    left: 0;
     width: 100% !important;
     min-width: 100% !important;
-    height: 100%;
-    z-index: 10;
-    transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+    border-right: none;
   }
 
   .chat-main {
-    position: absolute;
-    top: 0;
-    left: 0;
     width: 100% !important;
     min-width: 100% !important;
-    height: 100%;
-    z-index: 20;
-    transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
-    background: var(--bg-primary);
-    box-shadow: -8px 0 24px rgba(0, 0, 0, 0.1);
   }
 
   /* State: Show Sidebar (Hide Main) */
   .app-layout.mobile-sidebar-only .chat-sidebar {
     display: flex;
-    transform: translateX(0);
-    opacity: 1;
-    pointer-events: auto;
   }
   .app-layout.mobile-sidebar-only .chat-main {
-    display: flex;
-    transform: translateX(100%);
-    pointer-events: none;
+    display: none;
   }
 
   /* State: Show Main (Hide Sidebar) */
   .app-layout.mobile-main-only .chat-sidebar {
-    display: flex;
-    transform: translateX(-30%);
-    opacity: 0;
-    pointer-events: none;
+    display: none;
   }
   .app-layout.mobile-main-only .chat-main {
     display: flex;
-    transform: translateX(0);
-    pointer-events: auto;
   }
 
   /* Make sure right sidebar takes full width on mobile */
