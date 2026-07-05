@@ -25,7 +25,7 @@ export default function FriendsPage() {
   } | null>(null);
 
   const { friends, sentRequests, receivedRequests, blockedUsers, isLoading, unfriend, block, unblock, accept, rejectOrRemove } = useRelationships();
-  const { conversations, refetchConversations, mergeConversation, setConversations } = useChat();
+  const { conversations, mergeConversation, replaceConversation, setConversations } = useChat();
   const { user } = useAuth();
   const toast = useToast();
 
@@ -103,6 +103,7 @@ export default function FriendsPage() {
         tempId = `temp_${Date.now()}_${friend._id}`;
         const tempConv: any = {
           _id: tempId,
+          _stableKey: tempId,
           isGroup: false,
           users: [
             { _id: user?._id, name: user?.name, email: user?.email, avatar: user?.avatar },
@@ -122,15 +123,11 @@ export default function FriendsPage() {
         const conv = res.data?.data ?? res.data;
         
         if (conv?._id) {
-          // Merge real conversation first so sidebar doesn't lose the item
-          mergeConversation(conv);
-          // Navigate to real ID
+          // Silently swap the temp entry with the real one — no filter/refetch,
+          // no extra state churn, so the sidebar never flashes.
+          replaceConversation(tempId!, conv);
           navigate(`/chat/${conv._id}`, { replace: true });
         }
-
-        // Remove temp and silently refetch to prevent skeleton flashes
-        setConversations(prev => prev.filter(c => c._id !== tempId));
-        await refetchConversations({ silent: true });
       } catch (err: any) {
         if (tempId) setConversations(prev => prev.filter(c => c._id !== tempId));
         toast.error(err.response?.data?.message || 'Không thể mở cuộc trò chuyện');

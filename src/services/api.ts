@@ -46,6 +46,9 @@ export function subscribeAuthStorage(listener: () => void) {
 export const api = axios.create({
   baseURL: API_BASE_URL,
   withCredentials: true,
+  headers: {
+    'Cache-Control': 'no-cache',
+  },
 });
 
 // Instance CHO COOKIE endpoints (refreshToken, logout) — giữ riêng để flow auth rõ ràng

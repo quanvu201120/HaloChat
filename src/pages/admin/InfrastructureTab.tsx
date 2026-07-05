@@ -124,7 +124,7 @@ export default function InfrastructureTab({ startDate, endDate, filterMode }: { 
 
   return (
     <div className="flex flex-col gap-8 w-full animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 xl:grid-cols-2 2xl:grid-cols-4 gap-6">
         
         {/* Backend API */}
         <SystemCard 
@@ -145,7 +145,7 @@ export default function InfrastructureTab({ startDate, endDate, filterMode }: { 
           progressData={{
             used: safeOverview.storage.mongoUsedMB,
             total: safeOverview.limits.database === 'Unlimited' ? 'Unlimited' : Math.round(Number(safeOverview.limits.database)),
-            usedLabel: isCurrentMode ? 'Lưu trữ' : 'Đỉnh điểm',
+            usedLabel: isCurrentMode ? 'Lưu trữ' : 'Lưu trữ cao nhất',
             totalLabel: isCurrentMode ? 'Giới hạn' : undefined,
             hideBar: !isCurrentMode,
             valueUnit: 'MB'
@@ -161,14 +161,14 @@ export default function InfrastructureTab({ startDate, endDate, filterMode }: { 
           progressData={{
             used: safeOverview.storage.redisRamUsed,
             total: safeOverview.storage.redisRamTotal,
-            usedLabel: isCurrentMode ? 'Sử dụng' : 'Đỉnh điểm',
+            usedLabel: isCurrentMode ? 'Lưu trữ' : 'Lưu trữ cao nhất',
             totalLabel: isCurrentMode ? 'Tổng RAM' : undefined,
             hideBar: !isCurrentMode,
             valueUnit: 'MB'
           }}
-          stats={[
-            { label: 'Mức sử dụng cao nhất', value: `${safeOverview.metrics.redisPeakMemoryMB} MB`, color: '#f59e0b' },
-          ]}
+          stats={isCurrentMode ? [
+            { label: 'Mức lưu trữ cao nhất', value: `${safeOverview.metrics.redisPeakMemoryMB} MB`, color: '#f59e0b' },
+          ] : []}
         />
 
         {/* Cloudinary */}
@@ -190,7 +190,7 @@ export default function InfrastructureTab({ startDate, endDate, filterMode }: { 
               progressData={{
                 used: Number((totalCredits).toFixed(2)),
                 total: limitCredits,
-                usedLabel: isCurrentMode ? 'Đã dùng' : 'Đỉnh điểm',
+                usedLabel: 'Đã dùng',
                 totalLabel: isCurrentMode ? 'Giới hạn' : undefined,
                 hideBar: !isCurrentMode,
                 valueUnit: 'Credit'
@@ -213,14 +213,14 @@ export default function InfrastructureTab({ startDate, endDate, filterMode }: { 
           progressData={{
             used: safeOverview.storage.r2Used < 1024 ? safeOverview.storage.r2Used : Number((safeOverview.storage.r2Used / 1024).toFixed(2)),
             total: safeOverview.limits.r2 === 'Unlimited' ? 'Unlimited' : (safeOverview.storage.r2Used < 1024 ? safeOverview.limits.r2 : Math.round(Number(safeOverview.limits.r2) / 1024)),
-            usedLabel: isCurrentMode ? 'Lưu trữ' : 'Đỉnh điểm',
+            usedLabel: isCurrentMode ? 'Lưu trữ' : 'Lưu trữ cao nhất',
             totalLabel: isCurrentMode ? 'Giới hạn' : undefined,
             hideBar: !isCurrentMode,
             valueUnit: safeOverview.storage.r2Used < 1024 ? 'MB' : 'GB'
           }}
           stats={[
-            ...(isCurrentMode ? [{ label: 'Lưu trữ hiện tại', value: safeOverview.storage.r2Used < 1024 ? `${safeOverview.storage.r2Used.toFixed(2)} MB` : `${(safeOverview.storage.r2Used / 1024).toFixed(2)} GB`, color: '#3b82f6' }] : []),
-            { label: 'Lưu trữ cao nhất', value: safeOverview.storage.r2Peak < 1024 ? `${safeOverview.storage.r2Peak.toFixed(2)} MB` : `${(safeOverview.storage.r2Peak / 1024).toFixed(2)} GB` },
+            ...(isCurrentMode ? [{ label: 'Lưu trữ hiện tại', value: safeOverview.storage.r2Used < 1024 ? `${safeOverview.storage.r2Used.toFixed(2)} MB` : `${(safeOverview.storage.r2Used / 1024).toFixed(2)} GB`, color: '#3b82f6' },{ label: 'Lưu trữ cao nhất', value: safeOverview.storage.r2Peak < 1024 ? `${safeOverview.storage.r2Peak.toFixed(2)} MB` : `${(safeOverview.storage.r2Peak / 1024).toFixed(2)} GB` },] : []),
+            
             { label: 'Upload', value: safeOverview.metrics.uploadR2 < 1024 ? `${safeOverview.metrics.uploadR2.toFixed(2)} MB` : `${(safeOverview.metrics.uploadR2 / 1024).toFixed(2)} GB`, color: '#f59e0b' },
             { label: 'Download', value: safeOverview.metrics.r2Bandwidth < 1024 ? `${safeOverview.metrics.r2Bandwidth.toFixed(2)} MB` : `${(safeOverview.metrics.r2Bandwidth / 1024).toFixed(2)} GB`, color: '#10b981' },
           ]}
@@ -243,7 +243,7 @@ export default function InfrastructureTab({ startDate, endDate, filterMode }: { 
             <select 
               value={chartType} 
               onChange={(e) => setChartType(e.target.value as any)}
-              style={{marginRight:'5px'}}
+              style={{marginRight:'5px', borderRadius:'4px'}}
               
               className="bg-[var(--bg-primary)] border border-[var(--border)] text-[var(--text-primary)] rounded-sm px-3 py-1.5 text-sm outline-none focus:border-indigo-500"
             >
@@ -256,23 +256,22 @@ export default function InfrastructureTab({ startDate, endDate, filterMode }: { 
         </div>
 
         <div className="flex-1 w-full mt-4">
-          {isChartLoading ? (
-            <div className="w-full h-full flex items-center justify-center min-h-[300px]">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-500"></div>
-            </div>
-          ) : (
-            <div className="w-full h-full overflow-x-auto custom-scrollbar">
-              <div style={{ minWidth: '800px', height: '350px' }}>
-                {formattedChartData.length === 0 ? (
-                  <div className="w-full h-full flex flex-col items-center justify-center text-gray-500 gap-3 min-h-[300px]">
-                    <div className="w-12 h-12 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
-                      <TrendingUp size={20} className="opacity-50" />
-                    </div>
-                    <p className="text-sm font-medium">Chưa có dữ liệu thống kê cho khoảng thời gian này</p>
+          <div className="w-full h-full overflow-x-auto custom-scrollbar">
+            <div style={{ minWidth: '800px', height: '350px' }}>
+              {isChartLoading ? (
+                <div className="w-full h-full flex items-center justify-center">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-500"></div>
+                </div>
+              ) : formattedChartData.length === 0 ? (
+                <div className="w-full h-full flex flex-col items-center justify-center text-gray-500 gap-3">
+                  <div className="w-12 h-12 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
+                    <TrendingUp size={20} className="opacity-50" />
                   </div>
-                ) : (
-                  <ResponsiveContainer width="99%" height="100%">
-                    <AreaChart data={formattedChartData} margin={{ top: 20, right: 20, left: 0, bottom: 20 }}>
+                  <p className="text-sm font-medium">Chưa có dữ liệu thống kê cho khoảng thời gian này</p>
+                </div>
+              ) : (
+                <ResponsiveContainer width="99%" height="100%">
+                  <AreaChart data={formattedChartData} margin={{ top: 20, right: 20, left: 0, bottom: 20 }}>
                     <defs>
                       <linearGradient id="colorDatabase" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.3}/>
@@ -325,7 +324,6 @@ export default function InfrastructureTab({ startDate, endDate, filterMode }: { 
                 )}
               </div>
             </div>
-          )}
         </div>
       </div>
     </div>
@@ -386,9 +384,9 @@ function SystemCard({ title, icon, pingData, progressData, chartData, stats }: a
         <div className="flex flex-col items-end">
           {pingData && (
             <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold ${
-              isOnline ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400' 
-              : isPending ? 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400'
-              : 'bg-red-50 text-red-600 dark:bg-red-900/30 dark:text-red-400'
+              isOnline ? 'bg-emerald-500/15 text-emerald-500' 
+              : isPending ? 'bg-gray-500/15 text-gray-400'
+              : 'bg-red-500/15 text-red-500'
             }`}>
               {!isPending && (
                 <span className={`w-1.5 h-1.5 rounded-full ${isOnline ? 'bg-emerald-500 animate-pulse' : 'bg-red-500'}`}></span>

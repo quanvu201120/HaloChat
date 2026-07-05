@@ -24,6 +24,10 @@ export interface Conversation {
   avatar?: { url: string };
   readReceipts?: Record<string, string>;
   acceptedBy?: string[];
+  /** Client-only stable key: keeps React from unmounting the item when _id changes (temp → real swap). */
+  _stableKey?: string;
+  createdAt?:string
+  updatedAt?:string
 }
 
 function normalizeConversationUser(raw: any): ConversationUser {

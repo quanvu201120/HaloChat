@@ -7,7 +7,8 @@ import {
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   Send, Phone, Video, Info, Smile, Paperclip, Image, Mic, Square, X,
-  Camera, Trash2, LogOut, ShieldOff, Check, Pencil, UserPlus, UserMinus, Crown, History, ChevronDown, ChevronRight, ChevronLeft, FileText, Search, Plus, Download, Edit2, UserX, UserCheck
+  Camera, Trash2, LogOut, ShieldOff, Check, Pencil, UserPlus, UserMinus, Crown, History, ChevronDown, ChevronRight, ChevronLeft, FileText, Search, Plus, Download, Edit2, UserX, UserCheck,
+  MapPin, Calendar, User as UserIcon
 } from 'lucide-react';
 import { useAuthStore as useAuth } from '../store/authStore';
 import { useChatStore as useChat } from '../store/chatStore';
@@ -22,7 +23,7 @@ import {
 import {
   mediaApi, MediaResourceTypeEnum, type MediaResponse,
 } from '../services/media';
-import { api } from '../services/api';
+import { api, usersApi } from '../services/api';
 import {
   joinConversation,
   sendTextMessage,
@@ -244,6 +245,27 @@ export default function ChatPage() {
   const [memberSearchQuery, setMemberSearchQuery] = useState('');
   const groupAvatarInputRef = useRef<HTMLInputElement>(null);
 
+  // User Profile Popup States
+  const [selectedUserForInfo, setSelectedUserForInfo] = useState<any>(null);
+  const [isLoadingUserDetail, setIsLoadingUserDetail] = useState(false);
+
+  const handleShowUserProfile = async (userObj: any) => {
+    if (!userObj || !userObj._id) return;
+    setSelectedUserForInfo(userObj);
+    setIsLoadingUserDetail(true);
+    try {
+      const res = await usersApi.getOne(userObj._id);
+      const fetchedUser = res.data?.data ?? res.data;
+      if (fetchedUser) {
+        setSelectedUserForInfo(fetchedUser);
+      }
+    } catch (err) {
+      console.error('Error fetching user detail:', err);
+    } finally {
+      setIsLoadingUserDetail(false);
+    }
+  };
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -439,6 +461,7 @@ export default function ChatPage() {
 
   const memberSummary = useMemo(() => {
     if (!conv) return '';
+    if (isBlocked) return ''; // Hide status if blocked
     if (!conv.isGroup) {
       if (isOtherOnline) return 'Đang hoạt động';
       // Show relative time if we have lastOnlineAt
@@ -461,7 +484,7 @@ export default function ChatPage() {
     const onlineCount = conv.users.filter((u) => u._id === currentUserId || online[u._id] === true).length;
     return `Online ${onlineCount}/${conv.users.length}`;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [conv, isOtherOnline, otherUser, online, currentUserId]);
+  }, [conv, isOtherOnline, otherUser, online, currentUserId, isBlocked]);
 
   const stopVoiceStream = useCallback(() => {
     mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
@@ -1590,7 +1613,7 @@ export default function ChatPage() {
             ) : (
               <span>{convName.slice(0, 2).toUpperCase()}</span>
             )}
-            {isOtherOnline && !isTargetUserDisabled && <span className="online-dot" style={{ position: 'absolute', bottom: 1, right: 1 }} />}
+            {isOtherOnline && !isTargetUserDisabled && !isBlocked && <span className="online-dot" style={{ position: 'absolute', bottom: 1, right: 1 }} />}
           </div>
           <div>
             <div className="chat-header-name">{convName}</div>
@@ -2096,7 +2119,13 @@ export default function ChatPage() {
                 </div>
               )
             ) : (
-              <div className="info-sidebar-name">{convName}</div>
+              <div 
+                className="info-sidebar-name clickable" 
+                onClick={() => handleShowUserProfile(otherUser || (conv && conv.users.find((u) => u._id === currentUserId)))}
+                title="Xem thông tin"
+              >
+                {convName}
+              </div>
             )}
 
             {conv?.isGroup && (
@@ -2162,7 +2191,11 @@ export default function ChatPage() {
                           : <span>{displayName.slice(0, 1).toUpperCase()}</span>}
                       </div>
                       <div className="info-sidebar-member-info">
-                        <div className="info-sidebar-member-name">
+                        <div 
+                          className="info-sidebar-member-name clickable"
+                          onClick={() => handleShowUserProfile(member)}
+                          title="Xem thông tin"
+                        >
                           {displayName}
                           {member._id === currentUserId && <span className="info-badge-me">Bạn</span>}
                           {isMemberAdmin && <Crown size={14} className="text-warning" style={{ color: 'var(--warning)', marginLeft: '4px' }} aria-label="Quản trị viên" />}
@@ -2516,6 +2549,109 @@ export default function ChatPage() {
           onConfirm={confirmAction.action}
           onCancel={() => setConfirmAction(null)}
         />
+      )}
+
+      {/* User Info Modal (View Only) */}
+      {selectedUserForInfo && (
+        <Modal
+          isOpen={!!selectedUserForInfo}
+          onClose={() => setSelectedUserForInfo(null)}
+          title="Thông tin người dùng"
+        >
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '0 0 24px 0', marginTop: '-12px' }}>
+            {/* Avatar */}
+            <div 
+              style={{ 
+                width: '135px', height: '135px', borderRadius: '50%', flexShrink: 0,
+                backgroundColor: 'var(--accent-primary)',
+                backgroundImage: selectedUserForInfo.avatar?.url ? `url(${selectedUserForInfo.avatar.url})` : 'none',
+                backgroundSize: 'cover', backgroundPosition: 'center',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                color: '#fff', fontWeight: 600, fontSize: '42px',
+                marginBottom: '16px',
+                boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                position: 'relative'
+              }}
+            >
+              {!selectedUserForInfo.avatar?.url && (selectedUserForInfo.name || selectedUserForInfo.email || 'U').charAt(0).toUpperCase()}
+              {isLoadingUserDetail && (
+                <div style={{
+                  position: 'absolute',
+                  top: 0, left: 0, right: 0, bottom: 0,
+                  backgroundColor: 'rgba(0,0,0,0.3)',
+                  borderRadius: '50%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}>
+                  <div className="loading-spinner" style={{ width: '30px', height: '30px', borderColor: '#fff', borderTopColor: 'transparent' }} />
+                </div>
+              )}
+            </div>
+            
+            {/* Name */}
+            <h3 style={{ fontSize: '24px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '8px' }}>
+              {selectedUserForInfo.name || selectedUserForInfo.email}
+            </h3>
+            
+            {/* Bio */}
+            <div style={{ 
+              textAlign: 'center', color: 'var(--text-secondary)', fontSize: '15px', 
+              maxWidth: '85%', marginBottom: '24px', 
+              wordBreak: 'break-word',
+              minHeight: '22px'
+            }}>
+              {isLoadingUserDetail && !selectedUserForInfo.bio ? (
+                <span style={{ opacity: 0.5 }}>Đang tải...</span>
+              ) : (
+                selectedUserForInfo.bio || 'Chưa có tiểu sử.'
+              )}
+            </div>
+            
+            {/* Personal Info */}
+            <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '16px', padding: '0 16px' }}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', color: 'var(--text-primary)' }}>
+                <div style={{ width: '36px', height: '36px', borderRadius: '50%', flexShrink: 0, backgroundColor: 'var(--bg-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#6b7280' }}>
+                  <MapPin size={18} />
+                </div>
+                <div>
+                  <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Địa chỉ</div>
+                  <div style={{ fontSize: '15px', fontWeight: 500 }}>
+                    {isLoadingUserDetail && !selectedUserForInfo.address ? 'Đang tải...' : (selectedUserForInfo.address || 'Chưa cập nhật')}
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', color: 'var(--text-primary)' }}>
+                <div style={{ width: '36px', height: '36px', borderRadius: '50%', backgroundColor: 'var(--bg-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#6b7280' }}>
+                  <UserIcon size={18} />
+                </div>
+                <div>
+                  <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Giới tính</div>
+                  <div style={{ fontSize: '15px', fontWeight: 500 }}>
+                    {isLoadingUserDetail && !selectedUserForInfo.gender ? 'Đang tải...' : (
+                      selectedUserForInfo.gender === 'MALE' ? 'Nam' : selectedUserForInfo.gender === 'FEMALE' ? 'Nữ' : selectedUserForInfo.gender === 'OTHER' ? 'Khác' : 'Chưa cập nhật'
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', color: 'var(--text-primary)' }}>
+                <div style={{ width: '36px', height: '36px', borderRadius: '50%', backgroundColor: 'var(--bg-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#6b7280' }}>
+                  <Calendar size={18} />
+                </div>
+                <div>
+                  <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Ngày sinh</div>
+                  <div style={{ fontSize: '15px', fontWeight: 500 }}>
+                    {isLoadingUserDetail && !selectedUserForInfo.dateOfBirth ? 'Đang tải...' : (
+                      selectedUserForInfo.dateOfBirth ? new Date(selectedUserForInfo.dateOfBirth).toLocaleDateString('vi-VN') : 'Chưa cập nhật'
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </Modal>
       )}
       {/* Online/Offline Status Modal */}
       {showOnlineModal && conv?.isGroup && (

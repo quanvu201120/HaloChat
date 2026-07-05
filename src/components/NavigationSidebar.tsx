@@ -80,9 +80,9 @@ export default function NavigationSidebar({ isOpen, setIsOpen }: NavigationSideb
   };
 
   // Shared classes for navigation items
-  const baseItemClass = "w-[210px] md:w-[44px] h-[44px] min-h-[44px] md:h-[44px] px-4 md:px-0 rounded-xl flex items-center justify-start md:justify-center gap-3 border-none bg-transparent text-[var(--text-muted)] cursor-pointer transition-all duration-200 relative";
+  const baseItemClass = "w-[228px] md:w-[44px] h-[44px] min-h-[44px] md:h-[44px] pl-7 pr-4 md:px-0 rounded-lg flex items-center justify-start md:justify-center gap-3 border-none bg-transparent text-[var(--text-muted)] cursor-pointer transition-all duration-200 relative";
   const hoverClass = "hover:bg-[var(--bg-secondary)] hover:text-[var(--text-primary)]";
-  const activeClass = "bg-[rgba(99,102,241,0.15)] !text-[var(--accent-primary)]";
+  const activeClass = "bg-transparent !text-[var(--accent-primary)] font-semibold";
   
   const iconSizeClass = "w-[20px] h-[20px] md:w-[22px] md:h-[22px] shrink-0";
   const smallIconSizeClass = "w-[20px] h-[20px] md:w-[20px] md:h-[20px] shrink-0";
@@ -101,6 +101,7 @@ export default function NavigationSidebar({ isOpen, setIsOpen }: NavigationSideb
 
         <div className="flex flex-col items-center gap-2 md:gap-4 w-full">
           <button
+
             className={`${baseItemClass} ${hoverClass} ${isChatRoute ? activeClass : ''}`}
             onClick={() => handleNavigate('/', () => setMessageRequestContext(false))}
             title="Đoạn chat"
@@ -116,6 +117,7 @@ export default function NavigationSidebar({ isOpen, setIsOpen }: NavigationSideb
             <span className="text-[15px] font-medium block md:hidden">Đoạn chat</span>
           </button>
           <button
+
             className={`${baseItemClass} ${hoverClass} ${isFriendsRoute ? activeClass : ''}`}
             onClick={() => handleNavigate('/friends')}
             title="Bạn bè"
@@ -129,6 +131,7 @@ export default function NavigationSidebar({ isOpen, setIsOpen }: NavigationSideb
             <span className="text-[15px] font-medium block md:hidden">Bạn bè</span>
           </button>
           <button
+
             className={`${baseItemClass} ${hoverClass} ${isMessageRequestsRoute ? activeClass : ''}`}
             onClick={() => handleNavigate('/message-requests', () => setMessageRequestContext(true))}
             title="Tin nhắn chờ"
@@ -144,6 +147,7 @@ export default function NavigationSidebar({ isOpen, setIsOpen }: NavigationSideb
             <span className="text-[15px] font-medium block md:hidden">Tin nhắn chờ</span>
           </button>
           <button
+
             className={`${baseItemClass} ${hoverClass} ${isBlockedRoute ? activeClass : ''}`}
             onClick={() => handleNavigate('/blocked')}
             title="Chặn"
@@ -162,6 +166,7 @@ export default function NavigationSidebar({ isOpen, setIsOpen }: NavigationSideb
         <div className="flex flex-col items-center gap-2 md:gap-4 w-full pt-2 md:pt-4 pb-2">
           {[UserRole.ADMIN, UserRole.SUPER_ADMIN].includes(user?.role as UserRole) && (
             <button
+
               className={`${baseItemClass} ${hoverClass} ${isAdminRoute ? activeClass : ''}`}
               onClick={() => handleNavigate('/admin')}
               title="Quản trị viên"
@@ -172,6 +177,7 @@ export default function NavigationSidebar({ isOpen, setIsOpen }: NavigationSideb
           )}
 
           <button
+
             className={`${baseItemClass} ${hoverClass}`}
             onClick={() => handleNavigate('/profile')}
             title="Hồ sơ cá nhân"
@@ -190,6 +196,7 @@ export default function NavigationSidebar({ isOpen, setIsOpen }: NavigationSideb
           </button>
 
           <button
+
             className={`${baseItemClass} ${hoverClass}`}
             onClick={toggleTheme}
             title={theme === 'dark' ? 'Chế độ sáng' : 'Chế độ tối'}
@@ -199,6 +206,7 @@ export default function NavigationSidebar({ isOpen, setIsOpen }: NavigationSideb
           </button>
 
           <button
+
             className={`${baseItemClass} hover:text-[var(--error)] hover:bg-[rgba(220,38,38,0.1)]`}
             onClick={handleLogout}
             title="Đăng xuất"

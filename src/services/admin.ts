@@ -54,9 +54,14 @@ export interface UserAdminData {
   _id: string;
   name: string;
   email: string;
+  phone?: string;
+  address?: string;
   role: UserRole;
+  accountType?: string;
   isActive: boolean;
   isDisabled: boolean;
+  disabledAt?: string;
+  lastOnlineAt?: string;
   avatar?: string;
   createdAt: string;
   dateOfBirth?: string;
@@ -83,12 +88,18 @@ export interface SystemHealth {
 
 export interface CleanupJob {
   _id: string;
-  name: string;
-  status: 'IDLE' | 'RUNNING' | 'PENDING_RETRY' | 'FAILED' | 'IGNORED' | 'DONE';
-  lastRunAt?: string;
-  nextRunAt?: string;
-  triggerBy?: 'AUTO' | UserRole.ADMIN;
-  details?: any;
+  action: string;
+  status: 'PENDING' | 'RETRY' | 'DONE' | 'FAILED' | 'IGNORED';
+  lastTriedAt?: string;
+  nextRetryAt?: string;
+  resolvedAt?: string;
+  createdAt: string;
+  updatedAt?: string;
+  error?: string;
+  payload?: any;
+  lockedBy?: string;
+  retryCount?: number;
+  maxRetries?: number;
 }
 
 export const adminApi = {
@@ -163,9 +174,9 @@ export const adminApi = {
   
   clearUserBio: (id: string) => api.patch(`/users/${id}/clear-bio`).then(res => res.data?.data || res.data),
   
-  disableUser: (id: string) => api.patch(`/users/${id}/disable`).then(res => res.data?.data || res.data),
+  disableUser: (id: string, password?: string) => api.patch(`/users/${id}/disable`, { password }).then(res => res.data?.data || res.data),
   
-  enableUser: (id: string) => api.patch(`/users/${id}/enable`).then(res => res.data?.data || res.data),
+  enableUser: (id: string, password?: string) => api.patch(`/users/${id}/enable`, { password }).then(res => res.data?.data || res.data),
 
   resetUserAvatar: (id: string) => api.delete(`/users/${id}/avatar`).then(res => res.data?.data || res.data),
 
@@ -188,10 +199,14 @@ export const adminApi = {
 
   syncStats: () => api.post('/stats/sync').then(res => res.data?.data || res.data),
 
-  getCleanupJobs: () => api.get('/cleanup-jobs').then(res => {
-    const p = res.data?.data || res.data;
-    return (p.cleanupJobs || []) as CleanupJob[];
-  }),
+  getCleanupJobs: (params?: { page?: number; limit?: number; type?: string; status?: string; sort?: string }) => 
+    api.get('/cleanup-jobs', { params: { page: params?.page || 1, limit: params?.limit || 20, type: params?.type, status: params?.status, sort: params?.sort } }).then(res => {
+      const p = res.data?.data || res.data;
+      return {
+        items: (p.cleanupJobs || []) as CleanupJob[],
+        total: p.pagination?.totalItems || 0
+      };
+    }),
   
   getPendingRetryJobs: () => api.get('/cleanup-jobs/pending-retry').then(res => {
     const p = res.data?.data || res.data;

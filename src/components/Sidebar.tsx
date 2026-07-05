@@ -9,6 +9,7 @@ import ConversationItem from './ConversationItem';
 import CreateConversationModal from './CreateConversationModal';
 import AddFriendModal from './AddFriendModal';
 import ConfirmModal from './ConfirmModal';
+import { useRelationships } from '../hooks/useRelationships';
 
 export default function Sidebar() {
   const { user } = useAuth();
@@ -38,6 +39,19 @@ export default function Sidebar() {
   } | null>(null);
 
   const currentUserId = user?._id || '';
+
+  const { rawRelationships } = useRelationships();
+
+  const blockedUserIds = useMemo(() => {
+    const set = new Set<string>();
+    rawRelationships?.forEach((rel: any) => {
+      if (rel.status === 'BLOCKED') {
+        const otherId = rel.requester?._id === currentUserId ? rel.recipient?._id : rel.requester?._id;
+        if (otherId) set.add(otherId);
+      }
+    });
+    return set;
+  }, [rawRelationships, currentUserId]);
 
   const isRequestContext = isInMessageRequestContext || location.pathname === '/message-requests';
 
@@ -155,16 +169,22 @@ export default function Sidebar() {
             </div>
           ) : (
             <>
-              {filtered.map((conv) => (
-                <ConversationItem
-                  key={conv._id}
-                  conv={conv}
-                  currentUserId={currentUserId}
-                  hasUnread={!!unread[conv._id]}
-                  isActive={conversationId === conv._id}
-                  isOnline={!conv.isGroup && online[conv.users.find((u) => u._id !== currentUserId)?._id || ''] === true}
-                />
-              ))}
+              {filtered.map((conv) => {
+                const otherUser = conv.users.find((u) => u._id !== currentUserId);
+                const isBlocked = otherUser ? blockedUserIds.has(otherUser._id) : false;
+                const isOnline = !conv.isGroup && !isBlocked && online[otherUser?._id || ''] === true;
+
+                return (
+                  <ConversationItem
+                    key={conv._stableKey ?? conv._id}
+                    conv={conv}
+                    currentUserId={currentUserId}
+                    hasUnread={!!unread[conv._id]}
+                    isActive={conversationId === conv._id || conversationId === conv._stableKey}
+                    isOnline={isOnline}
+                  />
+                );
+              })}
               {isLoadingConversations && conversations.length > 0 && (
                 <div style={{ padding: '16px', textAlign: 'center', color: '#6b7280', fontSize: '12px' }}>
                   Đang tải thêm...

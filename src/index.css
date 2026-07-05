@@ -462,6 +462,18 @@ html, body, #root {
   margin-bottom: 4px;
 }
 
+.info-sidebar-name.clickable,
+.info-sidebar-member-name.clickable {
+  cursor: pointer;
+  transition: color 0.15s ease, text-decoration 0.15s ease;
+}
+
+.info-sidebar-name.clickable:hover,
+.info-sidebar-member-name.clickable:hover {
+  color: var(--accent-primary);
+  text-decoration: underline;
+}
+
 .info-sidebar-sub {
   font-size: 13px;
   color: var(--text-muted);

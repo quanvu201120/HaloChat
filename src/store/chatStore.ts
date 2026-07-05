@@ -62,6 +62,7 @@ interface ChatState {
   syncConversationMessage: (message: Message, options?: { markUnread?: boolean }) => void;
   patchConversation: (conversationId: string, updater: (conversation: Conversation) => Conversation) => void;
   mergeConversation: (incoming: Conversation) => void;
+  replaceConversation: (oldId: string, incoming: Conversation) => void;
   hydratePresence: (list: Conversation[]) => Promise<void>;
   isInMessageRequestContext: boolean;
   setMessageRequestContext: (value: boolean) => void;
@@ -120,6 +121,26 @@ export const useChatStore = create<ChatState>((set, get) => ({
       return { conversations: sortConversations(next) };
     });
   },
+
+  // Atomically swap a temp/optimistic conversation with the real one,
+  // preserving its position and _stableKey so React never unmounts the DOM node.
+  replaceConversation: (oldId, incoming) => {
+    set((state) => {
+      const index = state.conversations.findIndex((item) => item._id === oldId);
+      if (index === -1) {
+        // Temp not found — fall back to a normal merge
+        get().mergeConversation(incoming);
+        return state;
+      }
+      const temp = state.conversations[index];
+      const next = [...state.conversations];
+      // Preserve the stable key from the temp entry so the React <key> prop
+      // doesn't change and the DOM node is never unmounted during the swap.
+      next[index] = { ...incoming, _stableKey: temp._stableKey ?? oldId };
+      return { conversations: sortConversations(next) };
+    });
+  },
+
 
   hydratePresence: async (list) => {
     const { user } = useAuthStore.getState();

@@ -35,7 +35,7 @@ export default function ConfirmModal({
       setIsLoading(false);
       isProcessingRef.current = false;
     }
-  }, [isOpen, countdown]);
+  }, [isOpen, countdown, title]);
 
   useEffect(() => {
     if (isOpen && timer > 0) {

@@ -174,7 +174,7 @@ export default function UsersPage() {
       email: user.email || '',
       phone: user.phone || '',
       address: user.address || '',
-      role: user.role || UserRole.USER,
+      role: user.role as UserRole || UserRole.USER,
       isActive: user.isActive,
     });
     setShowEdit(true);
@@ -418,7 +418,7 @@ export default function UsersPage() {
               id="create-role"
               className="form-select"
               value={createForm.role}
-              onChange={(e) => setCreateForm({ ...createForm, role: e.target.value })}
+              onChange={(e) => setCreateForm({ ...createForm, role: e.target.value as UserRole })}
             >
               <option value={UserRole.USER}>USER</option>
               <option value={UserRole.ADMIN}>ADMIN</option>
@@ -468,7 +468,7 @@ export default function UsersPage() {
           </div>
           <div className="form-group">
             <label className="form-label">Vai tro</label>
-            <select className="form-select" value={editForm.role} onChange={(e) => setEditForm({ ...editForm, role: e.target.value })}>
+            <select className="form-select" value={editForm.role} onChange={(e) => setEditForm({ ...editForm, role: e.target.value as UserRole })}>
               <option value={UserRole.USER}>USER</option>
               <option value={UserRole.ADMIN}>ADMIN</option>
               <option value={UserRole.SUPER_ADMIN}>SUPER_ADMIN</option>

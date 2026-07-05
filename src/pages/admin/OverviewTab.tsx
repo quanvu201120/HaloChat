@@ -4,6 +4,7 @@ import { adminApi } from '../../services/admin';
 import { Users, MessageSquare, Activity, HardDrive, TrendingUp } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { useMemo } from 'react';
+import { MuiSelect } from '../../components/admin/MuiSelect';
 
 export default function OverviewTab({ startDate, endDate }: { startDate?: string; endDate?: string }) {
   const [chartType, setChartType] = useState<'users' | 'messages' | 'bandwidth' | 'database' | 'activity'>('users');
@@ -26,7 +27,6 @@ export default function OverviewTab({ startDate, endDate }: { startDate?: string
     queryFn: () => adminApi.getOverview(startDate, endDate),
     staleTime: 5 * 60 * 1000,
     gcTime: 10 * 60 * 1000,
-    refetchOnWindowFocus: true,
   });
 
   // Fetch chart data (Strictly no cache)
@@ -100,7 +100,7 @@ export default function OverviewTab({ startDate, endDate }: { startDate?: string
   return (
     <div className="flex flex-col gap-6 w-full animate-in fade-in slide-in-from-bottom-4 duration-500">
       {/* ROW 1: TỔNG QUAN NHANH */}
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 xl:grid-cols-2 2xl:grid-cols-4 gap-6">
         <BreakdownCard 
           title={isFiltered ? 'Người dùng mới' : 'Người dùng (Tổng)'}
           total={safeOverview.totals.users} 
@@ -134,7 +134,7 @@ export default function OverviewTab({ startDate, endDate }: { startDate?: string
         />
 
         {/* Cột 4: Interaction Activity */}
-        <div style={{ padding: '12px' }} className="bg-[var(--bg-card)] rounded-2xl shadow-sm border border-[var(--border)] flex flex-col h-full overflow-hidden">
+        <div style={{ padding: '12px', minHeight: '160px' }} className="bg-[var(--bg-card)] rounded-2xl shadow-sm border border-[var(--border)] flex flex-col h-full overflow-hidden">
           <h3 className="text-[var(--text-secondary)] font-medium text-sm mb-4">Hoạt động - Tương tác</h3>
           
           <div className="flex flex-col gap-5 justify-center flex-1">
@@ -169,37 +169,38 @@ export default function OverviewTab({ startDate, endDate }: { startDate?: string
               Biểu đồ tăng trưởng
             </h3>
             <div className="flex gap-2">
-              <select 
-                value={chartType} 
-                onChange={(e) => setChartType(e.target.value as any)}
-                style={{marginRight:'5px'}}
-                className="bg-[var(--bg-primary)] border border-[var(--border)] text-[var(--text-primary)] rounded-sm px-3 py-1.5 text-sm outline-none focus:border-indigo-500"
-              >
-                <option value="users">Lượng Users & Hội thoại</option>
-                <option value="messages">Lượng Tin nhắn</option>
-                <option value="activity">Hoạt động (Logins & CCU)</option>
-              </select>
+              <MuiSelect
+                value={chartType}
+                onChange={(v) => setChartType(v as any)}
+                options={[
+                  { value: 'users', label: 'Lượng Users & Hội thoại' },
+                  { value: 'messages', label: 'Lượng Tin nhắn' },
+                  { value: 'activity', label: 'Hoạt động (Logins & CCU)' },
+                ]}
+                minWidth={220}
+                labelBgColor="var(--bg-card)"
+                height="34px"
+              />
             </div>
           </div>
 
           <div className="flex-1 w-full mt-4">
-            {isChartLoading ? (
-              <div className="w-full h-full flex items-center justify-center">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-500"></div>
-              </div>
-            ) : (
-              <div className="w-full h-full overflow-x-auto custom-scrollbar">
-                <div style={{ minWidth: '800px', height: '350px' }}>
-                  {formattedChartData.length === 0 ? (
-                    <div className="w-full h-full flex flex-col items-center justify-center text-gray-500 gap-3 min-h-[300px]">
-                      <div className="w-12 h-12 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
-                        <TrendingUp size={20} className="opacity-50" />
-                      </div>
-                      <p className="text-sm font-medium">Chưa có dữ liệu thống kê cho khoảng thời gian này</p>
+            <div className="w-full h-full overflow-x-auto custom-scrollbar">
+              <div style={{ minWidth: '800px', height: '350px' }}>
+                {isChartLoading ? (
+                  <div className="w-full h-full flex items-center justify-center">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-500"></div>
+                  </div>
+                ) : formattedChartData.length === 0 ? (
+                  <div className="w-full h-full flex flex-col items-center justify-center text-gray-500 gap-3">
+                    <div className="w-12 h-12 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
+                      <TrendingUp size={20} className="opacity-50" />
                     </div>
-                  ) : (
-                    <ResponsiveContainer width="99%" height="100%">
-                      <AreaChart data={formattedChartData} margin={{ top: 20, right: 20, left: 0, bottom: 20 }}>
+                    <p className="text-sm font-medium">Chưa có dữ liệu thống kê cho khoảng thời gian này</p>
+                  </div>
+                ) : (
+                  <ResponsiveContainer width="99%" height="100%">
+                    <AreaChart data={formattedChartData} margin={{ top: 20, right: 20, left: 0, bottom: 20 }}>
                       <defs>
                         <linearGradient id="colorUsers" x1="0" y1="0" x2="0" y2="1">
                           <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
@@ -252,7 +253,6 @@ export default function OverviewTab({ startDate, endDate }: { startDate?: string
                   )}
                 </div>
               </div>
-            )}
           </div>
         </div>
     </div>
@@ -264,17 +264,17 @@ function BreakdownCard({ title, total, subValue, data, isLoading }: any) {
   const displayData = hasData ? data : [{ name: 'Empty', value: 1, color: '#e5e7eb' }];
 
   return (
-    <div style={{ padding: '12px' }} className="bg-[var(--bg-card)] rounded-2xl shadow-sm border border-[var(--border)] flex flex-col h-full overflow-hidden">
+    <div style={{ padding: '12px', minHeight: '160px' }} className="bg-[var(--bg-card)] rounded-2xl shadow-sm border border-[var(--border)] flex flex-col h-full overflow-hidden">
       <div className="flex justify-between items-start mb-4">
         <h3 className="text-[var(--text-secondary)] font-medium text-sm">{title}</h3>
-        <div className="flex flex-col items-end">
+        <div className="flex flex-col items-end min-h-[30px]">
           {isLoading ? (
-            <div className="h-6 w-16 bg-[var(--bg-secondary)] animate-pulse rounded"></div>
+            <span className="text-xl font-bold text-[var(--text-muted)] leading-tight animate-pulse">---</span>
           ) : (
             <>
-              <span className="text-xl font-bold text-[var(--text-primary)]">{total.toLocaleString()}</span>
+              <span className="text-xl font-bold text-[var(--text-primary)] leading-tight">{total.toLocaleString()}</span>
               {subValue && (
-                <span className="text-xs font-medium text-emerald-500 mt-0.5">{subValue}</span>
+                <span className="text-xs font-medium text-emerald-500 mt-1 leading-tight">{subValue}</span>
               )}
             </>
           )}
@@ -368,7 +368,9 @@ function MetricCard({ title, value, subValue, icon, isLoading, color = 'blue' }:
       <div className="flex justify-between items-end mt-2 z-10 flex-1">
         <div className="flex flex-col justify-end">
           {isLoading ? (
-            <div className="h-10 w-20 bg-[var(--bg-secondary)] animate-pulse rounded mb-1"></div>
+            <div className="text-4xl font-bold mb-1 text-[var(--text-muted)] animate-pulse">
+              ---
+            </div>
           ) : (
             <div className={`text-4xl font-bold mb-1 ${textColor}`}>
               {value}
