@@ -35,6 +35,17 @@ const getCleanedPayload = (payload: any) => {
   return Object.keys(cleaned).length > 0 ? cleaned : null;
 };
 
+const formatDate = (dateStr: string | Date) => {
+  if (!dateStr) return '-';
+  return new Date(dateStr).toLocaleString('vi-VN', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+};
+
 const LIMIT = 20;
 
 // ── MUI-style custom Select ──────────────────────────────────────────────────
@@ -163,6 +174,12 @@ function JobBadge({ status }: { status: string }) {
   );
 }
 
+const canExecuteJob = (job: CleanupJob) => {
+  if (!['PENDING', 'RETRY', 'FAILED', 'IGNORED'].includes(job.status)) return false;
+  if (job.lockedUntil && new Date(job.lockedUntil).getTime() > Date.now()) return false;
+  return true;
+};
+
 export default function MaintenanceTab() {
   const queryClient = useQueryClient();
   const [typeFilter, setTypeFilter] = useState('all');
@@ -204,7 +221,7 @@ export default function MaintenanceTab() {
   }, [data?.items, selectedJob?._id]);
 
   const runJobMutation = useMutation({
-    mutationFn: adminApi.runJob,
+    mutationFn: adminApi.runJobManually,
     onSuccess: () => {
       toast.success('Đã xếp hàng đợi Job');
       queryClient.invalidateQueries({ queryKey: ['admin_jobs'] });
@@ -270,13 +287,14 @@ export default function MaintenanceTab() {
 
   return (
     <>
-      <AdminMobileFilter 
-        isOpen={isFilterOpen} 
-        onToggle={() => setIsFilterOpen(!isFilterOpen)}
-        className={selectedJob ? 'hidden' : ''}
-      >
-        {renderFilters('mobile')}
-      </AdminMobileFilter>
+      {!selectedJob && (
+        <AdminMobileFilter 
+          isOpen={isFilterOpen} 
+          onToggle={() => setIsFilterOpen(!isFilterOpen)}
+        >
+          {renderFilters('mobile')}
+        </AdminMobileFilter>
+      )}
 
       <div className="flex flex-col h-full animate-in fade-in slide-in-from-bottom-4 duration-500">
         {/* List View */}
@@ -293,9 +311,10 @@ export default function MaintenanceTab() {
                     <th className="px-6 py-4 font-medium w-[60px] text-center">STT</th>
                     <th className="px-6 py-4 font-medium">Tên Job (Action)</th>
                     <th className="px-6 py-4 font-medium">Ngày tạo</th>
-                    <th className="px-6 py-4 font-medium">Thử lại</th>
+                    <th className="px-6 py-4 font-medium">Lịch chạy lại</th>
                     <th className="px-6 py-4 font-medium">Trạng thái</th>
                     <th className="px-6 py-4 font-medium">Hoàn tất lúc</th>
+                    <th className="px-6 py-4 font-medium w-[120px] text-center">Thao tác</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -313,12 +332,16 @@ export default function MaintenanceTab() {
                       </td>
                     </tr>
                   ) : (
-                    jobs.map((job, index) => (
-                      <tr 
-                        key={job._id} 
-                        className="border-b border-[var(--border)] hover:bg-[var(--bg-card-hover)] transition-colors cursor-pointer"
-                        onClick={() => setSelectedJob(job)}
-                      >
+                    jobs.map((job, index) => {
+                      const isExecuting = runJobMutation.isPending && runJobMutation.variables === job._id;
+                      return (
+                        <tr 
+                          key={job._id} 
+                          className={`border-b border-[var(--border)] transition-colors cursor-pointer ${
+                            isExecuting ? 'bg-indigo-50/50 dark:bg-indigo-900/10 animate-pulse pointer-events-none opacity-70' : 'hover:bg-[var(--bg-card-hover)]'
+                          }`}
+                          onClick={() => setSelectedJob(job)}
+                        >
                         <td className="px-6 py-4 text-center text-[var(--text-secondary)] font-medium">
                           {(page - 1) * LIMIT + index + 1}
                         </td>
@@ -326,19 +349,35 @@ export default function MaintenanceTab() {
                           <div className="font-semibold text-[var(--text-primary)]">{job.action}</div>
                         </td>
                         <td className="px-6 py-4 text-[var(--text-secondary)]">
-                          {job.createdAt ? new Date(job.createdAt).toLocaleString('vi-VN') : '-'}
+                          {job.createdAt ? formatDate(job.createdAt) : '-'}
                         </td>
                         <td className="px-6 py-4 text-[var(--text-secondary)]">
-                          {job.nextRetryAt ? new Date(job.nextRetryAt).toLocaleString('vi-VN') : '-'}
+                          {job.nextRetryAt ? formatDate(job.nextRetryAt) : '-'}
                         </td>
                         <td className="px-6 py-4">
                           <JobBadge status={job.status} />
                         </td>
                         <td className="px-6 py-4 text-[var(--text-secondary)]">
-                          {job.resolvedAt ? new Date(job.resolvedAt).toLocaleString('vi-VN') : '-'}
+                          {job.resolvedAt ? formatDate(job.resolvedAt) : '-'}
+                        </td>
+                        <td className="px-6 py-4 text-center">
+                          {canExecuteJob(job) && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                runJobMutation.mutate(job._id);
+                              }}
+                              disabled={runJobMutation.isPending}
+                              title="Thực thi"
+                              className="inline-flex items-center justify-center w-7 h-7 rounded shadow-sm text-white bg-[#2e7d32] hover:bg-[#1b5e20] hover:shadow-md active:shadow-sm transition-all duration-200 disabled:opacity-50 disabled:shadow-none cursor-pointer disabled:cursor-not-allowed"
+                            >
+                              <Play size={14} fill="currentColor" />
+                            </button>
+                          )}
                         </td>
                       </tr>
-                    ))
+                    );
+                  })
                   )}
                 </tbody>
               </table>
@@ -409,10 +448,12 @@ export default function MaintenanceTab() {
         </div>
 
         {/* Detail View */}
-        {selectedJob && (
-          <div className="flex flex-col h-full animate-in fade-in slide-in-from-right-8 duration-300">
-            <div className="flex flex-col gap-5 overflow-y-auto flex-1 pb-4 pr-1">
-              {/* Header bar */}
+        {selectedJob && (() => {
+          const isExecutingDetail = runJobMutation.isPending && runJobMutation.variables === selectedJob._id;
+          return (
+            <div className="flex flex-col h-full animate-in fade-in slide-in-from-right-8 duration-300">
+              <div className={`flex flex-col gap-5 overflow-y-auto flex-1 pb-4 pr-1 transition-all duration-300 ${isExecutingDetail ? 'animate-pulse opacity-70 pointer-events-none' : ''}`}>
+                {/* Header bar */}
               <div 
                 style={{padding:'5px'}}
                 className="relative flex items-center bg-[var(--bg-card)] rounded-sm border border-[var(--border)] shadow-sm mb-4 mt-2 px-2 sm:px-5 py-1.5"
@@ -448,16 +489,16 @@ export default function MaintenanceTab() {
 
                   {/* Actions */}
                   <div className="shrink-0 flex flex-row gap-2.5 items-center justify-center sm:justify-end">
-                    {['FAILED', 'RETRY'].includes(selectedJob.status) && (
+                    {canExecuteJob(selectedJob) && (
                       <button
+                      style={{padding:'5px'}}
+                        disabled={runJobMutation.isPending}
                         onClick={() => {
-                          if (confirm(`Chạy manual job ${selectedJob.action}?`)) {
-                            runJobMutation.mutate(selectedJob._id);
-                          }
+                          runJobMutation.mutate(selectedJob._id);
                         }}
-                        className="flex items-center gap-2 px-4 py-2 bg-indigo-500 hover:bg-indigo-600 text-white rounded-md text-sm font-medium transition-colors"
+                        className="inline-flex items-center justify-center gap-2 px-5 py-2 uppercase font-semibold text-sm tracking-wide rounded shadow-sm text-white bg-[#2e7d32] hover:bg-[#1b5e20] hover:shadow-md active:shadow-sm transition-all duration-200 disabled:opacity-50 disabled:shadow-none cursor-pointer disabled:cursor-not-allowed"
                       >
-                        <Play size={16} /> Thử lại
+                        <Play size={18} fill="currentColor" /> {isExecutingDetail ? 'Đang chạy...' : 'Thực thi'}
                       </button>
                     )}
                   </div>
@@ -473,23 +514,23 @@ export default function MaintenanceTab() {
                 <div className="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-y-4 gap-x-8">
                   <div className="flex flex-col gap-1">
                     <span className="text-xs font-medium text-[var(--text-muted)] uppercase tracking-wider">Ngày tạo</span>
-                    <span className="text-[var(--text-primary)] font-medium text-sm">{selectedJob.createdAt ? new Date(selectedJob.createdAt).toLocaleString('vi-VN') : '-'}</span>
+                    <span className="text-[var(--text-primary)] font-medium text-sm">{selectedJob.createdAt ? formatDate(selectedJob.createdAt) : '-'}</span>
                   </div>
                   <div className="flex flex-col gap-1">
                     <span className="text-xs font-medium text-[var(--text-muted)] uppercase tracking-wider">Ngày cập nhật</span>
-                    <span className="text-[var(--text-primary)] font-medium text-sm">{selectedJob.updatedAt ? new Date(selectedJob.updatedAt).toLocaleString('vi-VN') : '-'}</span>
+                    <span className="text-[var(--text-primary)] font-medium text-sm">{selectedJob.updatedAt ? formatDate(selectedJob.updatedAt) : '-'}</span>
                   </div>
                   <div className="flex flex-col gap-1">
                     <span className="text-xs font-medium text-[var(--text-muted)] uppercase tracking-wider">Lần chạy gần nhất</span>
-                    <span className="text-[var(--text-primary)] font-medium text-sm">{selectedJob.lastTriedAt ? new Date(selectedJob.lastTriedAt).toLocaleString('vi-VN') : '-'}</span>
+                    <span className="text-[var(--text-primary)] font-medium text-sm">{selectedJob.lastTriedAt ? formatDate(selectedJob.lastTriedAt) : '-'}</span>
                   </div>
                   <div className="flex flex-col gap-1">
                     <span className="text-xs font-medium text-[var(--text-muted)] uppercase tracking-wider">Lần chạy tiếp theo</span>
-                    <span className="text-[var(--text-primary)] font-medium text-sm">{selectedJob.nextRetryAt ? new Date(selectedJob.nextRetryAt).toLocaleString('vi-VN') : '-'}</span>
+                    <span className="text-[var(--text-primary)] font-medium text-sm">{selectedJob.nextRetryAt ? formatDate(selectedJob.nextRetryAt) : '-'}</span>
                   </div>
                   <div className="flex flex-col gap-1">
                     <span className="text-xs font-medium text-[var(--text-muted)] uppercase tracking-wider">Thời gian hoàn tất</span>
-                    <span className="text-[var(--text-primary)] font-medium text-sm">{selectedJob.resolvedAt ? new Date(selectedJob.resolvedAt).toLocaleString('vi-VN') : '-'}</span>
+                    <span className="text-[var(--text-primary)] font-medium text-sm">{selectedJob.resolvedAt ? formatDate(selectedJob.resolvedAt) : '-'}</span>
                   </div>
                   <div className="flex flex-col gap-1">
                     <span className="text-xs font-medium text-[var(--text-muted)] uppercase tracking-wider">Số lần chạy</span>
@@ -540,9 +581,10 @@ export default function MaintenanceTab() {
                 </div>
               </div>
 
+              </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
       </div>
     </>
   );

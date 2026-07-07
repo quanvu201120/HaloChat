@@ -1,13 +1,14 @@
 import { useState, useEffect } from 'react';
 import { useAuthStore } from '../../store/authStore';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, LayoutDashboard, Users, Sparkles, Sun, Moon, RefreshCw, CloudSync, LogOut, Server, Menu } from 'lucide-react';
+import { ArrowLeft, LayoutDashboard, Users, Sparkles, Sun, Moon, RefreshCw, CloudSync, LogOut, Server, Menu, ClipboardList } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
 import { useMemo } from 'react';
 import OverviewTab from './OverviewTab';
 import UsersTab from './UsersTab';
 import MaintenanceTab from './MaintenanceTab';
 import InfrastructureTab from './InfrastructureTab';
+import AuditLogsTab from './AuditLogsTab';
 import { useQueryClient, useMutation } from '@tanstack/react-query';
 import { adminApi } from '../../services/admin';
 import { toast } from 'react-hot-toast';
@@ -40,7 +41,7 @@ const CustomCloudSync = ({ className, isSpinning }: { className?: string; isSpin
   </svg>
 );
 
-export type AdminTab = 'overview' | 'users' | 'maintenance' | 'infrastructure';
+export type AdminTab = 'overview' | 'users' | 'maintenance' | 'infrastructure' | 'auditlogs';
 
 export default function AdminLayout() {
   const { user, setAdminVerified } = useAuthStore();
@@ -161,8 +162,8 @@ export default function AdminLayout() {
 
   const renderDateFilters = (mode: 'desktop' | 'mobile') => {
     const inputClass = mode === 'mobile'
-      ? "w-full bg-[var(--bg-primary)] border border-gray-300 dark:border-gray-600 text-[var(--text-primary)] rounded-lg h-10 px-4 text-sm font-medium outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 transition-all shadow-sm"
-      : "bg-[var(--bg-primary)] border border-gray-300 dark:border-gray-600 text-[var(--text-primary)] !rounded-sm h-9 px-4 text-sm font-medium outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 hover:border-indigo-400 dark:hover:border-indigo-500 transition-all duration-300 shadow-sm cursor-pointer";
+      ? "w-full bg-transparent border border-[var(--border)] text-[var(--text-primary)] rounded h-[40px] px-3 text-[14px] outline-none focus:border-[#1976d2] focus:ring-1 focus:ring-[#1976d2] transition-colors"
+      : "bg-transparent border border-[var(--border)] text-[var(--text-primary)] rounded h-[36px] px-3 text-[14px] outline-none focus:border-[#1976d2] focus:ring-1 focus:ring-[#1976d2] transition-colors cursor-pointer w-[120px]";
 
     const labelBgColor = mode === 'mobile' ? 'var(--bg-card)' : 'var(--bg-header)';
     const selectHeight = mode === 'mobile' ? '40px' : '36px';
@@ -179,7 +180,7 @@ export default function AdminLayout() {
       { value: '90d', label: '3 tháng' },
       { value: '365d', label: '1 năm' },
       { value: 'year', label: 'Theo năm' },
-      { value: 'custom', label: 'Tùy chọn khác' },
+      { value: 'custom', label: 'Khác' },
     ];
 
     const monthOptions = Array.from({ length: 12 }, (_, i) => ({
@@ -198,7 +199,7 @@ export default function AdminLayout() {
           value={filterMode}
           onChange={(v) => setFilterMode(v as any)}
           options={filterModeOptions}
-          minWidth={mode === 'mobile' ? '100%' : 150}
+          minWidth={mode === 'mobile' ? '100%' : 100}
           labelBgColor={labelBgColor}
           height={selectHeight}
         />
@@ -209,7 +210,7 @@ export default function AdminLayout() {
               value={selectedMonth}
               onChange={setSelectedMonth}
               options={monthOptions}
-              minWidth={mode === 'mobile' ? '100%' : 120}
+              minWidth={mode === 'mobile' ? '100%' : 100}
               labelBgColor={labelBgColor}
               height={selectHeight}
             />
@@ -217,7 +218,7 @@ export default function AdminLayout() {
               value={selectedYear}
               onChange={setSelectedYear}
               options={yearOpts}
-              minWidth={mode === 'mobile' ? '100%' : 120}
+              minWidth={mode === 'mobile' ? '100%' : 100}
               labelBgColor={labelBgColor}
               height={selectHeight}
             />
@@ -239,7 +240,7 @@ export default function AdminLayout() {
           <div className={mode === 'mobile' ? 'flex flex-col gap-3 relative' : 'flex items-center gap-2 relative'}>
             <input 
               type="date" 
-              style={{ paddingLeft: '10px' }}
+              style={{paddingLeft:'7px'}}
               value={customStartDate} 
               onChange={(e) => {
                 setCustomStartDate(e.target.value);
@@ -250,8 +251,8 @@ export default function AdminLayout() {
             />
             {mode === 'desktop' && <div className="w-2 h-[2px] rounded-full bg-[var(--border)]"></div>}
             <input 
+              style={{paddingLeft:'7px'}}
               type="date" 
-              style={{ paddingLeft: '10px' }}
               value={customEndDate} 
               onChange={(e) => {
                 setCustomEndDate(e.target.value);
@@ -261,9 +262,10 @@ export default function AdminLayout() {
               className={inputClass}
             />
             <button
-              style={{ padding: '0 15px', cursor: 'pointer' }}
+              style={{padding:' 0 15px', cursor:'pointer'}}
+
               onClick={() => { handleApplyCustomDates(); if (mode === 'mobile') setIsMobileFilterOpen(false); }}
-              className={`bg-indigo-600 hover:bg-indigo-700 text-white font-semibold shadow-md shadow-indigo-500/30 active:scale-95 transition-all duration-300 flex items-center justify-center gap-1.5 ${mode === 'mobile' ? 'h-10 rounded-lg w-full mt-2' : 'h-9 !rounded-sm text-sm ml-1 hover:shadow-lg hover:shadow-indigo-500/40'}`}
+              className={`bg-indigo-600 hover:bg-indigo-700 text-white font-medium shadow-md shadow-indigo-500/30 active:scale-95 transition-all duration-300 flex items-center justify-center px-4 ${mode === 'mobile' ? 'h-10 rounded-lg w-full mt-2' : 'h-[36px] rounded text-[14px] ml-1 hover:shadow-lg hover:shadow-indigo-500/40'}`}
             >
               Áp dụng
             </button>
@@ -289,6 +291,7 @@ export default function AdminLayout() {
       queryClient.removeQueries({ queryKey: ['admin_health'] });
       queryClient.removeQueries({ queryKey: ['admin_users'] });
       queryClient.removeQueries({ queryKey: ['admin_jobs'] });
+      queryClient.removeQueries({ queryKey: ['admin_audit_logs'] });
     };
   }, [queryClient]);
 
@@ -310,6 +313,8 @@ export default function AdminLayout() {
       ]);
     } else if (activeTab === 'maintenance') {
       await queryClient.invalidateQueries({ queryKey: ['admin_jobs'] });
+    } else if (activeTab === 'auditlogs') {
+      await queryClient.invalidateQueries({ queryKey: ['admin_audit_logs'] });
     }
 
     toast.success('Đã làm mới dữ liệu!');
@@ -331,12 +336,12 @@ export default function AdminLayout() {
       
       {/* Mobile Backdrop */}
       <div 
-        className={`md:hidden fixed inset-0 bg-black/50 z-30 transition-opacity duration-300 ease-in-out ${isMobileMenuOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+        className={`md:hidden fixed inset-0 bg-black/50 z-[90] transition-opacity duration-300 ease-in-out ${isMobileMenuOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
         onClick={() => setIsMobileMenuOpen(false)}
       />
 
       {/* Sidebar */}
-      <aside className={`w-[260px] flex flex-col bg-[var(--bg-sidebar)] border-r border-[var(--border)] shadow-sm shrink-0 fixed md:relative z-40 h-full transition-transform duration-300 ease-in-out ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
+      <aside className={`w-[260px] flex flex-col bg-[var(--bg-sidebar)] border-r border-[var(--border)] shadow-sm shrink-0 fixed md:relative z-[100] h-full transition-transform duration-300 ease-in-out ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
         <div 
           style={{padding:'10px', height:'60px'}}
           className="flex items-center gap-3 w-full pl-7 pr-4 py-6 border-b border-[var(--border)]">
@@ -380,6 +385,8 @@ export default function AdminLayout() {
             <span className="text-[15px] font-medium">Quản lý người dùng</span>
           </button>
           
+         
+
           <button
             onClick={() => { setActiveTab('infrastructure'); setIsMobileMenuOpen(false); }}
 
@@ -405,6 +412,20 @@ export default function AdminLayout() {
             <Sparkles size={20} className="shrink-0" />
             <span className="text-[15px] font-medium">Xử lí tác vụ lỗi</span>
           </button>
+
+          {user?.role === 'SUPER_ADMIN' && (
+            <button
+              onClick={() => { setActiveTab('auditlogs'); setIsMobileMenuOpen(false); }}
+              className={`flex items-center justify-start w-[228px] h-[44px] gap-3 pl-7 pr-4 rounded-lg transition-all duration-200 border-none cursor-pointer ${
+                activeTab === 'auditlogs' 
+                  ? 'bg-transparent !text-[var(--accent-primary)] font-semibold' 
+                  : 'bg-transparent text-[var(--text-muted)] hover:bg-[var(--bg-secondary)] hover:text-[var(--text-primary)]'
+              }`}
+            >
+              <ClipboardList size={20} className="shrink-0" />
+              <span className="text-[15px] font-medium">Audit Logs</span>
+            </button>
+          )}
         </nav>
 
         <div className="flex flex-col items-center gap-2 w-full pt-2 pb-4 border-t border-[var(--border)]">
@@ -430,7 +451,7 @@ export default function AdminLayout() {
       {/* Main Content */}
       <main  className="flex-1 flex flex-col h-full overflow-hidden relative">
         {/* Header */}
-        <header style={{padding:'0 20px 0 20px'}} className="h-[60px] sticky top-0 z-10 bg-[var(--bg-header)] backdrop-blur-md border-b border-[var(--border)] md:px-8 flex items-center justify-between shrink-0 gap-2">
+        <header style={{padding:'0 20px 0 20px'}} className="h-[60px] sticky top-0 z-50 bg-[var(--bg-header)] backdrop-blur-md border-b border-[var(--border)] md:px-8 flex items-center justify-between shrink-0 gap-2">
           <div className="flex items-center gap-2 md:gap-3 w-auto md:w-[180px] shrink-0">
             <button 
               className="md:hidden p-1.5 -ml-1.5 text-[var(--text-secondary)] hover:text-[var(--text-primary)] rounded-lg active:bg-[var(--bg-primary)] transition-colors"
@@ -441,6 +462,7 @@ export default function AdminLayout() {
             <h1 className="text-lg md:text-xl font-bold text-[var(--text-primary)] truncate">
               {activeTab === 'overview' && 'Trang tổng quan'}
               {activeTab === 'users' && 'Quản lý người dùng'}
+              {activeTab === 'auditlogs' && 'Audit Logs'}
               {activeTab === 'infrastructure' && 'Cơ sở hạ tầng'}
               {activeTab === 'maintenance' && 'Xử lí tác vụ lỗi'}
             </h1>
@@ -492,6 +514,7 @@ export default function AdminLayout() {
         <div className="flex-1 overflow-y-auto " style={{padding:'7px'}}>
           {activeTab === 'overview' && <OverviewTab startDate={effectiveDates.start} endDate={effectiveDates.end} />}
           {activeTab === 'users' && <UsersTab />}
+          {activeTab === 'auditlogs' && <AuditLogsTab />}
           {activeTab === 'infrastructure' && <InfrastructureTab startDate={effectiveDates.start} endDate={effectiveDates.end} filterMode={filterMode} />}
           {activeTab === 'maintenance' && <MaintenanceTab />}
         </div>

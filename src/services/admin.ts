@@ -98,8 +98,22 @@ export interface CleanupJob {
   error?: string;
   payload?: any;
   lockedBy?: string;
+  lockedUntil?: string;
   retryCount?: number;
   maxRetries?: number;
+}
+
+export interface AuditLogData {
+  _id: string;
+  actor: any;
+  actorRole: string;
+  action: string;
+  target: any;
+  targetType: string;
+  metadata?: any;
+  ip: string;
+  userAgent: string;
+  createdAt: string;
 }
 
 export const adminApi = {
@@ -170,17 +184,19 @@ export const adminApi = {
   
   createUser: (data: any) => api.post('/users', data).then(res => res.data?.data || res.data),
   
-  resetUserName: (id: string) => api.patch(`/users/${id}/reset-name`).then(res => res.data?.data || res.data),
+  resetUserName: (id: string, reason: string) => api.patch(`/users/${id}/reset-name`, { reason }).then(res => res.data?.data || res.data),
   
-  clearUserBio: (id: string) => api.patch(`/users/${id}/clear-bio`).then(res => res.data?.data || res.data),
+  clearUserBio: (id: string, reason: string) => api.patch(`/users/${id}/clear-bio`, { reason }).then(res => res.data?.data || res.data),
   
-  disableUser: (id: string, password?: string) => api.patch(`/users/${id}/disable`, { password }).then(res => res.data?.data || res.data),
-  
-  enableUser: (id: string, password?: string) => api.patch(`/users/${id}/enable`, { password }).then(res => res.data?.data || res.data),
+  logoutAllDevices: (id: string, reason: string) => api.post(`/auth/${id}/logoutAll-by-admin`, { reason }).then(res => res.data?.data || res.data),
 
-  resetUserAvatar: (id: string) => api.delete(`/users/${id}/avatar`).then(res => res.data?.data || res.data),
+  disableUser: (id: string, password: string | undefined, reason: string) => api.patch(`/users/${id}/disable`, { password, reason }).then(res => res.data?.data || res.data),
+  
+  enableUser: (id: string, password: string | undefined, reason: string) => api.patch(`/users/${id}/enable`, { password, reason }).then(res => res.data?.data || res.data),
 
-  changeUserRole: (id: string, data: { role: string; password: string }) => api.patch(`/users/${id}/role`, data).then(res => res.data?.data || res.data),
+  resetUserAvatar: (id: string, reason: string) => api.delete(`/users/${id}/avatar`, { data: { reason } }).then(res => res.data?.data || res.data),
+
+  changeUserRole: (id: string, data: { role: string; password: string; reason?: string }) => api.patch(`/users/${id}/role`, data).then(res => res.data?.data || res.data),
 
   // === TAB 3: MAINTENANCE ===
   getHealth: () => api.get('/stats/health').then(res => {
@@ -208,14 +224,23 @@ export const adminApi = {
       };
     }),
   
-  getPendingRetryJobs: () => api.get('/cleanup-jobs/pending-retry').then(res => {
-    const p = res.data?.data || res.data;
-    return (p.cleanupJobs || []) as CleanupJob[];
-  }),
-  
   getJobDetail: (id: string) => api.get(`/cleanup-jobs/${id}`).then(res => res.data?.data || res.data),
   
   runJobManually: (id: string) => api.patch(`/cleanup-jobs/process/${id}`).then(res => res.data?.data || res.data),
   
   ignoreJob: (id: string) => api.patch(`/cleanup-jobs/${id}/status`, null, { params: { status: 'IGNORED' } }).then(res => res.data?.data || res.data),
+
+  // === TAB 4: AUDIT LOGS ===
+  getAuditLogs: (params?: { 
+    cursor?: string; 
+    actorId?: string; 
+    targetId?: string;
+    action?: string;
+    targetType?: string;
+    actorRole?: string;
+    ip?: string;
+    startDate?: string;
+    endDate?: string;
+  }) => api.get('/audit-logs', { params }).then(res => res.data?.data || res.data),
 };
+

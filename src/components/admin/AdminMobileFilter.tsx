@@ -22,7 +22,7 @@ export function AdminMobileFilter({ isOpen, onToggle, children, className = '' }
       {/* Toggle Button */}
       <button 
         onClick={onToggle} 
-        className="fixed top-[45px] left-1/2 md:left-[calc(50%+130px)] -translate-x-1/2 w-[120px] h-[16px] flex items-center justify-center cursor-pointer text-[var(--text-secondary)] hover:text-indigo-500 transition-colors outline-none z-[20]"
+        className="fixed top-[45px] left-1/2 md:left-[calc(50%+130px)] -translate-x-1/2 w-[120px] h-[16px] flex items-center justify-center cursor-pointer text-[var(--text-secondary)] hover:text-indigo-500 transition-colors outline-none z-[60]"
       >
         <svg 
           className="absolute inset-0 w-full h-full" 
@@ -58,7 +58,7 @@ export function AdminMobileFilter({ isOpen, onToggle, children, className = '' }
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed top-[60px] left-0 right-0 h-[100vh] bg-black/20 dark:bg-black/40 z-[20]"
+              className="fixed top-[60px] left-0 right-0 h-[100vh] bg-black/20 dark:bg-black/40 z-[60]"
               onClick={onToggle}
             />
 
@@ -68,7 +68,7 @@ export function AdminMobileFilter({ isOpen, onToggle, children, className = '' }
               animate={{ height: 'auto', opacity: 1, overflow: 'visible' }}
               exit={{ height: 0, opacity: 0, overflow: 'hidden' }}
               transition={{ duration: 0.3 }}
-              className="fixed top-[60px] left-0 md:left-[260px] right-0 z-[20] origin-top"
+              className="fixed top-[60px] left-0 md:left-[260px] right-0 z-[60] origin-top"
             >
               <div
                 style={{padding:'10px'}}

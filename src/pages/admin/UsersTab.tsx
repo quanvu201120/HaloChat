@@ -204,8 +204,18 @@ export default function UsersTab() {
     );
   };
 
+  const logoutAllDevicesMutation = useMutation({
+    mutationFn: ({ id, reason }: { id: string, reason: string }) => adminApi.logoutAllDevices(id, reason),
+    onSuccess: () => {
+      toast.success('Đã đăng xuất người dùng khỏi tất cả thiết bị');
+      setConfirmModalConfig(prev => ({ ...prev, isOpen: false }));
+      setConfirmReason('');
+    },
+    onError: (err: any) => toast.error(err.response?.data?.message || 'Lỗi khi đăng xuất thiết bị')
+  });
+
   const disableMutation = useMutation({
-    mutationFn: ({ id, password }: { id: string, password?: string }) => adminApi.disableUser(id, password),
+    mutationFn: ({ id, password, reason }: { id: string, password?: string, reason: string }) => adminApi.disableUser(id, password, reason),
     onSuccess: (data, variables) => {
       toast.success('Đã khóa tài khoản');
       queryClient.invalidateQueries({ queryKey: ['admin_users'] });
@@ -218,7 +228,7 @@ export default function UsersTab() {
   });
 
   const enableMutation = useMutation({
-    mutationFn: ({ id, password }: { id: string, password?: string }) => adminApi.enableUser(id, password),
+    mutationFn: ({ id, password, reason }: { id: string, password?: string, reason: string }) => adminApi.enableUser(id, password, reason),
     onSuccess: (data, variables) => {
       toast.success('Đã mở khóa tài khoản');
       queryClient.invalidateQueries({ queryKey: ['admin_users'] });
@@ -239,8 +249,9 @@ export default function UsersTab() {
     title: string;
     message: string;
     actionType: 'danger' | 'warning' | 'info';
-    onConfirm: () => void;
+    onConfirm: (reason?: string) => void;
     isLoading?: boolean;
+    requireReason?: boolean;
   }>({
     isOpen: false,
     title: '',
@@ -249,50 +260,64 @@ export default function UsersTab() {
     onConfirm: () => {}
   });
 
+  const [confirmReason, setConfirmReason] = useState('');
+  const [statusReason, setStatusReason] = useState('');
+  const [roleReason, setRoleReason] = useState('');
+
   const handleToggleStatus = (user: UserAdminData) => {
     setStatusAction(user.isDisabled || !user.isActive ? 'enable' : 'disable');
     setStatusPassword('');
+    setStatusReason('');
     setShowStatusModal(true);
   };
 
   const resetAvatarMutation = useMutation({
-    mutationFn: adminApi.resetUserAvatar,
+    mutationFn: ({ id, reason }: { id: string, reason: string }) => adminApi.resetUserAvatar(id, reason),
     onSuccess: (data, variables) => {
       toast.success('Đã xóa ảnh đại diện');
       queryClient.invalidateQueries({ queryKey: ['admin_users'] });
       setSelectedUser(prev => prev ? { ...prev, avatar: undefined } : null);
-      updateUserInList(variables as string, { avatar: undefined });
+      updateUserInList(variables.id, { avatar: undefined });
     },
     onError: (err: any) => toast.error(err.response?.data?.message || 'Lỗi khi xóa ảnh đại diện'),
-    onSettled: () => setConfirmModalConfig(prev => ({ ...prev, isOpen: false }))
+    onSettled: () => {
+      setConfirmModalConfig(prev => ({ ...prev, isOpen: false }));
+      setConfirmReason('');
+    }
   });
 
   const clearBioMutation = useMutation({
-    mutationFn: (id: string) => adminApi.clearUserBio(id),
+    mutationFn: ({ id, reason }: { id: string, reason: string }) => adminApi.clearUserBio(id, reason),
     onSuccess: (data, variables) => {
       toast.success('Đã xóa tiểu sử');
       queryClient.invalidateQueries({ queryKey: ['admin_users'] });
       setSelectedUser(prev => prev ? { ...prev, bio: '' } : null);
-      updateUserInList(variables, { bio: '' });
+      updateUserInList(variables.id, { bio: '' });
     },
     onError: (err: any) => toast.error(err.response?.data?.message || 'Lỗi khi xóa tiểu sử'),
-    onSettled: () => setConfirmModalConfig(prev => ({ ...prev, isOpen: false }))
+    onSettled: () => {
+      setConfirmModalConfig(prev => ({ ...prev, isOpen: false }));
+      setConfirmReason('');
+    }
   });
 
   const resetNameMutation = useMutation({
-    mutationFn: (id: string) => adminApi.resetUserName(id),
+    mutationFn: ({ id, reason }: { id: string, reason: string }) => adminApi.resetUserName(id, reason),
     onSuccess: (data: any, variables) => {
       toast.success('Đã đặt lại tên người dùng');
       queryClient.invalidateQueries({ queryKey: ['admin_users'] });
       setSelectedUser(prev => prev ? { ...prev, name: data.name } : null);
-      updateUserInList(variables, { name: data.name });
+      updateUserInList(variables.id, { name: data.name });
     },
     onError: (err: any) => toast.error(err.response?.data?.message || 'Lỗi khi đặt lại tên'),
-    onSettled: () => setConfirmModalConfig(prev => ({ ...prev, isOpen: false }))
+    onSettled: () => {
+      setConfirmModalConfig(prev => ({ ...prev, isOpen: false }));
+      setConfirmReason('');
+    }
   });
 
   const changeRoleMutation = useMutation({
-    mutationFn: ({ id, role, password }: { id: string, role: string, password?: string }) => adminApi.changeUserRole(id, { role, password: password || '' }),
+    mutationFn: ({ id, role, password, reason }: { id: string, role: string, password?: string, reason?: string }) => adminApi.changeUserRole(id, { role, password: password || '', reason }),
     onSuccess: (data: any, variables) => {
       toast.success('Đã thay đổi quyền thành công');
       queryClient.invalidateQueries({ queryKey: ['admin_users'] });
@@ -300,6 +325,7 @@ export default function UsersTab() {
       updateUserInList(variables.id, { role: data.role });
       setShowRoleModal(false);
       setAdminPassword('');
+      setRoleReason('');
     },
     onError: (err: any) => toast.error(err.response?.data?.message || 'Lỗi khi đổi quyền')
   });
@@ -382,24 +408,25 @@ export default function UsersTab() {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Enter') {
         if (showStatusModal && statusPassword && !(disableMutation.isPending || enableMutation.isPending)) {
-          if (statusAction === 'disable') disableMutation.mutate({ id: selectedUser!._id, password: statusPassword });
-          else enableMutation.mutate({ id: selectedUser!._id, password: statusPassword });
+          if (statusAction === 'disable') disableMutation.mutate({ id: selectedUser!._id, password: statusPassword, reason: statusReason.trim() });
+          else enableMutation.mutate({ id: selectedUser!._id, password: statusPassword, reason: statusReason.trim() });
         } else if (showRoleModal && adminPassword && !changeRoleMutation.isPending) {
-          changeRoleMutation.mutate({ id: selectedUser!._id, role: selectedNewRole, password: adminPassword });
+          changeRoleMutation.mutate({ id: selectedUser!._id, role: selectedNewRole, password: adminPassword, reason: roleReason.trim() });
         } else if (showCreateModal && !createUserMutation.isPending) {
           handleCreateUser();
-        } else if (confirmModalConfig.isOpen && !(confirmModalConfig.isLoading || resetAvatarMutation.isPending || resetNameMutation.isPending || clearBioMutation.isPending)) {
-          confirmModalConfig.onConfirm();
+        } else if (confirmModalConfig.isOpen && !(confirmModalConfig.isLoading || resetAvatarMutation.isPending || resetNameMutation.isPending || clearBioMutation.isPending || logoutAllDevicesMutation.isPending)) {
+          if (confirmModalConfig.requireReason && !confirmReason.trim()) return;
+          confirmModalConfig.onConfirm(confirmReason.trim());
         }
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [
-    showStatusModal, statusPassword, disableMutation.isPending, enableMutation.isPending, statusAction, selectedUser,
-    showRoleModal, adminPassword, changeRoleMutation.isPending, selectedNewRole,
+    showStatusModal, statusPassword, disableMutation.isPending, enableMutation.isPending, statusAction, selectedUser, statusReason,
+    showRoleModal, adminPassword, changeRoleMutation.isPending, selectedNewRole, roleReason,
     showCreateModal, createUserMutation.isPending, createForm,
-    confirmModalConfig
+    confirmModalConfig, confirmReason, logoutAllDevicesMutation.isPending
   ]);
 
   const renderFilters = (idPrefix: string) => {
@@ -519,13 +546,14 @@ export default function UsersTab() {
   return (
     <>
       {/* Mobile Toggle Button & Filters (Fixed to viewport) */}
-      <AdminMobileFilter 
-        isOpen={isFilterOpen} 
-        onToggle={() => setIsFilterOpen(!isFilterOpen)}
-        className={selectedUser ? 'hidden' : ''}
-      >
-        {renderFilters('mobile')}
-      </AdminMobileFilter>
+      {!selectedUser && (
+        <AdminMobileFilter 
+          isOpen={isFilterOpen} 
+          onToggle={() => setIsFilterOpen(!isFilterOpen)}
+        >
+          {renderFilters('mobile')}
+        </AdminMobileFilter>
+      )}
 
       <div className="flex flex-col h-full animate-in fade-in slide-in-from-bottom-4 duration-500">
         {/* List View */}
@@ -823,8 +851,9 @@ export default function UsersTab() {
                               title: 'Xóa ảnh đại diện',
                               message: 'Bạn có chắc muốn xóa ảnh đại diện của người dùng này không?',
                               actionType: 'danger',
-                              onConfirm: () => {
-                                resetAvatarMutation.mutate(selectedUser._id);
+                              requireReason: true,
+                              onConfirm: (reason) => {
+                                resetAvatarMutation.mutate({ id: selectedUser._id, reason });
                               }
                             });
                             setShowActionsDropdown(false);
@@ -843,8 +872,9 @@ export default function UsersTab() {
                               title: 'Xóa tên người dùng',
                               message: 'Bạn có chắc muốn đặt lại tên người dùng này về mặc định không?',
                               actionType: 'warning',
-                              onConfirm: () => {
-                                resetNameMutation.mutate(selectedUser._id);
+                              requireReason: true,
+                              onConfirm: (reason) => {
+                                resetNameMutation.mutate({ id: selectedUser._id, reason });
                               }
                             });
                             setShowActionsDropdown(false);
@@ -863,8 +893,9 @@ export default function UsersTab() {
                               title: 'Xóa tiểu sử',
                               message: 'Bạn có chắc muốn xóa nội dung tiểu sử của người dùng này không?',
                               actionType: 'danger',
-                              onConfirm: () => {
-                                clearBioMutation.mutate(selectedUser._id);
+                              requireReason: true,
+                              onConfirm: (reason) => {
+                                clearBioMutation.mutate({ id: selectedUser._id, reason });
                               }
                             });
                             setShowActionsDropdown(false);
@@ -880,12 +911,21 @@ export default function UsersTab() {
                           className="w-full text-left text-sm text-amber-600 dark:text-amber-500 hover:bg-amber-500/5 transition-colors duration-150 flex items-center gap-3 font-medium"
                           style={{ padding: '6px 16px',cursor:'pointer' }}
                           onClick={() => {
-                            toast.error('Chưa có API Đăng xuất tất cả');
+                            setConfirmModalConfig({
+                              isOpen: true,
+                              title: 'Đăng xuất tất cả',
+                              message: 'Bạn có chắc muốn đăng xuất người dùng này khỏi tất cả các thiết bị không?',
+                              actionType: 'warning',
+                              requireReason: true,
+                              onConfirm: (reason) => {
+                                logoutAllDevicesMutation.mutate({ id: selectedUser._id, reason });
+                              }
+                            });
                             setShowActionsDropdown(false);
                           }}
                         >
                           <ShieldBan size={16} className="shrink-0" />
-                          <span>Đăng xuất thiết bị</span>
+                          <span>Đăng xuất tất cả</span>
                         </button>
                         {/* Khóa / Mở khóa */}
                         <button
@@ -1067,9 +1107,22 @@ export default function UsersTab() {
             <div style={{ padding: '0 28px 24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
               <div style={{ background: 'rgba(245, 158, 11, 0.1)', padding: '12px 16px', borderRadius: '8px', border: '1px solid rgba(245, 158, 11, 0.2)' }}>
                 <p style={{ fontSize: '13.5px', color: '#d97706', margin: 0, fontWeight: 500, lineHeight: 1.5 }}>
-                  Tính năng này yêu cầu xác thực bảo mật vì tác động tới quyền hạn truy cập của hệ thống.
+                  Tính năng này yêu cầu xác thực bảo mật vì tác động tới khả năng truy cập của người dùng.
                   Bạn đang thao tác với người dùng <strong>{selectedUser.email}</strong>.
                 </p>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <label style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)' }}>Lý do thực hiện <span style={{ color: '#ef4444' }}>*</span></label>
+                <input 
+                  type="text" 
+                  value={statusReason}
+                  onChange={(e) => setStatusReason(e.target.value)}
+                  placeholder="Nhập lý do (bắt buộc)..."
+                  style={{ width: '100%', padding: '10px 12px', background: 'transparent', border: '1px solid var(--border)', borderRadius: '6px', color: 'var(--text-primary)', fontSize: '14px', outline: 'none', transition: 'border-color 0.2s' }}
+                  onFocus={e => e.target.style.borderColor = '#ef4444'}
+                  onBlur={e => e.target.style.borderColor = 'var(--border)'}
+                />
               </div>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
@@ -1097,13 +1150,13 @@ export default function UsersTab() {
                 Hủy
               </button>
               <button 
-                disabled={(statusAction === 'disable' ? disableMutation.isPending : enableMutation.isPending) || !statusPassword}
+                disabled={(statusAction === 'disable' ? disableMutation.isPending : enableMutation.isPending) || !statusPassword || !statusReason.trim()}
                 onClick={() => {
-                  if (statusAction === 'disable') disableMutation.mutate({ id: selectedUser._id, password: statusPassword });
-                  else enableMutation.mutate({ id: selectedUser._id, password: statusPassword });
+                  if (statusAction === 'disable') disableMutation.mutate({ id: selectedUser._id, password: statusPassword, reason: statusReason.trim() });
+                  else enableMutation.mutate({ id: selectedUser._id, password: statusPassword, reason: statusReason.trim() });
                 }}
-                style={{ padding: '8px 20px', fontSize: '14px', fontWeight: 500, color: '#fff', background: '#ef4444', border: 'none', borderRadius: '6px', cursor: 'pointer', opacity: ((statusAction === 'disable' ? disableMutation.isPending : enableMutation.isPending) || !statusPassword) ? 0.6 : 1, transition: 'background 0.2s' }}
-                onMouseEnter={e => { if (!((statusAction === 'disable' ? disableMutation.isPending : enableMutation.isPending) || !statusPassword)) e.currentTarget.style.background = '#dc2626'; }}
+                style={{ padding: '8px 20px', fontSize: '14px', fontWeight: 500, color: '#fff', background: '#ef4444', border: 'none', borderRadius: '6px', cursor: 'pointer', opacity: ((statusAction === 'disable' ? disableMutation.isPending : enableMutation.isPending) || !statusPassword || !statusReason.trim()) ? 0.6 : 1, transition: 'background 0.2s' }}
+                onMouseEnter={e => { if (!((statusAction === 'disable' ? disableMutation.isPending : enableMutation.isPending) || !statusPassword || !statusReason.trim())) e.currentTarget.style.background = '#dc2626'; }}
                 onMouseLeave={e => { e.currentTarget.style.background = '#ef4444'; }}
               >
                 {(statusAction === 'disable' ? disableMutation.isPending : enableMutation.isPending) ? 'Đang xử lý...' : 'Xác nhận'}
@@ -1163,6 +1216,19 @@ export default function UsersTab() {
               </div>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <label style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)' }}>Lý do thực hiện</label>
+                <input 
+                  type="text" 
+                  value={roleReason}
+                  onChange={(e) => setRoleReason(e.target.value)}
+                  placeholder="Nhập lý do thực hiện (tùy chọn)..."
+                  style={{ width: '100%', padding: '10px 12px', background: 'transparent', border: '1px solid var(--border)', borderRadius: '6px', color: 'var(--text-primary)', fontSize: '14px', outline: 'none', transition: 'border-color 0.2s' }}
+                  onFocus={e => e.target.style.borderColor = '#3b82f6'}
+                  onBlur={e => e.target.style.borderColor = 'var(--border)'}
+                />
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                 <label style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)' }}>Mật khẩu của bạn <span style={{ color: '#ef4444' }}>*</span></label>
                 <input 
                   type="password" 
@@ -1192,7 +1258,8 @@ export default function UsersTab() {
                   changeRoleMutation.mutate({ 
                     id: selectedUser._id, 
                     role: selectedNewRole, 
-                    password: adminPassword 
+                    password: adminPassword,
+                    reason: roleReason.trim() || undefined
                   });
                 }}
                 style={{ padding: '8px 20px', fontSize: '14px', fontWeight: 500, color: '#fff', background: '#3b82f6', border: 'none', borderRadius: '6px', cursor: 'pointer', opacity: (changeRoleMutation.isPending || !adminPassword) ? 0.6 : 1, transition: 'background 0.2s' }}
@@ -1414,10 +1481,25 @@ export default function UsersTab() {
             </div>
             
             {/* Body */}
-            <div style={{ padding: '0 28px 24px' }}>
+            <div style={{ padding: '0 28px 24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
               <p style={{ fontSize: '14px', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.5 }}>
                 {confirmModalConfig.message}
               </p>
+              
+              {confirmModalConfig.requireReason && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  <label style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)' }}>Lý do thực hiện <span style={{ color: '#ef4444' }}>*</span></label>
+                  <input 
+                    type="text" 
+                    value={confirmReason}
+                    onChange={(e) => setConfirmReason(e.target.value)}
+                    placeholder="Nhập lý do (bắt buộc)..."
+                    style={{ width: '100%', padding: '10px 12px', background: 'transparent', border: '1px solid var(--border)', borderRadius: '6px', color: 'var(--text-primary)', fontSize: '14px', outline: 'none', transition: 'border-color 0.2s' }}
+                    onFocus={e => e.target.style.borderColor = '#3b82f6'}
+                    onBlur={e => e.target.style.borderColor = 'var(--border)'}
+                  />
+                </div>
+              )}
             </div>
 
             {/* Footer */}
@@ -1431,18 +1513,18 @@ export default function UsersTab() {
                 Hủy
               </button>
               <button 
-                disabled={confirmModalConfig.isLoading || resetAvatarMutation.isPending || resetNameMutation.isPending || clearBioMutation.isPending}
-                onClick={confirmModalConfig.onConfirm}
+                disabled={confirmModalConfig.isLoading || resetAvatarMutation.isPending || resetNameMutation.isPending || clearBioMutation.isPending || logoutAllDevicesMutation.isPending || (confirmModalConfig.requireReason && !confirmReason.trim())}
+                onClick={() => confirmModalConfig.onConfirm(confirmReason.trim())}
                 style={{ 
                   padding: '8px 20px', fontSize: '14px', fontWeight: 500, color: '#fff', 
                   background: confirmModalConfig.actionType === 'danger' ? '#ef4444' : '#f59e0b', 
                   border: 'none', borderRadius: '6px', cursor: 'pointer', 
-                  opacity: (confirmModalConfig.isLoading || resetAvatarMutation.isPending || resetNameMutation.isPending || clearBioMutation.isPending) ? 0.6 : 1, transition: 'background 0.2s' 
+                  opacity: (confirmModalConfig.isLoading || resetAvatarMutation.isPending || resetNameMutation.isPending || clearBioMutation.isPending || logoutAllDevicesMutation.isPending || (confirmModalConfig.requireReason && !confirmReason.trim())) ? 0.6 : 1, transition: 'background 0.2s' 
                 }}
-                onMouseEnter={e => { if (!(confirmModalConfig.isLoading || resetAvatarMutation.isPending || resetNameMutation.isPending || clearBioMutation.isPending)) e.currentTarget.style.background = confirmModalConfig.actionType === 'danger' ? '#dc2626' : '#d97706'; }}
+                onMouseEnter={e => { if (!(confirmModalConfig.isLoading || resetAvatarMutation.isPending || resetNameMutation.isPending || clearBioMutation.isPending || logoutAllDevicesMutation.isPending || (confirmModalConfig.requireReason && !confirmReason.trim()))) e.currentTarget.style.background = confirmModalConfig.actionType === 'danger' ? '#dc2626' : '#d97706'; }}
                 onMouseLeave={e => { e.currentTarget.style.background = confirmModalConfig.actionType === 'danger' ? '#ef4444' : '#f59e0b'; }}
               >
-                {(confirmModalConfig.isLoading || resetAvatarMutation.isPending || resetNameMutation.isPending || clearBioMutation.isPending) ? 'Đang xử lý...' : 'Xác nhận'}
+                {(confirmModalConfig.isLoading || resetAvatarMutation.isPending || resetNameMutation.isPending || clearBioMutation.isPending || logoutAllDevicesMutation.isPending) ? 'Đang xử lý...' : 'Xác nhận'}
               </button>
             </div>
           </div>
