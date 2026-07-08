@@ -164,7 +164,7 @@ export default function NavigationSidebar({ isOpen, setIsOpen }: NavigationSideb
         <div className="flex-1 w-full min-h-[16px]"></div>
 
         <div className="flex flex-col items-center gap-2 md:gap-4 w-full pt-2 md:pt-4 pb-2">
-          {[UserRole.ADMIN, UserRole.SUPER_ADMIN].includes(user?.role as UserRole) && (
+          {(user?.role === UserRole.ADMIN || user?.role === UserRole.SUPER_ADMIN) && (
             <button
 
               className={`${baseItemClass} ${hoverClass} ${isAdminRoute ? activeClass : ''}`}

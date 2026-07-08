@@ -217,7 +217,6 @@ export function ProfilePageContent() {
       countdown: 5,
       action: () => {
         handleDisableSelfStep3();
-        return false;
       }
     });
   };
@@ -230,7 +229,6 @@ export function ProfilePageContent() {
       confirmText: 'Tiếp tục',
       action: () => {
         handleDisableSelfStep2();
-        return false;
       }
     });
   };
@@ -443,7 +441,7 @@ export function ProfilePageContent() {
           <div className="profile-name">{user?.name || 'Chưa đặt tên'}</div>
           <div className="profile-email">{user?.email}</div>
 
-          {[UserRole.ADMIN, UserRole.SUPER_ADMIN].includes((user?.role as UserRole) || '') && (
+          {(user?.role === UserRole.ADMIN || user?.role === UserRole.SUPER_ADMIN) && (
             <span className="badge badge-info" style={{ marginTop: '4px' }}>
               {user?.role}
             </span>

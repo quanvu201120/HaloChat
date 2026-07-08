@@ -136,6 +136,58 @@ function MuiSelect({ label, value, onChange, options, minWidth = 140, labelBgCol
   );
 }
 // ────────────────────────────────────────────────────────────────────────────
+const UserStatusBadges = ({ user, variant = 'table' }: { user: UserAdminData, variant?: 'table' | 'detail' }) => {
+  const badges = [];
+  const now = new Date();
+  
+  const isBanned = user.banUntil && new Date(user.banUntil) > now;
+  const isMuted = user.muteUntil && new Date(user.muteUntil) > now;
+
+  const renderBadge = (key: string, text: string, colorClass: string, detailColor: string) => {
+    if (variant === 'table') {
+      return (
+        <span key={key} style={{padding:'0 3px'}} className={`inline-flex items-center px-2.5 py-1 rounded-xs text-xs font-medium ${colorClass}`}>
+          {text}
+        </span>
+      );
+    }
+    return (
+      <span key={key} style={{ padding: '5px 10px' }} className={`inline-flex items-center rounded text-[9px] font-bold ${detailColor} text-white uppercase tracking-wider shadow-sm`}>
+        {text}
+      </span>
+    );
+  };
+
+  if (isBanned) {
+    const banDate = new Date(user.banUntil!);
+    const diffYears = banDate.getFullYear() - now.getFullYear();
+    if (diffYears > 10) {
+      badges.push(renderBadge('ban', 'Khóa vĩnh viễn', 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400', 'bg-[#e74c3c]'));
+    } else {
+      const diffTime = Math.abs(banDate.getTime() - now.getTime());
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      badges.push(renderBadge('ban', `Khóa ${diffDays} ngày`, 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400', 'bg-[#e74c3c]'));
+    }
+  } else if (user.isDisabled) {
+    badges.push(renderBadge('disabled', 'Vô hiệu hóa', 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400', 'bg-[#e74c3c]'));
+  } else {
+    if (!user.isActive) {
+      badges.push(renderBadge('unverified', 'Chưa xác thực', 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400', 'bg-[#e67e22]'));
+    } else {
+      badges.push(renderBadge('active', 'Hoạt động', 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400', 'bg-[#2ecc71]'));
+    }
+  }
+  
+  if (isMuted) {
+    const muteDate = new Date(user.muteUntil!);
+    const diffTime = Math.abs(muteDate.getTime() - now.getTime());
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    badges.push(renderBadge('mute', `Cấm chat ${diffDays} ngày`, 'bg-gray-100 text-gray-800 dark:bg-gray-800/30 dark:text-gray-400', 'bg-[#f39c12]'));
+  }
+
+  return <div className={`flex ${variant === 'table' ? 'flex-col items-start gap-1' : 'flex-wrap items-center gap-2 justify-center sm:justify-start mt-2'}`}>{badges}</div>;
+};
+// ────────────────────────────────────────────────────────────────────────────
 interface InfoItemProps {
   icon: React.ReactNode;
   label: string;
@@ -176,7 +228,7 @@ export default function UsersTab() {
   const [selectedUser, setSelectedUser] = useState<UserAdminData | null>(null);
   
   // Real fetch
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isFetching } = useQuery({
     queryKey: ['admin_users', page, debouncedSearch, statusFilter, roleFilter, sortFilter],
     queryFn: () => adminApi.getUsers({ 
       page, 
@@ -214,13 +266,15 @@ export default function UsersTab() {
     onError: (err: any) => toast.error(err.response?.data?.message || 'Lỗi khi đăng xuất thiết bị')
   });
 
-  const disableMutation = useMutation({
-    mutationFn: ({ id, password, reason }: { id: string, password?: string, reason: string }) => adminApi.disableUser(id, password, reason),
+  const manualBanMutation = useMutation({
+    mutationFn: ({ id, reason, durationDays, password, resetAvatar, resetBio, resetName }: { id: string, reason: string, durationDays: number, password?: string, resetAvatar?: boolean, resetBio?: boolean, resetName?: boolean }) => adminApi.manualBan(id, { reason, durationDays, password, resetAvatar, resetBio, resetName }),
     onSuccess: (data, variables) => {
       toast.success('Đã khóa tài khoản');
       queryClient.invalidateQueries({ queryKey: ['admin_users'] });
       setShowStatusModal(false);
+      setShowQuickPenaltyModal(false);
       setStatusPassword('');
+      setQuickPenaltyData({ reason: 'other', adminNote: '', resetAvatar: false, resetBio: false, resetName: false, password: '', manualDurationDays: 1 });
       setSelectedUser(prev => prev ? { ...prev, isDisabled: true } : null);
       updateUserInList(variables.id, { isDisabled: true });
     },
@@ -230,18 +284,44 @@ export default function UsersTab() {
   const enableMutation = useMutation({
     mutationFn: ({ id, password, reason }: { id: string, password?: string, reason: string }) => adminApi.enableUser(id, password, reason),
     onSuccess: (data, variables) => {
-      toast.success('Đã mở khóa tài khoản');
+      toast.success('Đã kích hoạt lại tài khoản');
       queryClient.invalidateQueries({ queryKey: ['admin_users'] });
       setShowStatusModal(false);
       setStatusPassword('');
       setSelectedUser(prev => prev ? { ...prev, isDisabled: false } : null);
       updateUserInList(variables.id, { isDisabled: false });
     },
+    onError: (err: any) => toast.error(err.response?.data?.message || 'Lỗi khi kích hoạt tài khoản')
+  });
+
+  const unbanMutation = useMutation({
+    mutationFn: ({ id, password, reason }: { id: string, password?: string, reason: string }) => adminApi.unbanUser(id, password, reason),
+    onSuccess: (data, variables) => {
+      toast.success('Đã mở khóa tài khoản');
+      queryClient.invalidateQueries({ queryKey: ['admin_users'] });
+      setShowStatusModal(false);
+      setStatusPassword('');
+      setSelectedUser(prev => prev ? { ...prev, banUntil: undefined } : null);
+      updateUserInList(variables.id, { banUntil: undefined });
+    },
     onError: (err: any) => toast.error(err.response?.data?.message || 'Lỗi khi mở khóa tài khoản')
   });
 
+  const unmuteMutation = useMutation({
+    mutationFn: ({ id, password, reason }: { id: string, password?: string, reason: string }) => adminApi.unmuteUser(id, password, reason),
+    onSuccess: (data, variables) => {
+      toast.success('Đã mở khóa chat');
+      queryClient.invalidateQueries({ queryKey: ['admin_users'] });
+      setShowStatusModal(false);
+      setStatusPassword('');
+      setSelectedUser(prev => prev ? { ...prev, muteUntil: undefined } : null);
+      updateUserInList(variables.id, { muteUntil: undefined });
+    },
+    onError: (err: any) => toast.error(err.response?.data?.message || 'Lỗi khi mở khóa chat')
+  });
+
   const [showStatusModal, setShowStatusModal] = useState(false);
-  const [statusAction, setStatusAction] = useState<'disable' | 'enable'>('disable');
+  const [statusAction, setStatusAction] = useState<'disable' | 'enable' | 'unban' | 'unmute'>('disable');
   const [statusPassword, setStatusPassword] = useState('');
   
   const [confirmModalConfig, setConfirmModalConfig] = useState<{
@@ -265,55 +345,30 @@ export default function UsersTab() {
   const [roleReason, setRoleReason] = useState('');
 
   const handleToggleStatus = (user: UserAdminData) => {
-    setStatusAction(user.isDisabled || !user.isActive ? 'enable' : 'disable');
+    setStatusAction(user.isDisabled ? 'enable' : 'disable');
     setStatusPassword('');
     setStatusReason('');
     setShowStatusModal(true);
   };
 
-  const resetAvatarMutation = useMutation({
-    mutationFn: ({ id, reason }: { id: string, reason: string }) => adminApi.resetUserAvatar(id, reason),
-    onSuccess: (data, variables) => {
-      toast.success('Đã xóa ảnh đại diện');
-      queryClient.invalidateQueries({ queryKey: ['admin_users'] });
-      setSelectedUser(prev => prev ? { ...prev, avatar: undefined } : null);
-      updateUserInList(variables.id, { avatar: undefined });
-    },
-    onError: (err: any) => toast.error(err.response?.data?.message || 'Lỗi khi xóa ảnh đại diện'),
-    onSettled: () => {
-      setConfirmModalConfig(prev => ({ ...prev, isOpen: false }));
-      setConfirmReason('');
-    }
-  });
-
-  const clearBioMutation = useMutation({
-    mutationFn: ({ id, reason }: { id: string, reason: string }) => adminApi.clearUserBio(id, reason),
-    onSuccess: (data, variables) => {
-      toast.success('Đã xóa tiểu sử');
-      queryClient.invalidateQueries({ queryKey: ['admin_users'] });
-      setSelectedUser(prev => prev ? { ...prev, bio: '' } : null);
-      updateUserInList(variables.id, { bio: '' });
-    },
-    onError: (err: any) => toast.error(err.response?.data?.message || 'Lỗi khi xóa tiểu sử'),
-    onSettled: () => {
-      setConfirmModalConfig(prev => ({ ...prev, isOpen: false }));
-      setConfirmReason('');
-    }
-  });
-
-  const resetNameMutation = useMutation({
-    mutationFn: ({ id, reason }: { id: string, reason: string }) => adminApi.resetUserName(id, reason),
+  const quickPenaltyMutation = useMutation({
+    mutationFn: ({ id, reason, resetAvatar, resetBio, resetName, adminNote, password }: { id: string, reason: string, resetAvatar?: boolean, resetBio?: boolean, resetName?: boolean, adminNote?: string, password?: string }) => 
+      adminApi.quickPenalty(id, { reason, resetAvatar, resetBio, resetName, adminNote, password }),
     onSuccess: (data: any, variables) => {
-      toast.success('Đã đặt lại tên người dùng');
+      toast.success('Đã xử lý vi phạm thành công');
       queryClient.invalidateQueries({ queryKey: ['admin_users'] });
-      setSelectedUser(prev => prev ? { ...prev, name: data.name } : null);
-      updateUserInList(variables.id, { name: data.name });
+      setSelectedUser(prev => {
+        if (!prev) return null;
+        const updated = { ...prev };
+        if (variables.resetAvatar) updated.avatar = undefined;
+        if (variables.resetBio) updated.bio = '';
+        if (variables.resetName && data.name) updated.name = data.name;
+        return updated;
+      });
+      setShowQuickPenaltyModal(false);
+      setQuickPenaltyData({ reason: 'other', adminNote: '', resetAvatar: false, resetBio: false, resetName: false, password: '', manualDurationDays: 1 });
     },
-    onError: (err: any) => toast.error(err.response?.data?.message || 'Lỗi khi đặt lại tên'),
-    onSettled: () => {
-      setConfirmModalConfig(prev => ({ ...prev, isOpen: false }));
-      setConfirmReason('');
-    }
+    onError: (err: any) => toast.error(err.response?.data?.message || 'Lỗi khi xử lý vi phạm')
   });
 
   const changeRoleMutation = useMutation({
@@ -332,9 +387,21 @@ export default function UsersTab() {
 
 
   const [showRoleModal, setShowRoleModal] = useState(false);
+  const [showQuickPenaltyModal, setShowQuickPenaltyModal] = useState(false);
+  const [quickPenaltyData, setQuickPenaltyData] = useState({
+    reason: 'other',
+    adminNote: '',
+    resetAvatar: false,
+    resetBio: false,
+    resetName: false,
+    password: '',
+    manualDurationDays: 1
+  });
+  
   const [showActionsDropdown, setShowActionsDropdown] = useState(false);
   const [selectedNewRole, setSelectedNewRole] = useState<UserRole>(UserRole.USER);
   const [adminPassword, setAdminPassword] = useState('');
+  const [statusDuration, setStatusDuration] = useState<number>(0);
   const actionsDropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -407,14 +474,43 @@ export default function UsersTab() {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Enter') {
-        if (showStatusModal && statusPassword && !(disableMutation.isPending || enableMutation.isPending)) {
-          if (statusAction === 'disable') disableMutation.mutate({ id: selectedUser!._id, password: statusPassword, reason: statusReason.trim() });
-          else enableMutation.mutate({ id: selectedUser!._id, password: statusPassword, reason: statusReason.trim() });
+        if (showStatusModal && !(manualBanMutation.isPending || enableMutation.isPending || unbanMutation.isPending || unmuteMutation.isPending)) {
+          if (statusAction === 'disable' && statusDuration > 0 && statusReason.trim()) {
+            manualBanMutation.mutate({ id: selectedUser!._id, reason: statusReason.trim(), durationDays: statusDuration });
+          } else if (statusAction === 'enable' && statusPassword && statusReason.trim()) {
+            enableMutation.mutate({ id: selectedUser!._id, password: statusPassword, reason: statusReason.trim() });
+          } else if (statusAction === 'unban' && statusPassword && statusReason.trim()) {
+            unbanMutation.mutate({ id: selectedUser!._id, password: statusPassword, reason: statusReason.trim() });
+          } else if (statusAction === 'unmute' && statusPassword && statusReason.trim()) {
+            unmuteMutation.mutate({ id: selectedUser!._id, password: statusPassword, reason: statusReason.trim() });
+          }
         } else if (showRoleModal && adminPassword && !changeRoleMutation.isPending) {
           changeRoleMutation.mutate({ id: selectedUser!._id, role: selectedNewRole, password: adminPassword, reason: roleReason.trim() });
         } else if (showCreateModal && !createUserMutation.isPending) {
           handleCreateUser();
-        } else if (confirmModalConfig.isOpen && !(confirmModalConfig.isLoading || resetAvatarMutation.isPending || resetNameMutation.isPending || clearBioMutation.isPending || logoutAllDevicesMutation.isPending)) {
+        } else if (showQuickPenaltyModal && !quickPenaltyMutation.isPending && !manualBanMutation.isPending) {
+          if (quickPenaltyData.reason === 'other') {
+            manualBanMutation.mutate({
+              id: selectedUser!._id,
+              reason: quickPenaltyData.adminNote.trim(),
+              durationDays: quickPenaltyData.manualDurationDays,
+              password: quickPenaltyData.password,
+              resetAvatar: quickPenaltyData.resetAvatar,
+              resetBio: quickPenaltyData.resetBio,
+              resetName: quickPenaltyData.resetName
+            });
+          } else {
+            quickPenaltyMutation.mutate({
+              id: selectedUser!._id,
+              reason: quickPenaltyData.reason,
+              resetAvatar: quickPenaltyData.resetAvatar,
+              resetBio: quickPenaltyData.resetBio,
+              resetName: quickPenaltyData.resetName,
+              adminNote: quickPenaltyData.adminNote.trim() || undefined,
+              password: quickPenaltyData.password
+            });
+          }
+        } else if (confirmModalConfig.isOpen && !(confirmModalConfig.isLoading || logoutAllDevicesMutation.isPending)) {
           if (confirmModalConfig.requireReason && !confirmReason.trim()) return;
           confirmModalConfig.onConfirm(confirmReason.trim());
         }
@@ -423,9 +519,10 @@ export default function UsersTab() {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [
-    showStatusModal, statusPassword, disableMutation.isPending, enableMutation.isPending, statusAction, selectedUser, statusReason,
+    showStatusModal, statusPassword, statusDuration, manualBanMutation.isPending, enableMutation.isPending, unbanMutation.isPending, unmuteMutation.isPending, statusAction, selectedUser, statusReason,
     showRoleModal, adminPassword, changeRoleMutation.isPending, selectedNewRole, roleReason,
     showCreateModal, createUserMutation.isPending, createForm,
+    showQuickPenaltyModal, quickPenaltyMutation.isPending, quickPenaltyData,
     confirmModalConfig, confirmReason, logoutAllDevicesMutation.isPending
   ]);
 
@@ -517,6 +614,7 @@ export default function UsersTab() {
             { value: 'active', label: 'Hoạt động' },
             { value: 'unverified', label: 'Chưa kích hoạt' },
             { value: 'banned', label: 'Vô hiệu hóa' },
+            { value: 'suspended', label: 'Khóa tài khoản' },
           ]}
           minWidth={150}
           labelBgColor={labelBgColor}
@@ -542,6 +640,10 @@ export default function UsersTab() {
       }
     }
   }, [data?.items, selectedUser?._id]);
+
+  const isPermanentlyBanned = selectedUser?.banUntil 
+    ? new Date(selectedUser.banUntil).getFullYear() - new Date().getFullYear() > 10 
+    : false;
 
   return (
     <>
@@ -578,7 +680,7 @@ export default function UsersTab() {
 
               </tr>
             </thead>
-            <tbody>
+            <tbody className={`transition-opacity duration-200 ${isFetching && !isLoading ? 'opacity-50 pointer-events-none' : 'opacity-100'}`}>
               {isLoading ? (
                 <tr>
                   <td colSpan={5} className="px-6 py-10 text-center text-[var(--text-muted)]">
@@ -642,19 +744,7 @@ export default function UsersTab() {
                       <span className="text-[var(--text-secondary)] capitalize">{u.role}</span>
                     </td>
                     <td className="px-6 py-4" style={{minWidth:'116px'}}>
-                      {u.isDisabled ? (
-                        <span style={{padding:'0 3px'}} className="inline-flex items-center px-2.5 py-1 rounded-xs text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400">
-                          Vô hiệu hóa
-                        </span>
-                      ) : !u.isActive ? (
-                        <span style={{padding:'0 3px'}} className="inline-flex items-center px-2.5 py-1 rounded-xs text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400">
-                          Chưa kích hoạt
-                        </span>
-                      ) : (
-                        <span style={{padding:'0 3px'}} className="inline-flex items-center px-2.5 py-1 rounded-xs text-xs font-medium bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400">
-                          Hoạt động
-                        </span>
-                      )}
+                      <UserStatusBadges user={u} variant="table" />
                     </td>
                     <td className="px-6 py-4 text-[var(--text-secondary)]">
                       {new Date(u.createdAt).toLocaleDateString('vi-VN')}
@@ -782,28 +872,7 @@ export default function UsersTab() {
                     <h3 className="text-xl font-bold text-[var(--text-primary)] truncate">{selectedUser.name}</h3>
                     
                     <div className="flex flex-wrap items-center gap-2 justify-center sm:justify-start mt-2">
-                      {selectedUser.isDisabled ? (
-                        <span 
-                          style={{ padding: '5px 10px' }}
-                          className="inline-flex items-center rounded text-[9px] font-bold bg-[#e74c3c] text-white uppercase tracking-wider shadow-sm"
-                        >
-                          Vô hiệu hóa
-                        </span>
-                      ) : !selectedUser.isActive ? (
-                        <span 
-                          style={{ padding: '5px 10px' }}
-                          className="inline-flex items-center rounded text-[9px] font-bold bg-[#e67e22] text-white uppercase tracking-wider shadow-sm"
-                        >
-                          Chưa xác thực
-                        </span>
-                      ) : (
-                        <span 
-                          style={{ padding: '5px 10px' }}
-                          className="inline-flex items-center rounded text-[9px] font-bold bg-[#2ecc71] text-white uppercase tracking-wider shadow-sm"
-                        >
-                          Đang hoạt động
-                        </span>
-                      )}
+                      <UserStatusBadges user={selectedUser} variant="detail" />
                       <span 
                         style={{ padding: '5px 10px' }}
                         className={`inline-flex items-center rounded text-[9px] font-bold text-white uppercase tracking-wider shadow-sm ${
@@ -841,113 +910,97 @@ export default function UsersTab() {
                         }}
                       >
                        
-                        {/* Xóa ảnh đại diện */}
+                        {/* Xử lý vi phạm (Quick Penalty) */}
                         <button
-                          className="w-full text-left text-sm text-[var(--text-primary)] hover:bg-[var(--bg-primary)] transition-colors duration-150 flex items-center gap-3"
-                          style={{ padding: '6px 16px',cursor:'pointer' }}
+                          disabled={isPermanentlyBanned}
+                          title={isPermanentlyBanned ? 'Người dùng đã bị khóa vĩnh viễn' : ''}
+                          className={`w-full text-left text-sm flex items-center gap-3 ${isPermanentlyBanned ? 'text-[var(--text-muted)] opacity-50' : 'text-[var(--text-primary)] hover:bg-[var(--bg-primary)] transition-colors duration-150'}`}
+                          style={{ padding: '6px 16px', cursor: isPermanentlyBanned ? 'not-allowed' : 'pointer' }}
                           onClick={() => {
-                            setConfirmModalConfig({
-                              isOpen: true,
-                              title: 'Xóa ảnh đại diện',
-                              message: 'Bạn có chắc muốn xóa ảnh đại diện của người dùng này không?',
-                              actionType: 'danger',
-                              requireReason: true,
-                              onConfirm: (reason) => {
-                                resetAvatarMutation.mutate({ id: selectedUser._id, reason });
-                              }
-                            });
+                            if (isPermanentlyBanned) return;
+                            setShowQuickPenaltyModal(true);
                             setShowActionsDropdown(false);
                           }}
                         >
-                          <Trash2 size={16} className="text-gray-400 hover:text-red-500 shrink-0" />
-                          <span>Xóa ảnh đại diện</span>
-                        </button>
-                        {/* Xóa tên */}
-                        <button
-                          className="w-full text-left text-sm text-[var(--text-primary)] hover:bg-[var(--bg-primary)] transition-colors duration-150 flex items-center gap-3"
-                          style={{ padding: '6px 16px',cursor:'pointer' }}
-                          onClick={() => {
-                            setConfirmModalConfig({
-                              isOpen: true,
-                              title: 'Xóa tên người dùng',
-                              message: 'Bạn có chắc muốn đặt lại tên người dùng này về mặc định không?',
-                              actionType: 'warning',
-                              requireReason: true,
-                              onConfirm: (reason) => {
-                                resetNameMutation.mutate({ id: selectedUser._id, reason });
-                              }
-                            });
-                            setShowActionsDropdown(false);
-                          }}
-                        >
-                          <Trash2 size={16} className="text-gray-400 hover:text-red-500 shrink-0" />
-                          <span>Xóa tên người dùng</span>
-                        </button>
-                        {/* Xóa tiểu sử */}
-                        <button
-                          className="w-full text-left text-sm text-[var(--text-primary)] hover:bg-[var(--bg-primary)] transition-colors duration-150 flex items-center gap-3"
-                          style={{ padding: '6px 16px',cursor:'pointer' }}
-                          onClick={() => {
-                            setConfirmModalConfig({
-                              isOpen: true,
-                              title: 'Xóa tiểu sử',
-                              message: 'Bạn có chắc muốn xóa nội dung tiểu sử của người dùng này không?',
-                              actionType: 'danger',
-                              requireReason: true,
-                              onConfirm: (reason) => {
-                                clearBioMutation.mutate({ id: selectedUser._id, reason });
-                              }
-                            });
-                            setShowActionsDropdown(false);
-                          }}
-                        >
-                          <Trash2 size={16} className="text-gray-400 hover:text-red-500 shrink-0" />
-                          <span>Xóa tiểu sử</span>
+                          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`shrink-0 ${isPermanentlyBanned ? 'text-[var(--text-muted)]' : 'text-gray-400 hover:text-red-500'}`}><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+                          <span>Xử lý vi phạm</span>
                         </button>
                         {/* Divider */}
                         <div className="h-px bg-[var(--border)] my-2" />
                         {/* Đăng xuất thiết bị */}
-                        <button
-                          className="w-full text-left text-sm text-amber-600 dark:text-amber-500 hover:bg-amber-500/5 transition-colors duration-150 flex items-center gap-3 font-medium"
-                          style={{ padding: '6px 16px',cursor:'pointer' }}
-                          onClick={() => {
-                            setConfirmModalConfig({
-                              isOpen: true,
-                              title: 'Đăng xuất tất cả',
-                              message: 'Bạn có chắc muốn đăng xuất người dùng này khỏi tất cả các thiết bị không?',
-                              actionType: 'warning',
-                              requireReason: true,
-                              onConfirm: (reason) => {
-                                logoutAllDevicesMutation.mutate({ id: selectedUser._id, reason });
-                              }
-                            });
-                            setShowActionsDropdown(false);
-                          }}
-                        >
-                          <ShieldBan size={16} className="shrink-0" />
-                          <span>Đăng xuất tất cả</span>
-                        </button>
-                        {/* Khóa / Mở khóa */}
-                        <button
-                          className="w-full text-left text-sm text-red-600 dark:text-red-500 hover:bg-red-500/5 transition-colors duration-150 flex items-center gap-3 font-medium"
-                          style={{ padding: '6px 16px',cursor:'pointer' }}
-                          onClick={() => {
-                            handleToggleStatus(selectedUser);
-                            setShowActionsDropdown(false);
-                          }}
-                        >
-                          {selectedUser.isDisabled || !selectedUser.isActive ? (
-                            <>
-                              <ShieldCheck size={16} className="shrink-0" />
-                              <span>Mở khóa tài khoản</span>
-                            </>
-                          ) : (
-                            <>
-                              <ShieldBan size={16} className="shrink-0" />
-                              <span>Khóa tài khoản</span>
-                            </>
-                          )}
-                        </button>
+                        {!(selectedUser.banUntil && new Date(selectedUser.banUntil) > new Date()) && !selectedUser.isDisabled && (
+                          <button
+                            className="w-full text-left text-sm text-amber-600 dark:text-amber-500 hover:bg-amber-500/5 transition-colors duration-150 flex items-center gap-3 font-medium"
+                            style={{ padding: '6px 16px',cursor:'pointer' }}
+                            onClick={() => {
+                              setConfirmModalConfig({
+                                isOpen: true,
+                                title: 'Đăng xuất tất cả',
+                                message: 'Bạn có chắc muốn đăng xuất người dùng này khỏi tất cả các thiết bị không?',
+                                actionType: 'warning',
+                                requireReason: true,
+                                onConfirm: (reason) => {
+                                  logoutAllDevicesMutation.mutate({ id: selectedUser._id, reason: reason || '' });
+                                }
+                              });
+                              setShowActionsDropdown(false);
+                            }}
+                          >
+                            <ShieldBan size={16} className="shrink-0" />
+                            <span>Đăng xuất tất cả</span>
+                          </button>
+                        )}
+                        {/* Unban, Unmute, Enable */}
+                        {selectedUser.banUntil && new Date(selectedUser.banUntil) > new Date() && (
+                          <button
+                            className="w-full text-left text-sm text-green-600 dark:text-green-500 hover:bg-green-500/5 transition-colors duration-150 flex items-center gap-3 font-medium"
+                            style={{ padding: '6px 16px',cursor:'pointer' }}
+                            onClick={() => {
+                              setStatusAction('unban');
+                              setStatusPassword('');
+                              setStatusReason('');
+                              setShowStatusModal(true);
+                              setShowActionsDropdown(false);
+                            }}
+                          >
+                            <ShieldCheck size={16} className="shrink-0" />
+                            <span>Mở khóa tài khoản</span>
+                          </button>
+                        )}
+                        
+                        {selectedUser.muteUntil && new Date(selectedUser.muteUntil) > new Date() && (
+                          <button
+                            className="w-full text-left text-sm text-green-600 dark:text-green-500 hover:bg-green-500/5 transition-colors duration-150 flex items-center gap-3 font-medium"
+                            style={{ padding: '6px 16px',cursor:'pointer' }}
+                            onClick={() => {
+                              setStatusAction('unmute');
+                              setStatusPassword('');
+                              setStatusReason('');
+                              setShowStatusModal(true);
+                              setShowActionsDropdown(false);
+                            }}
+                          >
+                            <ShieldCheck size={16} className="shrink-0" />
+                            <span>Mở khóa chat</span>
+                          </button>
+                        )}
+
+                        {selectedUser.isDisabled && (
+                          <button
+                            className="w-full text-left text-sm text-blue-600 dark:text-blue-500 hover:bg-blue-500/5 transition-colors duration-150 flex items-center gap-3 font-medium"
+                            style={{ padding: '6px 16px',cursor:'pointer' }}
+                            onClick={() => {
+                              setStatusAction('enable');
+                              setStatusPassword('');
+                              setStatusReason('');
+                              setShowStatusModal(true);
+                              setShowActionsDropdown(false);
+                            }}
+                          >
+                            <ShieldCheck size={16} className="shrink-0" />
+                            <span>Kích hoạt lại tài khoản</span>
+                          </button>
+                        )}
                       </div>
                     )}
                   </div>
@@ -1091,10 +1144,12 @@ export default function UsersTab() {
             {/* Header */}
             <div style={{ padding: '24px 28px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <h3 style={{ fontSize: '20px', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>
-                {statusAction === 'disable' ? 'Khóa Tài Khoản' : 'Mở Khóa Tài Khoản'}
+                {statusAction === 'disable' ? 'Khóa Tài Khoản (Manual Ban)' : 
+                 statusAction === 'unban' ? 'Mở Khóa Tài Khoản' : 
+                 statusAction === 'unmute' ? 'Mở Khóa Chat' : 'Kích Hoạt Lại Tài Khoản'}
               </h3>
               <button 
-                onClick={() => { setShowStatusModal(false); setStatusPassword(''); }}
+                onClick={() => { setShowStatusModal(false); setStatusPassword(''); setStatusDuration(0); }}
                 style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '4px', borderRadius: '50%' }}
                 onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-primary)')}
                 onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
@@ -1107,8 +1162,11 @@ export default function UsersTab() {
             <div style={{ padding: '0 28px 24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
               <div style={{ background: 'rgba(245, 158, 11, 0.1)', padding: '12px 16px', borderRadius: '8px', border: '1px solid rgba(245, 158, 11, 0.2)' }}>
                 <p style={{ fontSize: '13.5px', color: '#d97706', margin: 0, fontWeight: 500, lineHeight: 1.5 }}>
-                  Tính năng này yêu cầu xác thực bảo mật vì tác động tới khả năng truy cập của người dùng.
-                  Bạn đang thao tác với người dùng <strong>{selectedUser.email}</strong>.
+                  {statusAction === 'disable' ? (
+                    <>Bạn đang thao tác khóa tài khoản <strong>{selectedUser.email}</strong>. Lệnh cấm này sẽ được ghi nhận vào lịch sử vi phạm của người dùng.</>
+                  ) : (
+                    <>Tính năng này yêu cầu xác thực bảo mật. Bạn đang thao tác {statusAction === 'unban' ? 'mở khóa' : statusAction === 'unmute' ? 'mở khóa chat' : 'kích hoạt lại'} cho <strong>{selectedUser.email}</strong>.</>
+                  )}
                 </p>
               </div>
 
@@ -1125,13 +1183,204 @@ export default function UsersTab() {
                 />
               </div>
 
+              {statusAction === 'disable' ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  <label style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)' }}>Thời hạn khóa (ngày) <span style={{ color: '#ef4444' }}>*</span></label>
+                  <input 
+                    type="number" 
+                    value={statusDuration}
+                    onChange={(e) => setStatusDuration(Number(e.target.value))}
+                    min="1"
+                    placeholder="Ví dụ: 7 (nhập số ngày, tối đa 3650)"
+                    style={{ width: '100%', padding: '10px 12px', background: 'transparent', border: '1px solid var(--border)', borderRadius: '6px', color: 'var(--text-primary)', fontSize: '14px', outline: 'none', transition: 'border-color 0.2s' }}
+                    onFocus={e => e.target.style.borderColor = '#ef4444'}
+                    onBlur={e => e.target.style.borderColor = 'var(--border)'}
+                  />
+                  <span className="text-xs text-[var(--text-muted)] mt-1">Sử dụng 3650 (10 năm) cho khóa vĩnh viễn.</span>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  <label style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)' }}>Mật khẩu của bạn <span style={{ color: '#ef4444' }}>*</span></label>
+                  <input 
+                    type="password" 
+                    value={statusPassword}
+                    onChange={(e) => setStatusPassword(e.target.value)}
+                    placeholder="Nhập mật khẩu hiện tại để xác nhận..."
+                    style={{ width: '100%', padding: '10px 12px', background: 'transparent', border: '1px solid var(--border)', borderRadius: '6px', color: 'var(--text-primary)', fontSize: '14px', outline: 'none', transition: 'border-color 0.2s' }}
+                    onFocus={e => e.target.style.borderColor = '#ef4444'}
+                    onBlur={e => e.target.style.borderColor = 'var(--border)'}
+                  />
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div style={{ padding: '16px 28px', display: 'flex', justifyContent: 'flex-end', gap: '12px', borderTop: '1px solid var(--border)', background: 'var(--bg-card)' }}>
+              <button 
+                onClick={() => { setShowStatusModal(false); setStatusPassword(''); setStatusDuration(0); }}
+                style={{ padding: '8px 20px', fontSize: '14px', fontWeight: 500, color: 'var(--text-primary)', background: 'transparent', border: '1px solid var(--border)', borderRadius: '6px', cursor: 'pointer', transition: 'background 0.2s' }}
+                onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-primary)')}
+                onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+              >
+                Hủy
+              </button>
+              <button 
+                disabled={(statusAction === 'disable' ? (manualBanMutation.isPending || !statusDuration || statusDuration <= 0 || !statusPassword) : (enableMutation.isPending || unbanMutation.isPending || unmuteMutation.isPending || !statusPassword)) || !statusReason.trim()}
+                onClick={() => {
+                  if (statusAction === 'disable') manualBanMutation.mutate({ id: selectedUser._id, reason: statusReason.trim(), durationDays: statusDuration, password: statusPassword });
+                  else if (statusAction === 'enable') enableMutation.mutate({ id: selectedUser._id, password: statusPassword, reason: statusReason.trim() });
+                  else if (statusAction === 'unban') unbanMutation.mutate({ id: selectedUser._id, password: statusPassword, reason: statusReason.trim() });
+                  else if (statusAction === 'unmute') unmuteMutation.mutate({ id: selectedUser._id, password: statusPassword, reason: statusReason.trim() });
+                }}
+                style={{ padding: '8px 20px', fontSize: '14px', fontWeight: 500, color: '#fff', background: '#ef4444', border: 'none', borderRadius: '6px', cursor: 'pointer', opacity: ((statusAction === 'disable' ? (manualBanMutation.isPending || !statusDuration || statusDuration <= 0 || !statusPassword) : (enableMutation.isPending || unbanMutation.isPending || unmuteMutation.isPending || !statusPassword)) || !statusReason.trim()) ? 0.6 : 1, transition: 'background 0.2s' }}
+                onMouseEnter={e => { if (!((statusAction === 'disable' ? (manualBanMutation.isPending || !statusDuration || statusDuration <= 0 || !statusPassword) : (enableMutation.isPending || unbanMutation.isPending || unmuteMutation.isPending || !statusPassword)) || !statusReason.trim())) e.currentTarget.style.background = '#dc2626'; }}
+                onMouseLeave={e => { e.currentTarget.style.background = '#ef4444'; }}
+              >
+                {(statusAction === 'disable' ? manualBanMutation.isPending : (enableMutation.isPending || unbanMutation.isPending || unmuteMutation.isPending)) ? 'Đang xử lý...' : 'Xác nhận'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Quick Penalty Modal */}
+      {showQuickPenaltyModal && selectedUser && (
+        <div 
+          className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/50 animate-in fade-in"
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget) {
+              setShowQuickPenaltyModal(false);
+              setQuickPenaltyData({ reason: 'other', adminNote: '', resetAvatar: false, resetBio: false, resetName: false, password: '', manualDurationDays: 1 });
+            }
+          }}
+        >
+          <div
+            style={{
+              background: 'var(--bg-card)',
+              borderRadius: '12px',
+              boxShadow: '0 8px 40px rgba(0,0,0,0.18)',
+              width: '100%',
+              maxWidth: '480px',
+              overflow: 'hidden',
+            }}
+            className="animate-in zoom-in-95 duration-200 flex flex-col"
+          >
+            {/* Header */}
+            <div style={{ padding: '24px 28px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h3 style={{ fontSize: '20px', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>Xử Lý Vi Phạm</h3>
+              <button 
+                onClick={() => {
+                  setShowQuickPenaltyModal(false);
+                  setQuickPenaltyData({ reason: 'other', adminNote: '', resetAvatar: false, resetBio: false, resetName: false, password: '', manualDurationDays: 1 });
+                }}
+                style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '4px', borderRadius: '50%' }}
+                onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-primary)')}
+                onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+              >
+                <X size={20} />
+              </button>
+            </div>
+            
+            {/* Body */}
+            <div style={{ padding: '0 28px 24px', display: 'flex', flexDirection: 'column', gap: '20px', maxHeight: '70vh', overflowY: 'auto' }}>
+              <div style={{ background: 'rgba(239, 68, 68, 0.1)', padding: '12px 16px', borderRadius: '8px', border: '1px solid rgba(239, 68, 68, 0.2)' }}>
+                <ul style={{ fontSize: '13.5px', color: '#ef4444', margin: 0, paddingLeft: '20px', fontWeight: 500, lineHeight: 1.5, listStyleType: 'disc' }}>
+                  <li>Lệnh cấm này sẽ được ghi nhận vào lịch sử vi phạm của người dùng.</li>
+                  <li>Không thể sửa đổi sau khi đã hoàn tất.</li>
+                  <li>Bạn sẽ chịu mọi trách nhiệm về quyết định này.</li>
+                  <li>Vui lòng kiểm tra kỹ trước khi thực hiện!</li>
+                </ul>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <label style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)' }}>Loại vi phạm <span style={{ color: '#ef4444' }}>*</span></label>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {[
+                    { value: 'spam_harassment', label: 'Spam / Lừa đảo / Quấy rối' },
+                    { value: 'impersonation', label: 'Tài khoản giả mạo' },
+                    { value: 'inappropriate_content', label: 'Nội dung không phù hợp (Ảnh đại diện/Tên/Tiểu sử/Nội dung tin nhắn)' },
+                    { value: 'other', label: 'Lý do khác' }
+                  ].map(option => (
+                    <label key={option.value} style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '14px', color: 'var(--text-primary)' }}>
+                      <input 
+                        type="radio" 
+                        name="penaltyReason" 
+                        value={option.value} 
+                        checked={quickPenaltyData.reason === option.value}
+                        onChange={(e) => setQuickPenaltyData(prev => ({ ...prev, reason: e.target.value }))}
+                        style={{ cursor: 'pointer', accentColor: '#ef4444' }}
+                      />
+                      {option.label}
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', background: 'var(--bg-primary)', padding: '12px 16px', borderRadius: '8px', border: '1px solid var(--border)' }}>
+                  <label style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)' }}>Xử lí kèm theo:</label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '13px', color: 'var(--text-primary)' }}>
+                    <input 
+                      type="checkbox" 
+                      checked={quickPenaltyData.resetAvatar}
+                      onChange={(e) => setQuickPenaltyData(prev => ({ ...prev, resetAvatar: e.target.checked }))}
+                      style={{ cursor: 'pointer', accentColor: '#ef4444' }}
+                    />
+                    Xóa ảnh đại diện
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '13px', color: 'var(--text-primary)' }}>
+                    <input 
+                      type="checkbox" 
+                      checked={quickPenaltyData.resetName}
+                      onChange={(e) => setQuickPenaltyData(prev => ({ ...prev, resetName: e.target.checked }))}
+                      style={{ cursor: 'pointer', accentColor: '#ef4444' }}
+                    />
+                    Đặt lại tên người dùng
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '13px', color: 'var(--text-primary)' }}>
+                    <input 
+                      type="checkbox" 
+                      checked={quickPenaltyData.resetBio}
+                      onChange={(e) => setQuickPenaltyData(prev => ({ ...prev, resetBio: e.target.checked }))}
+                      style={{ cursor: 'pointer', accentColor: '#ef4444' }}
+                    />
+                    Xóa tiểu sử
+                  </label>
+                </div>
+
+              {quickPenaltyData.reason === 'other' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '10px' }}>
+                  <label style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)' }}>Khóa tài khoản</label>
+                  <select
+                    value={quickPenaltyData.manualDurationDays}
+                    onChange={(e) => setQuickPenaltyData(prev => ({ ...prev, manualDurationDays: Number(e.target.value) }))}
+                    style={{ padding: '8px 12px', borderRadius: '6px', border: '1px solid var(--border)', background: 'transparent', color: 'var(--text-primary)', outline: 'none' }}
+                  >
+                    <option value={1}>1 ngày</option>
+                    <option value={7}>7 ngày</option>
+                    <option value={30}>30 ngày</option>
+                    <option value={36500}>Vĩnh viễn</option>
+                  </select>
+                </div>
+              )}
+
               <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                <label style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)' }}>Mật khẩu của bạn <span style={{ color: '#ef4444' }}>*</span></label>
+                <label style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)' }}>Ghi chú của Admin {quickPenaltyData.reason === 'other' && <span className="text-red-500">*</span>}</label>
+                <textarea 
+                  value={quickPenaltyData.adminNote}
+                  onChange={(e) => setQuickPenaltyData(prev => ({ ...prev, adminNote: e.target.value }))}
+                  rows={3}
+                  style={{ width: '100%', padding: '10px 12px', background: 'transparent', border: '1px solid var(--border)', borderRadius: '6px', color: 'var(--text-primary)', fontSize: '14px', outline: 'none', transition: 'border-color 0.2s', resize: 'none' }}
+                  onFocus={e => e.target.style.borderColor = '#ef4444'}
+                  onBlur={e => e.target.style.borderColor = 'var(--border)'}
+                />
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <label style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)' }}>Mật khẩu xác thực <span className="text-red-500">*</span></label>
                 <input 
-                  type="password" 
-                  value={statusPassword}
-                  onChange={(e) => setStatusPassword(e.target.value)}
-                  placeholder="Nhập mật khẩu hiện tại để xác nhận..."
+                  type="password"
+                  value={quickPenaltyData.password}
+                  onChange={(e) => setQuickPenaltyData(prev => ({ ...prev, password: e.target.value }))}
                   style={{ width: '100%', padding: '10px 12px', background: 'transparent', border: '1px solid var(--border)', borderRadius: '6px', color: 'var(--text-primary)', fontSize: '14px', outline: 'none', transition: 'border-color 0.2s' }}
                   onFocus={e => e.target.style.borderColor = '#ef4444'}
                   onBlur={e => e.target.style.borderColor = 'var(--border)'}
@@ -1142,7 +1391,10 @@ export default function UsersTab() {
             {/* Footer */}
             <div style={{ padding: '16px 28px', display: 'flex', justifyContent: 'flex-end', gap: '12px', borderTop: '1px solid var(--border)', background: 'var(--bg-card)' }}>
               <button 
-                onClick={() => { setShowStatusModal(false); setStatusPassword(''); }}
+                onClick={() => {
+                  setShowQuickPenaltyModal(false);
+                  setQuickPenaltyData({ reason: 'other', adminNote: '', resetAvatar: false, resetBio: false, resetName: false, password: '', manualDurationDays: 1 });
+                }}
                 style={{ padding: '8px 20px', fontSize: '14px', fontWeight: 500, color: 'var(--text-primary)', background: 'transparent', border: '1px solid var(--border)', borderRadius: '6px', cursor: 'pointer', transition: 'background 0.2s' }}
                 onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-primary)')}
                 onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
@@ -1150,16 +1402,35 @@ export default function UsersTab() {
                 Hủy
               </button>
               <button 
-                disabled={(statusAction === 'disable' ? disableMutation.isPending : enableMutation.isPending) || !statusPassword || !statusReason.trim()}
+                disabled={(quickPenaltyData.reason === 'other' ? manualBanMutation.isPending : quickPenaltyMutation.isPending) || !quickPenaltyData.password || (quickPenaltyData.reason === 'other' && !quickPenaltyData.adminNote.trim())}
                 onClick={() => {
-                  if (statusAction === 'disable') disableMutation.mutate({ id: selectedUser._id, password: statusPassword, reason: statusReason.trim() });
-                  else enableMutation.mutate({ id: selectedUser._id, password: statusPassword, reason: statusReason.trim() });
+                  if (quickPenaltyData.reason === 'other') {
+                    manualBanMutation.mutate({
+                      id: selectedUser._id,
+                      reason: quickPenaltyData.adminNote.trim(),
+                      durationDays: quickPenaltyData.manualDurationDays,
+                      password: quickPenaltyData.password,
+                      resetAvatar: quickPenaltyData.resetAvatar,
+                      resetBio: quickPenaltyData.resetBio,
+                      resetName: quickPenaltyData.resetName
+                    });
+                  } else {
+                    quickPenaltyMutation.mutate({
+                      id: selectedUser._id,
+                      reason: quickPenaltyData.reason,
+                      resetAvatar: quickPenaltyData.resetAvatar,
+                      resetBio: quickPenaltyData.resetBio,
+                      resetName: quickPenaltyData.resetName,
+                      adminNote: quickPenaltyData.adminNote.trim() || undefined,
+                      password: quickPenaltyData.password
+                    });
+                  }
                 }}
-                style={{ padding: '8px 20px', fontSize: '14px', fontWeight: 500, color: '#fff', background: '#ef4444', border: 'none', borderRadius: '6px', cursor: 'pointer', opacity: ((statusAction === 'disable' ? disableMutation.isPending : enableMutation.isPending) || !statusPassword || !statusReason.trim()) ? 0.6 : 1, transition: 'background 0.2s' }}
-                onMouseEnter={e => { if (!((statusAction === 'disable' ? disableMutation.isPending : enableMutation.isPending) || !statusPassword || !statusReason.trim())) e.currentTarget.style.background = '#dc2626'; }}
+                style={{ padding: '8px 20px', fontSize: '14px', fontWeight: 500, color: '#fff', background: '#ef4444', border: 'none', borderRadius: '6px', cursor: 'pointer', opacity: ((quickPenaltyData.reason === 'other' ? manualBanMutation.isPending : quickPenaltyMutation.isPending) || !quickPenaltyData.password || (quickPenaltyData.reason === 'other' && !quickPenaltyData.adminNote.trim())) ? 0.6 : 1, transition: 'background 0.2s' }}
+                onMouseEnter={e => { if (!((quickPenaltyData.reason === 'other' ? manualBanMutation.isPending : quickPenaltyMutation.isPending) || !quickPenaltyData.password || (quickPenaltyData.reason === 'other' && !quickPenaltyData.adminNote.trim()))) e.currentTarget.style.background = '#dc2626'; }}
                 onMouseLeave={e => { e.currentTarget.style.background = '#ef4444'; }}
               >
-                {(statusAction === 'disable' ? disableMutation.isPending : enableMutation.isPending) ? 'Đang xử lý...' : 'Xác nhận'}
+                {(quickPenaltyData.reason === 'other' ? manualBanMutation.isPending : quickPenaltyMutation.isPending) ? 'Đang xử lý...' : 'Xác nhận xử lý'}
               </button>
             </div>
           </div>
@@ -1513,18 +1784,18 @@ export default function UsersTab() {
                 Hủy
               </button>
               <button 
-                disabled={confirmModalConfig.isLoading || resetAvatarMutation.isPending || resetNameMutation.isPending || clearBioMutation.isPending || logoutAllDevicesMutation.isPending || (confirmModalConfig.requireReason && !confirmReason.trim())}
+                disabled={confirmModalConfig.isLoading || logoutAllDevicesMutation.isPending || (confirmModalConfig.requireReason && !confirmReason.trim())}
                 onClick={() => confirmModalConfig.onConfirm(confirmReason.trim())}
                 style={{ 
                   padding: '8px 20px', fontSize: '14px', fontWeight: 500, color: '#fff', 
                   background: confirmModalConfig.actionType === 'danger' ? '#ef4444' : '#f59e0b', 
                   border: 'none', borderRadius: '6px', cursor: 'pointer', 
-                  opacity: (confirmModalConfig.isLoading || resetAvatarMutation.isPending || resetNameMutation.isPending || clearBioMutation.isPending || logoutAllDevicesMutation.isPending || (confirmModalConfig.requireReason && !confirmReason.trim())) ? 0.6 : 1, transition: 'background 0.2s' 
+                  opacity: (confirmModalConfig.isLoading || logoutAllDevicesMutation.isPending || (confirmModalConfig.requireReason && !confirmReason.trim())) ? 0.6 : 1, transition: 'background 0.2s' 
                 }}
-                onMouseEnter={e => { if (!(confirmModalConfig.isLoading || resetAvatarMutation.isPending || resetNameMutation.isPending || clearBioMutation.isPending || logoutAllDevicesMutation.isPending || (confirmModalConfig.requireReason && !confirmReason.trim()))) e.currentTarget.style.background = confirmModalConfig.actionType === 'danger' ? '#dc2626' : '#d97706'; }}
+                onMouseEnter={e => { if (!(confirmModalConfig.isLoading || logoutAllDevicesMutation.isPending || (confirmModalConfig.requireReason && !confirmReason.trim()))) e.currentTarget.style.background = confirmModalConfig.actionType === 'danger' ? '#dc2626' : '#d97706'; }}
                 onMouseLeave={e => { e.currentTarget.style.background = confirmModalConfig.actionType === 'danger' ? '#ef4444' : '#f59e0b'; }}
               >
-                {(confirmModalConfig.isLoading || resetAvatarMutation.isPending || resetNameMutation.isPending || clearBioMutation.isPending || logoutAllDevicesMutation.isPending) ? 'Đang xử lý...' : 'Xác nhận'}
+                {(confirmModalConfig.isLoading || logoutAllDevicesMutation.isPending) ? 'Đang xử lý...' : 'Xác nhận'}
               </button>
             </div>
           </div>

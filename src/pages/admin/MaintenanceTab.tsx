@@ -189,7 +189,7 @@ export default function MaintenanceTab() {
   const [selectedJob, setSelectedJob] = useState<CleanupJob | null>(null);
   const [isFilterOpen, setIsFilterOpen] = useState(false);
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isFetching } = useQuery({
     queryKey: ['admin_jobs', page, typeFilter, statusFilter, sortFilter],
     queryFn: () => adminApi.getCleanupJobs({ 
       page, 
@@ -317,7 +317,7 @@ export default function MaintenanceTab() {
                     <th className="px-6 py-4 font-medium w-[120px] text-center">Thao tác</th>
                   </tr>
                 </thead>
-                <tbody>
+                <tbody className={`transition-opacity duration-200 ${isFetching && !isLoading ? 'opacity-50 pointer-events-none' : 'opacity-100'}`}>
                   {isLoading ? (
                     <tr>
                       <td colSpan={6} className="px-6 py-10 text-center text-[var(--text-muted)]">

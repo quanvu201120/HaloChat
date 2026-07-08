@@ -10,6 +10,51 @@ export interface SystemLimits {
   r2: number | string;
 }
 
+export interface InfrastructureStats {
+  bandwidth: { inbound: number; outbound: number };
+  database: { activeConnections: number; queriesPerSecond: number; avgResponseTime: number; diskUsage: number };
+  redis: { memoryUsage: number; hitRate: number; connectedClients: number };
+  upload: { storageUsed: number; fileCount: number; bandwidthUsed: number };
+}
+
+export const ReportStatusEnum = {
+    PENDING: 'pending',
+    RESOLVED: 'resolved',
+    DISMISSED: 'dismissed',
+    APPEAL_PENDING: 'appeal_pending',
+    APPEAL_REJECTED: 'appeal_rejected',
+    APPEAL_SUCCESS: 'appeal_success',
+  } as const;
+export type ReportStatusEnum = typeof ReportStatusEnum[keyof typeof ReportStatusEnum];
+
+export const ReportReasonEnum = {
+    SPAM_HARASSMENT: 'spam_harassment',
+    INAPPROPRIATE_CONTENT: 'inappropriate_content',
+    IMPERSONATION: 'impersonation',
+    OTHER: 'other',
+  } as const;
+export type ReportReasonEnum = typeof ReportReasonEnum[keyof typeof ReportReasonEnum];
+
+export interface Report {
+  _id: string;
+  reporterId: any;
+  targetUserId: any;
+  reason: ReportReasonEnum;
+  description?: string;
+  evidenceMediaIds?: any[];
+  status: ReportStatusEnum;
+  snapshot?: any;
+  appealText?: string;
+  appealEvidenceMediaIds?: any[];
+  appealDeadline?: Date;
+  penaltyApplied?: string;
+  adminNote?: string;
+  resolvedBy?: any;
+  resolvedAt?: Date;
+  createdAt: string | Date;
+  updatedAt: string | Date;
+}
+
 export interface StatsOverview {
   totals: {
     users: number;
@@ -67,6 +112,8 @@ export interface UserAdminData {
   dateOfBirth?: string;
   gender?: string;
   bio?: string;
+  banUntil?: string;
+  muteUntil?: string;
 }
 
 export interface ServiceHealth {
@@ -184,17 +231,22 @@ export const adminApi = {
   
   createUser: (data: any) => api.post('/users', data).then(res => res.data?.data || res.data),
   
-  resetUserName: (id: string, reason: string) => api.patch(`/users/${id}/reset-name`, { reason }).then(res => res.data?.data || res.data),
-  
-  clearUserBio: (id: string, reason: string) => api.patch(`/users/${id}/clear-bio`, { reason }).then(res => res.data?.data || res.data),
+  quickPenalty: (targetUserId: string, data: { reason: string; resetAvatar?: boolean; resetBio?: boolean; resetName?: boolean; adminNote?: string; password?: string }) => 
+    api.post(`/reports/quick-penalty/${targetUserId}`, data).then(res => res.data?.data || res.data),
+
+  manualBan: (targetUserId: string, data: { reason: string; durationDays: number; password?: string; resetAvatar?: boolean; resetBio?: boolean; resetName?: boolean; }) => 
+    api.post(`/reports/manual-ban/${targetUserId}`, data).then(res => res.data?.data || res.data),
   
   logoutAllDevices: (id: string, reason: string) => api.post(`/auth/${id}/logoutAll-by-admin`, { reason }).then(res => res.data?.data || res.data),
-
-  disableUser: (id: string, password: string | undefined, reason: string) => api.patch(`/users/${id}/disable`, { password, reason }).then(res => res.data?.data || res.data),
   
-  enableUser: (id: string, password: string | undefined, reason: string) => api.patch(`/users/${id}/enable`, { password, reason }).then(res => res.data?.data || res.data),
+  enableUser: (id: string, password: string | undefined, reason: string) => 
+    api.patch(`/users/${id}/enable`, { password, reason }).then(res => res.data?.data || res.data),
+    
+  unbanUser: (id: string, password: string | undefined, reason: string) =>
+    api.patch(`/reports/${id}/unban`, { password, reason }).then(res => res.data?.data || res.data),
 
-  resetUserAvatar: (id: string, reason: string) => api.delete(`/users/${id}/avatar`, { data: { reason } }).then(res => res.data?.data || res.data),
+  unmuteUser: (id: string, password: string | undefined, reason: string) =>
+    api.patch(`/reports/${id}/unmute`, { password, reason }).then(res => res.data?.data || res.data),
 
   changeUserRole: (id: string, data: { role: string; password: string; reason?: string }) => api.patch(`/users/${id}/role`, data).then(res => res.data?.data || res.data),
 
@@ -242,5 +294,26 @@ export const adminApi = {
     startDate?: string;
     endDate?: string;
   }) => api.get('/audit-logs', { params }).then(res => res.data?.data || res.data),
-};
 
+
+  // === TAB 5: REPORTS ===
+  getReports: (params?: {
+    current?: string;
+    pageSize?: string;
+    status?: string;
+    targetUserId?: string;
+    reporterId?: string;
+    resolvedBy?: string;
+    startDate?: string;
+    endDate?: string;
+    reason?: string;
+    targetRole?: string;
+    reportId?: string;
+    sort?: string;
+  }) => api.get('/reports', { params }).then(res => res.data?.data || res.data),
+
+  resolveReport: (reportId: string, data: { status: typeof ReportStatusEnum.RESOLVED | typeof ReportStatusEnum.DISMISSED; adminNote: string; overridePenaltyAction?: string; overridePenaltyDurationDays?: number; resetAvatar?: boolean; resetName?: boolean; resetBio?: boolean }) =>
+      api.patch(`/reports/${reportId}/resolve`, data).then(res => res.data?.data || res.data),
+  calculatePenalty: (reportId: string) => 
+      api.get(`/reports/${reportId}/calculate-penalty`).then(res => res.data?.data || res.data),
+};

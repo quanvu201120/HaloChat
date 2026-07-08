@@ -50,7 +50,7 @@ export default function AddFriendModal({ isOpen, onClose }: Props) {
     isUnblocking
   } = useRelationships();
 
-  const debounceRef = useRef<NodeJS.Timeout | null>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (!isOpen) {

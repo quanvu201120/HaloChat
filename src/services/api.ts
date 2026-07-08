@@ -308,3 +308,15 @@ export const relationshipsApi = {
   rejectOrRemove: (id: string, data: { targetUserId: string }) => api.patch(`/relationships/${id}/rejectOrRemove`, data),
   unfriend: (id: string, data: { targetUserId: string }) => api.patch(`/relationships/${id}/unfriend`, data),
 };
+
+export interface CreateReportPayload {
+  targetUserId: string;
+  reason: 'spam_harassment' | 'inappropriate_content' | 'impersonation' | 'other';
+  description?: string;
+  optionalDescription?: string;
+  evidenceMediaIds?: string[];
+}
+
+export const reportsApi = {
+  create: (data: CreateReportPayload) => api.post('/reports', data).then(res => res.data),
+};

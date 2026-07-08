@@ -16,7 +16,7 @@ const defaultCreate = {
   confirmPassword: '',
   phone: '',
   address: '',
-  role: UserRole.USER,
+  role: UserRole.USER as UserRole,
 };
 
 const defaultEdit = {
@@ -25,7 +25,8 @@ const defaultEdit = {
   email: '',
   phone: '',
   address: '',
-  role: UserRole.USER,
+  role: UserRole.USER as UserRole,
+  isActive: true,
 };
 
 export default function UsersPage() {

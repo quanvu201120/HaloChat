@@ -28,7 +28,7 @@ export default function AdminPage() {
     };
   }, [setAdminVerified]);
 
-  if (![UserRole.ADMIN, UserRole.SUPER_ADMIN].includes(user?.role as UserRole)) {
+  if (user?.role !== UserRole.ADMIN && user?.role !== UserRole.SUPER_ADMIN) {
     return <Navigate to="/" replace />;
   }
 

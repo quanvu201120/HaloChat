@@ -1,18 +1,20 @@
 import React, { useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Search, ArrowUpDown, ChevronDown, MoreHorizontal, Check, ChevronLeft, AlignLeft, Ban, MapPin, Calendar, User as UserIcon, MessageSquare, UserX, UserMinus } from 'lucide-react';
+import { Search, ArrowUpDown, ChevronDown, MoreHorizontal, Check, ChevronLeft, AlignLeft, Ban, MapPin, Calendar, User as UserIcon, MessageSquare, UserX, UserMinus, AlertTriangle } from 'lucide-react';
 import { useRelationships } from '../hooks/useRelationships';
 import { conversationsApi } from '../services/conversations';
 import { useChatStore as useChat } from '../store/chatStore';
 import { useAuthStore as useAuth } from '../store/authStore';
 import ConfirmModal from '../components/ConfirmModal';
 import Modal from '../components/Modal';
+import ReportUserModal from '../components/ReportUserModal';
 import { useToast } from '../context/ToastContext';
 export default function FriendsPage() {
   const location = useLocation();
   const navigate = useNavigate();
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
   const [selectedUserForInfo, setSelectedUserForInfo] = useState<any>(null);
+  const [showReportModal, setShowReportModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
   const [isSortDropdownOpen, setIsSortDropdownOpen] = useState(false);
@@ -445,8 +447,34 @@ export default function FriendsPage() {
         title="Thông tin người dùng"
       >
         {selectedUserForInfo && (
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '0 0 24px 0', marginTop: '-12px' }}>
-            {/* Avatar */}
+          <div style={{ position: 'relative', width: '100%', minHeight: '400px' }}>
+            {/* Report Icon */}
+            {user?._id !== selectedUserForInfo._id && (
+              <button
+                onClick={() => setShowReportModal(true)}
+                style={{
+                  position: 'absolute',
+                  top: '-12px',
+                  right: '0px',
+                  background: 'transparent',
+                  border: 'none',
+                  color: '#ef4444',
+                  cursor: 'pointer',
+                  padding: '8px',
+                  borderRadius: '50%',
+                  transition: 'all 0.2s',
+                  zIndex: 50,
+                }}
+                onMouseEnter={e => { e.currentTarget.style.background = 'rgba(239, 68, 68, 0.1)'; }}
+                onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
+                title="Báo cáo người dùng"
+              >
+                <AlertTriangle size={22} />
+              </button>
+            )}
+
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '0 0 24px 0', marginTop: '-12px' }}>
+              {/* Avatar */}
             <div 
               style={{ 
                 width: '135px', height: '135px', borderRadius: '50%', flexShrink: 0,
@@ -629,8 +657,19 @@ export default function FriendsPage() {
               )}
             </div>
           </div>
+        </div>
         )}
       </Modal>
+
+      {/* Report User Modal */}
+      {selectedUserForInfo && (
+        <ReportUserModal
+          isOpen={showReportModal}
+          onClose={() => setShowReportModal(false)}
+          targetUserId={selectedUserForInfo._id}
+          targetUserName={selectedUserForInfo.name || selectedUserForInfo.email}
+        />
+      )}
     </div>
   );
 }

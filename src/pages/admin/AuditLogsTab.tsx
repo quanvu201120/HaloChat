@@ -1,10 +1,11 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { ChevronLeft, User, Clock, Activity, Globe, Monitor, FileJson, Hash, Shield, Mail, Phone, Info, Image, Box, Database, FileText } from 'lucide-react';
+import { ChevronLeft, User, Clock, Activity, Globe, Monitor, FileJson, Hash, Shield, Mail, Phone, Info, Image, Box, Database, FileText, AlertTriangle, MessageSquare, Gavel } from 'lucide-react';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { adminApi, type AuditLogData, type UserAdminData } from '../../services/admin';
 import { UserRole } from '../../constants/roles';
 import { AdminMobileFilter } from '../../components/admin/AdminMobileFilter';
 import { MuiSelect } from '../../components/admin/MuiSelect';
+import MediaLightbox from '../../components/MediaLightbox';
 
 interface InfoItemProps {
   icon: React.ReactNode;
@@ -222,7 +223,8 @@ function MuiInput({
 
 export default function AuditLogsTab() {
   const [isFilterOpen, setIsFilterOpen] = useState(false);
-  const [selectedLog, setSelectedLog] = useState<any>(null);
+  const [selectedLog, setSelectedLog] = useState<AuditLogData | null>(null);
+  const [lightboxData, setLightboxData] = useState<{ medias: any[], initialIndex: number } | null>(null);
   const [actorId, setActorId] = useState<string | undefined>();
   const [targetId, setTargetId] = useState<string | undefined>();
   const [actionFilter, setActionFilter] = useState('all');
@@ -237,7 +239,8 @@ export default function AuditLogsTab() {
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,
-    isLoading
+    isLoading,
+    isFetching
   } = useInfiniteQuery({
     queryKey: ['admin_audit_logs', actorId, targetId, actionFilter, roleFilter, targetTypeFilter, startDate, endDate, ipFilter],
     queryFn: ({ pageParam }) => adminApi.getAuditLogs({ 
@@ -297,9 +300,9 @@ export default function AuditLogsTab() {
             { value: 'LOCK_USER', label: 'Khóa tài khoản' },
             { value: 'UNLOCK_USER', label: 'Mở khóa tài khoản' },
             { value: 'UPDATE_ROLE', label: 'Đổi quyền' },
-            { value: 'DELETE_AVATAR', label: 'Xóa Avatar' },
-            { value: 'RESET_DISPLAY_NAME', label: 'Reset Tên hiển thị' },
-            { value: 'DELETE_BIO', label: 'Xóa Tiểu sử' },
+            { value: 'DELETE_AVATAR', label: 'Xóa avatar' },
+            { value: 'RESET_DISPLAY_NAME', label: 'Reset tên hiển thị' },
+            { value: 'DELETE_BIO', label: 'Xóa tiểu sử' },
             { value: 'FORCE_LOGOUT', label: 'Buộc đăng xuất' },
             { value: 'CREATE_USER', label: 'Tạo tài khoản' },
           ]}
@@ -308,7 +311,7 @@ export default function AuditLogsTab() {
         />
 
         <MuiSelect
-          label="Vai trò (Actor Role)"
+          label="Vai trò"
           value={roleFilter}
           onChange={setRoleFilter}
           options={[
@@ -389,7 +392,7 @@ export default function AuditLogsTab() {
                     <th className="px-6 py-4 font-medium">IP</th>
                   </tr>
                 </thead>
-                <tbody>
+                <tbody className={`transition-opacity duration-200 ${isFetching && !isLoading ? 'opacity-50 pointer-events-none' : 'opacity-100'}`}>
                   {isLoading ? (
                     <tr>
                       <td colSpan={5} className="px-6 py-10 text-center text-[var(--text-muted)]">
@@ -524,7 +527,9 @@ export default function AuditLogsTab() {
                   
                   <div className="flex items-center gap-4 mb-3 pb-3 border-b border-[var(--border)] px-1 mt-1">
                     {selectedLog.actor && typeof selectedLog.actor === 'object' && selectedLog.actor.avatar ? (
-                      <img src={selectedLog.actor.avatar} alt="Avatar" className="w-14 h-14 rounded-full object-cover border-2 border-[var(--border)] shadow-sm" />
+                      <button onClick={() => setLightboxData({ medias: [selectedLog.actor.avatar], initialIndex: 0 })} className="shrink-0 hover:opacity-80 transition-opacity cursor-pointer border-none bg-transparent p-0">
+                        <img src={typeof selectedLog.actor.avatar === 'object' ? selectedLog.actor.avatar.url : selectedLog.actor.avatar} alt="Avatar" className="w-14 h-14 rounded-full object-cover border-2 border-[var(--border)] shadow-sm" />
+                      </button>
                     ) : (
                       <div className="w-14 h-14 rounded-full bg-gradient-to-br from-[#1b4d7e] to-[#2c3e50] text-white flex items-center justify-center text-xl font-semibold border-2 border-[#1b4d7e] shadow-md shrink-0">
                         {selectedLog.actor && typeof selectedLog.actor === 'object' && selectedLog.actor.name ? selectedLog.actor.name.charAt(0).toUpperCase() : 'A'}
@@ -567,7 +572,9 @@ export default function AuditLogsTab() {
                     <>
                       <div className="flex items-center gap-4 mb-3 pb-3 border-b border-[var(--border)] px-1 mt-1">
                         {selectedLog.target && typeof selectedLog.target === 'object' && selectedLog.target.avatar ? (
-                          <img src={selectedLog.target.avatar} alt="Avatar" className="w-14 h-14 rounded-full object-cover border-2 border-[var(--border)] shadow-sm" />
+                          <button onClick={() => setLightboxData({ medias: [selectedLog.target.avatar], initialIndex: 0 })} className="shrink-0 hover:opacity-80 transition-opacity cursor-pointer border-none bg-transparent p-0">
+                            <img src={typeof selectedLog.target.avatar === 'object' ? selectedLog.target.avatar.url : selectedLog.target.avatar} alt="Avatar" className="w-14 h-14 rounded-full object-cover border-2 border-[var(--border)] shadow-sm" />
+                          </button>
                         ) : (
                           <div className="w-14 h-14 rounded-full bg-gradient-to-br from-slate-500 to-slate-700 text-white flex items-center justify-center text-xl font-semibold border-2 border-slate-600 shadow-md shrink-0">
                             {selectedLog.target && typeof selectedLog.target === 'object' && selectedLog.target.name ? selectedLog.target.name.charAt(0).toUpperCase() : 'U'}
@@ -617,6 +624,137 @@ export default function AuditLogsTab() {
                         </div>
                       </div>
                     </>
+                  ) : selectedLog.targetType?.toUpperCase() === 'REPORT' ? (
+                    <>
+                      <div className="flex items-center gap-4 mb-3 pb-3 border-b border-[var(--border)] px-1 mt-1">
+                        <div className="w-14 h-14 rounded-full bg-gradient-to-br from-red-500 to-red-700 text-white flex items-center justify-center text-xl font-semibold border-2 border-red-600 shadow-md shrink-0">
+                          <Shield size={24} />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <h3 className="text-lg font-bold text-[var(--text-primary)] truncate">
+                            Báo cáo vi phạm
+                          </h3>
+                          
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-5">
+                        {(() => {
+                          const reportData = selectedLog.metadata || {};
+                          return Object.entries(reportData)
+                            .filter(([key]) => ['targetId', 'rp_reason', 'rp_description', 'rp_status', 'rp_adminNote', 'rp_penaltyApplied', 'rp_reporterId', 'rp_targetUserId'].includes(key))
+                            .map(([key, value]) => {
+                          const targetTranslations: Record<string, string> = {
+                            targetId: 'ID Báo cáo',
+                            rp_reason: 'Danh mục vi phạm',
+                            rp_description: 'Mô tả báo cáo vi phạm',
+                            rp_status: 'Trạng thái xử lý',
+                            rp_adminNote: 'Ghi chú của Admin',
+                            rp_penaltyApplied: 'Hình phạt áp dụng',
+                            rp_reporterId: 'ID Người báo cáo',
+                            rp_targetUserId: 'ID Người bị báo cáo',
+                          };
+                          
+                          const label = targetTranslations[key] || key.replace(/([A-Z])/g, ' $1').trim();
+                          let displayValue = typeof value === 'object' ? JSON.stringify(value) : String(value);
+
+                          if (key === 'rp_status') {
+                            const statusMap: Record<string, string> = {
+                              resolved: 'Đã xử lý',
+                              dismissed: 'Từ chối',
+                              pending: 'Chờ xử lý',
+                              appeal_pending: 'Đang kháng cáo',
+                              appeal_rejected: 'Kháng cáo thất bại',
+                              appeal_success: 'Kháng cáo thành công',
+                            };
+                            displayValue = statusMap[displayValue] || displayValue;
+                          } else if (key === 'rp_reason') {
+                            const reasonMap: Record<string, string> = {
+                              spam_harassment: 'Spam / Quấy rối',
+                              inappropriate_content: 'Nội dung không phù hợp',
+                              impersonation: 'Mạo danh',
+                              other: 'Lý do khác'
+                            };
+                            displayValue = reasonMap[displayValue] || displayValue;
+                          } else if (key === 'penaltyApplied') {
+                            if (displayValue === 'Warning sent.') {
+                               displayValue = 'Cảnh cáo';
+                            } else if (displayValue === 'Reset info and warning sent.') {
+                               displayValue = 'Cảnh cáo (kèm xóa thông tin)';
+                            } else {
+                               const matchBan = displayValue.match(/(Reset info and account banned for|Account banned for) (\d+) days/i);
+                               const matchMute = displayValue.match(/Muted for (\d+) days/i);
+                               if (matchBan) {
+                                 const days = matchBan[2];
+                                 const hasReset = matchBan[1].toLowerCase().includes('reset');
+                                 if (days === '36500') {
+                                   displayValue = `Khóa tài khoản vĩnh viễn${hasReset ? ' (kèm xóa thông tin)' : ''}`;
+                                 } else {
+                                   displayValue = `Khóa tài khoản ${days} ngày${hasReset ? ' (kèm xóa thông tin)' : ''}`;
+                                 }
+                               } else if (matchMute) {
+                                 const days = matchMute[1];
+                                 if (days === '36500') {
+                                   displayValue = `Cấm chat vĩnh viễn`;
+                                 } else {
+                                   displayValue = `Cấm chat ${days} ngày`;
+                                 }
+                               }
+                            }
+                          }
+
+                          let IconComponent = Database;
+                          if (key === 'targetId' || key === 'rp_reporterId' || key === 'rp_targetUserId') IconComponent = Hash;
+                          else if (key === 'rp_reason') IconComponent = AlertTriangle;
+                          else if (key === 'rp_description') IconComponent = FileText;
+                          else if (key === 'rp_status') IconComponent = Activity;
+                          else if (key === 'rp_adminNote') IconComponent = MessageSquare;
+                          else if (key === 'rp_penaltyApplied') IconComponent = Gavel;
+
+                          return (
+                            <InfoItem 
+                              key={key}
+                              icon={<IconComponent size={16} />}
+                              label={label}
+                              value={displayValue}
+                              valueClass={typeof value === 'object' ? "font-mono text-[11px] break-all text-xs" : undefined}
+                            />
+                          );
+                        })})()}
+                      </div>
+
+                      {selectedLog.metadata && (selectedLog.metadata.oldAvatar || selectedLog.metadata.oldName || selectedLog.metadata.oldBio || selectedLog.metadata.oldRole) && (
+                        <div className="mt-8 pt-6 border-t border-[var(--border)]">
+                          <h4 className="text-[11px] font-bold text-[var(--text-primary)] uppercase tracking-wider mb-4 opacity-80">
+                            Dữ liệu tại thời điểm báo cáo
+                          </h4>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8">
+                            <InfoItem icon={<Image size={16} />} label="Ảnh đại diện">
+                              {selectedLog.metadata.oldAvatar ? (
+                                <button onClick={() => setLightboxData({ medias: [selectedLog.metadata.oldAvatar], initialIndex: 0 })} className="shrink-0 hover:opacity-80 transition-opacity cursor-pointer border-none bg-transparent p-0 mt-1">
+                                  <img src={typeof selectedLog.metadata.oldAvatar === 'object' ? selectedLog.metadata.oldAvatar.url : selectedLog.metadata.oldAvatar} className="w-12 h-12 rounded-full object-cover border border-[var(--border)] shadow-sm" alt="Avatar" />
+                                </button>
+                              ) : (
+                                <img src={'https://ui-avatars.com/api/?name=' + encodeURIComponent(selectedLog.metadata.oldName || 'User') + '&background=random'} className="w-12 h-12 rounded-full object-cover shrink-0 border border-[var(--border)] shadow-sm mt-1" alt="Avatar" />
+                              )}
+                            </InfoItem>
+                            <InfoItem icon={<User size={16} />} label="Tên hiển thị" value={selectedLog.metadata.oldName || 'Không rõ'} />
+                            <InfoItem icon={<Shield size={16} />} label="Vai trò">
+                              <div className="mt-1">
+                                {selectedLog.metadata.oldRole === 'SUPER_ADMIN' ? (
+                                  <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-[#e74c3c] text-white uppercase shadow-sm">Super Admin</span>
+                                ) : selectedLog.metadata.oldRole === 'ADMIN' ? (
+                                  <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-[#3498db] text-white uppercase shadow-sm">Admin</span>
+                                ) : (
+                                  <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-[#95a5a6] text-white uppercase shadow-sm">User</span>
+                                )}
+                              </div>
+                            </InfoItem>
+                            <InfoItem icon={<FileText size={16} />} label="Tiểu sử" value={selectedLog.metadata.oldBio || 'Không có tiểu sử'} />
+                          </div>
+                        </div>
+                      )}
+                    </>
                   ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8">
                       <div className="flex flex-col">
@@ -642,7 +780,7 @@ export default function AuditLogsTab() {
                 </div>
 
                 {/* Metadata Info */}
-                {selectedLog.metadata && Object.keys(selectedLog.metadata).length > 0 && (
+                {selectedLog.metadata && Object.keys(selectedLog.metadata).length > 0 && selectedLog.targetType?.toUpperCase() !== 'REPORT' && (
                   <div style={{ padding: '10px' }} className="bg-[var(--bg-card)] rounded-sm border border-[var(--border)] shadow-sm flex flex-col justify-start lg:col-span-2">
                     <h4 className="text-xs font-bold text-[var(--text-primary)] uppercase tracking-wider mb-2 font-semibold">
                       Dữ liệu bổ sung
@@ -661,15 +799,62 @@ export default function AuditLogsTab() {
                           oldBio: 'Tiểu sử cũ',
                           newBio: 'Tiểu sử mới',
                           duration: 'Thời lượng',
+                          action: 'Hành động',
+                          reportStatus: 'Trạng thái xử lý',
+                          adminNote: 'Ghi chú của Admin',
+                          penaltyDurationDays: 'Thời gian phạt (ngày)',
+                          penaltyApplied: 'Hình phạt áp dụng',
+                          resetAvatar: 'Xóa ảnh đại diện',
+                          resetBio: 'Xóa tiểu sử',
+                          resetName: 'Đặt lại tên',
                         };
                         const translatedLabel = metadataTranslations[key] || key.replace(/([A-Z])/g, ' $1').trim();
+
+                        let displayValue = typeof value === 'object' ? JSON.stringify(value) : String(value);
+                        
+                        if (key === 'reportStatus') {
+                          if (displayValue === 'resolved') displayValue = 'Đã xử lý';
+                          else if (displayValue === 'rejected') displayValue = 'Từ chối';
+                          else if (displayValue === 'pending') displayValue = 'Chờ xử lý';
+                        } else if (key === 'action') {
+                          if (displayValue === 'unmute') displayValue = 'Bỏ cấm chat';
+                          else if (displayValue === 'clear_strike') displayValue = 'Xóa cảnh cáo';
+                        } else if (key === 'resetAvatar' || key === 'resetBio' || key === 'resetName') {
+                          if (displayValue === 'true') displayValue = 'Có';
+                          else if (displayValue === 'false') displayValue = 'Không';
+                        } else if (key === 'penaltyApplied') {
+                          if (displayValue === 'Warning sent.') {
+                             displayValue = 'Cảnh cáo';
+                          } else if (displayValue === 'Reset info and warning sent.') {
+                             displayValue = 'Cảnh cáo (kèm xóa thông tin)';
+                          } else {
+                             const matchBan = displayValue.match(/(Reset info and account banned for|Account banned for) (\d+) days/i);
+                             const matchMute = displayValue.match(/Muted for (\d+) days/i);
+                             if (matchBan) {
+                               const days = matchBan[2];
+                               const hasReset = matchBan[1].toLowerCase().includes('reset');
+                               if (days === '36500') {
+                                 displayValue = `Khóa tài khoản vĩnh viễn${hasReset ? ' (kèm xóa thông tin)' : ''}`;
+                               } else {
+                                 displayValue = `Khóa tài khoản ${days} ngày${hasReset ? ' (kèm xóa thông tin)' : ''}`;
+                               }
+                             } else if (matchMute) {
+                               const days = matchMute[1];
+                               if (days === '36500') {
+                                 displayValue = `Cấm chat vĩnh viễn`;
+                               } else {
+                                 displayValue = `Cấm chat ${days} ngày`;
+                               }
+                             }
+                          }
+                        }
 
                         return (
                           <InfoItem 
                             key={key}
                             icon={<Database size={16} />}
                             label={translatedLabel}
-                            value={typeof value === 'object' ? JSON.stringify(value) : String(value)}
+                            value={displayValue}
                           />
                         );
                       })}
@@ -681,6 +866,14 @@ export default function AuditLogsTab() {
           </div>
         )}
       </div>
+      
+      {lightboxData && (
+        <MediaLightbox
+          medias={lightboxData.medias}
+          initialIndex={lightboxData.initialIndex}
+          onClose={() => setLightboxData(null)}
+        />
+      )}
     </>
   );
 }

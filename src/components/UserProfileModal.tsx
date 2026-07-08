@@ -37,7 +37,7 @@ export default function UserProfileModal({ isOpen, onClose, user }: Props) {
     setIsLoading(true);
     try {
       const existingConv = conversations.find(c => 
-        !c.isGroup && c.participants.some(p => p._id === user._id)
+        !c.isGroup && c.users?.some((p: any) => p._id === user._id)
       );
 
       if (existingConv) {
@@ -91,13 +91,13 @@ export default function UserProfileModal({ isOpen, onClose, user }: Props) {
 
   // Helper function to format DOB
   const getDob = () => {
-    if (!user.dob) return null;
+    if (!user.dateOfBirth) return null;
     try {
-      const date = new Date(user.dob);
-      if (isNaN(date.getTime())) return user.dob;
+      const date = new Date(user.dateOfBirth);
+      if (isNaN(date.getTime())) return user.dateOfBirth;
       return `${date.getDate().toString().padStart(2, '0')}/${(date.getMonth() + 1).toString().padStart(2, '0')}`;
     } catch (e) {
-      return user.dob;
+      return user.dateOfBirth;
     }
   };
 

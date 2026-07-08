@@ -23,6 +23,7 @@ interface Props {
   onDelete?: () => void;
   onToggleReaction?: (type: string) => void;
   onMediaClick?: (media: any) => void;
+  onAvatarClick?: () => void;
   disableActions?: boolean;
 }
 
@@ -122,6 +123,7 @@ export default function MessageBubble({
   onDelete,
   onToggleReaction,
   onMediaClick,
+  onAvatarClick,
   disableActions,
 }: Props) {
   const [showActions, setShowActions] = useState(false);
@@ -294,7 +296,11 @@ export default function MessageBubble({
 
       <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'flex-start', gap: '8px', width: '100%', paddingLeft: isMe ? 0 : showAvatar ? 0 : '40px' }}>
         {!isMe && showAvatar && (
-          <div className="msg-avatar-container" style={{ width: '32px', height: '32px', flexShrink: 0, borderRadius: '50%', backgroundColor: '#eee', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: 'bold', color: '#666', border: '1px solid #ddd', marginTop: showSenderName ? '20px' : '0' }}>
+          <div 
+            className="msg-avatar-container" 
+            onClick={onAvatarClick}
+            style={{ width: '32px', height: '32px', flexShrink: 0, borderRadius: '50%', backgroundColor: '#eee', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: 'bold', color: '#666', border: '1px solid #ddd', marginTop: showSenderName ? '20px' : '0', cursor: onAvatarClick ? 'pointer' : 'default' }}
+          >
             {senderAvatarUrl ? <img src={senderAvatarUrl} alt={senderName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : senderName.slice(0, 2).toUpperCase()}
           </div>
         )}

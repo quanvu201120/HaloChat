@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuthStore } from '../../store/authStore';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, LayoutDashboard, Users, Sparkles, Sun, Moon, RefreshCw, CloudSync, LogOut, Server, Menu, ClipboardList } from 'lucide-react';
+import { ArrowLeft, LayoutDashboard, Users, Sparkles, Sun, Moon, RefreshCw, CloudSync, LogOut, Server, Menu, ClipboardList, Flag } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
 import { useMemo } from 'react';
 import OverviewTab from './OverviewTab';
@@ -9,6 +9,7 @@ import UsersTab from './UsersTab';
 import MaintenanceTab from './MaintenanceTab';
 import InfrastructureTab from './InfrastructureTab';
 import AuditLogsTab from './AuditLogsTab';
+import ReportsTab from './ReportsTab';
 import { useQueryClient, useMutation } from '@tanstack/react-query';
 import { adminApi } from '../../services/admin';
 import { toast } from 'react-hot-toast';
@@ -41,7 +42,7 @@ const CustomCloudSync = ({ className, isSpinning }: { className?: string; isSpin
   </svg>
 );
 
-export type AdminTab = 'overview' | 'users' | 'maintenance' | 'infrastructure' | 'auditlogs';
+export type AdminTab = 'overview' | 'users' | 'maintenance' | 'infrastructure' | 'auditlogs' | 'reports';
 
 export default function AdminLayout() {
   const { user, setAdminVerified } = useAuthStore();
@@ -292,6 +293,7 @@ export default function AdminLayout() {
       queryClient.removeQueries({ queryKey: ['admin_users'] });
       queryClient.removeQueries({ queryKey: ['admin_jobs'] });
       queryClient.removeQueries({ queryKey: ['admin_audit_logs'] });
+      queryClient.removeQueries({ queryKey: ['admin_reports'] });
     };
   }, [queryClient]);
 
@@ -313,6 +315,8 @@ export default function AdminLayout() {
       ]);
     } else if (activeTab === 'maintenance') {
       await queryClient.invalidateQueries({ queryKey: ['admin_jobs'] });
+    } else if (activeTab === 'reports') {
+      await queryClient.invalidateQueries({ queryKey: ['admin_reports'] });
     } else if (activeTab === 'auditlogs') {
       await queryClient.invalidateQueries({ queryKey: ['admin_audit_logs'] });
     }
@@ -345,9 +349,13 @@ export default function AdminLayout() {
         <div 
           style={{padding:'10px', height:'60px'}}
           className="flex items-center gap-3 w-full pl-7 pr-4 py-6 border-b border-[var(--border)]">
-          <div className="w-11 h-11 rounded-full bg-indigo-600 flex items-center justify-center text-white font-bold text-lg shadow-md shadow-indigo-600/20 shrink-0">
-            {user?.name?.charAt(0)?.toUpperCase() || 'A'}
-          </div>
+          {user?.avatar ? (
+            <img src={typeof user.avatar === 'object' ? user.avatar.url : user.avatar} className="w-11 h-11 rounded-full object-cover border border-[var(--border)] shadow-md shrink-0" alt="Admin Avatar" />
+          ) : (
+            <div className="w-11 h-11 rounded-full bg-indigo-600 flex items-center justify-center text-white font-bold text-lg shadow-md shadow-indigo-600/20 shrink-0">
+              {user?.name?.charAt(0)?.toUpperCase() || 'A'}
+            </div>
+          )}
           <div className="flex-1 overflow-hidden">
             <h2 className="text-[var(--text-primary)] font-semibold truncate text-[15px]">{user?.name}</h2>
             <div className="flex items-center gap-1.5 mt-0.5">
@@ -385,7 +393,7 @@ export default function AdminLayout() {
             <span className="text-[15px] font-medium">Quản lý người dùng</span>
           </button>
           
-         
+          
 
           <button
             onClick={() => { setActiveTab('infrastructure'); setIsMobileMenuOpen(false); }}
@@ -411,6 +419,18 @@ export default function AdminLayout() {
           >
             <Sparkles size={20} className="shrink-0" />
             <span className="text-[15px] font-medium">Xử lí tác vụ lỗi</span>
+          </button>
+
+          <button
+            onClick={() => { setActiveTab('reports'); setIsMobileMenuOpen(false); }}
+            className={`flex items-center justify-start w-[228px] h-[44px] gap-3 pl-7 pr-4 rounded-lg transition-all duration-200 border-none cursor-pointer ${
+              activeTab === 'reports' 
+                ? 'bg-transparent !text-[var(--accent-primary)] font-semibold' 
+                : 'bg-transparent text-[var(--text-muted)] hover:bg-[var(--bg-secondary)] hover:text-[var(--text-primary)]'
+            }`}
+          >
+            <Flag size={20} className="shrink-0" />
+            <span className="text-[15px] font-medium">Báo cáo vi phạm</span>
           </button>
 
           {user?.role === 'SUPER_ADMIN' && (
@@ -462,6 +482,7 @@ export default function AdminLayout() {
             <h1 className="text-lg md:text-xl font-bold text-[var(--text-primary)] truncate">
               {activeTab === 'overview' && 'Trang tổng quan'}
               {activeTab === 'users' && 'Quản lý người dùng'}
+              {activeTab === 'reports' && 'Báo cáo vi phạm'}
               {activeTab === 'auditlogs' && 'Audit Logs'}
               {activeTab === 'infrastructure' && 'Cơ sở hạ tầng'}
               {activeTab === 'maintenance' && 'Xử lí tác vụ lỗi'}
@@ -514,6 +535,7 @@ export default function AdminLayout() {
         <div className="flex-1 overflow-y-auto " style={{padding:'7px'}}>
           {activeTab === 'overview' && <OverviewTab startDate={effectiveDates.start} endDate={effectiveDates.end} />}
           {activeTab === 'users' && <UsersTab />}
+          {activeTab === 'reports' && <ReportsTab />}
           {activeTab === 'auditlogs' && <AuditLogsTab />}
           {activeTab === 'infrastructure' && <InfrastructureTab startDate={effectiveDates.start} endDate={effectiveDates.end} filterMode={filterMode} />}
           {activeTab === 'maintenance' && <MaintenanceTab />}

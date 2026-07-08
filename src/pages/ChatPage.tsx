@@ -8,7 +8,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import {
   Send, Phone, Video, Info, Smile, Paperclip, Image, Mic, Square, X,
   Camera, Trash2, LogOut, ShieldOff, Check, Pencil, UserPlus, UserMinus, Crown, History, ChevronDown, ChevronRight, ChevronLeft, FileText, Search, Plus, Download, Edit2, UserX, UserCheck,
-  MapPin, Calendar, User as UserIcon
+  MapPin, Calendar, User as UserIcon, AlertTriangle
 } from 'lucide-react';
 import { useAuthStore as useAuth } from '../store/authStore';
 import { useChatStore as useChat } from '../store/chatStore';
@@ -42,6 +42,7 @@ import Modal from '../components/Modal';
 import AddMemberModal from '../components/AddMemberModal';
 import ConfirmModal from '../components/ConfirmModal';
 import MessageReadersModal from '../components/MessageReadersModal';
+import ReportUserModal from '../components/ReportUserModal';
 import MessageReactionsModal from '../components/MessageReactionsModal';
 import { normalizeId } from '../utils/chat';
 import { CHAT_DEFAULTS, MESSAGE_PREVIEWS, MIME_TYPES, TIMING } from '../constants/chat';
@@ -247,6 +248,7 @@ export default function ChatPage() {
 
   // User Profile Popup States
   const [selectedUserForInfo, setSelectedUserForInfo] = useState<any>(null);
+  const [showReportModal, setShowReportModal] = useState(false);
   const [isLoadingUserDetail, setIsLoadingUserDetail] = useState(false);
 
   const handleShowUserProfile = async (userObj: any) => {
@@ -1682,6 +1684,11 @@ export default function ChatPage() {
                 currentUserId={currentUserId}
                 isGroup={conv?.isGroup}
                 senderAvatarUrl={typeof message.sender === 'object' ? message.sender?.avatar?.url : undefined}
+                onAvatarClick={() => {
+                  if (getSenderId(message) !== currentUserId && typeof message.sender === 'object') {
+                    setSelectedUserForInfo(message.sender as any);
+                  }
+                }}
                 readStatusLabel={getReadStatusLabel(message)}
                 forceShowStatus={message._id === lastMyMessageId}
                 onReadStatusClick={() => {
@@ -2558,8 +2565,34 @@ export default function ChatPage() {
           onClose={() => setSelectedUserForInfo(null)}
           title="Thông tin người dùng"
         >
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '0 0 24px 0', marginTop: '-12px' }}>
-            {/* Avatar */}
+          <div style={{ position: 'relative', width: '100%', minHeight: '400px' }}>
+            {/* Report Icon */}
+            {user?._id !== selectedUserForInfo._id && (
+              <button
+                onClick={() => setShowReportModal(true)}
+                style={{
+                  position: 'absolute',
+                  top: '-12px',
+                  right: '0px',
+                  background: 'transparent',
+                  border: 'none',
+                  color: '#ef4444',
+                  cursor: 'pointer',
+                  padding: '8px',
+                  borderRadius: '50%',
+                  transition: 'all 0.2s',
+                  zIndex: 50,
+                }}
+                onMouseEnter={e => { e.currentTarget.style.background = 'rgba(239, 68, 68, 0.1)'; }}
+                onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
+                title="Báo cáo người dùng"
+              >
+                <AlertTriangle size={22} />
+              </button>
+            )}
+
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '0 0 24px 0', marginTop: '-12px' }}>
+              {/* Avatar */}
             <div 
               style={{ 
                 width: '135px', height: '135px', borderRadius: '50%', flexShrink: 0,
@@ -2651,6 +2684,7 @@ export default function ChatPage() {
               </div>
             </div>
           </div>
+        </div>
         </Modal>
       )}
       {/* Online/Offline Status Modal */}
@@ -2714,6 +2748,16 @@ export default function ChatPage() {
           medias={[{ _id: 'group_avatar', url: selectedGroupMedia.url, resourceType: selectedGroupMedia.type, provider: 'cloudinary' } as any]}
           initialIndex={0}
           onClose={() => setSelectedGroupMedia(null)}
+        />
+      )}
+
+      {/* Report User Modal */}
+      {selectedUserForInfo && (
+        <ReportUserModal
+          isOpen={showReportModal}
+          onClose={() => setShowReportModal(false)}
+          targetUserId={selectedUserForInfo._id}
+          targetUserName={selectedUserForInfo.name || selectedUserForInfo.email}
         />
       )}
     </div>

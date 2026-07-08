@@ -36,7 +36,7 @@ export default function AddMemberModal({ isOpen, conversationId, currentMembers,
   const [isSearching, setIsSearching] = useState(false);
 
   const { friends, refetch: refetchFriends, isLoading: isFriendsLoading } = useRelationships();
-  const debounceRef = useRef<NodeJS.Timeout | null>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const isValidSearch = (query: string) => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -111,7 +111,7 @@ export default function AddMemberModal({ isOpen, conversationId, currentMembers,
   const results = useMemo(() => {
     const combined = [...localResults];
     if (serverResult && !combined.find((u) => u._id === serverResult._id)) {
-      combined.push(serverResult);
+      combined.push(serverResult as any);
     }
     return combined;
   }, [localResults, serverResult]);
