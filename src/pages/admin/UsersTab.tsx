@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { adminApi, type UserAdminData } from '../../services/admin';
 import { ShieldBan, ShieldCheck, X, ChevronLeft, ChevronRight, Eye, EyeOff, Mail, Phone, MapPin, Calendar, Clock, User, Lock, Shield, CalendarDays } from 'lucide-react';
@@ -1118,8 +1119,8 @@ export default function UsersTab() {
         </div>
       )}
       {/* Status Modal (Lock/Unlock) */}
-      {showStatusModal && selectedUser && (
-        <div  className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 animate-in fade-in">
+      {showStatusModal && selectedUser && createPortal(
+        <div className="fixed inset-0 flex items-center justify-center p-4 bg-black/50 animate-in fade-in" style={{ zIndex: 1000 }}>
           <div
             style={{
               background: 'var(--bg-card)',
@@ -1230,7 +1231,8 @@ export default function UsersTab() {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Quick Penalty Modal */}
