@@ -1196,13 +1196,17 @@ html, body, #root {
   align-items: center;
   gap: 4px;
   position: absolute;
-  bottom: calc(100% + 4px);
+  bottom: calc(100% + 1px);
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: 999px;
   box-shadow: var(--shadow-md);
   padding: 4px;
   z-index: 20;
+}
+.msg-reaction-picker.below {
+  top: calc(100% + 1px);
+  bottom: auto;
 }
 .msg-reaction-picker::after {
   content: '';
@@ -1211,6 +1215,10 @@ html, body, #root {
   left: 0;
   right: 0;
   height: 10px;
+}
+.msg-reaction-picker.below::after {
+  top: auto;
+  bottom: 100%;
 }
 .msg-reaction-picker.me {
   right: -8px;

@@ -153,7 +153,7 @@ export default function ActiveAccountPage() {
               placeholder="Nhập mã từ email..."
               {...register('code')}
               autoFocus={Boolean(emailFromState)}
-              style={{ letterSpacing: '2px', fontSize: '16px', textAlign: 'center' }}
+              style={{ letterSpacing: '2px', fontSize: '14px', textAlign: 'center' }}
             />
             {errors.code && <div className="error-message" style={{ color: 'var(--error-color)', fontSize: '13px', marginTop: '4px' }}>{errors.code.message}</div>}
           </div>

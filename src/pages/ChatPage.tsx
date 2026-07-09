@@ -23,7 +23,7 @@ import {
 import {
   mediaApi, MediaResourceTypeEnum, type MediaResponse,
 } from '../services/media';
-import { api, usersApi } from '../services/api';
+import { api, usersApi, parseError } from '../services/api';
 import {
   joinConversation,
   sendTextMessage,
@@ -321,7 +321,7 @@ export default function ChatPage() {
     : null;
   const isOtherOnline = otherUser ? online[otherUser._id] === true : false;
   const convName = conv ? getConversationName(conv, currentUserId) : '...';
-  const { block, unblock, rawRelationships, isLoading: isLoadingRelationships } = useRelationships();
+  const { block, unblock, rawRelationships, friends, sentRequests, sendRequest, isSendingRequest, isLoading: isLoadingRelationships } = useRelationships();
 
   const currentRelationship = useMemo(() => {
     if (!otherUser || !rawRelationships) return null;
@@ -2591,6 +2591,50 @@ export default function ChatPage() {
               </button>
             )}
 
+            {/* Add Friend / Sent Request Icon */}
+            {user?._id !== selectedUserForInfo._id && (() => {
+              const isFriend = friends.some(f => f._id === selectedUserForInfo._id);
+              const hasSent = sentRequests.some(f => f._id === selectedUserForInfo._id);
+              if (isFriend) return null;
+              return (
+                <button
+                  onClick={async () => {
+                    if (hasSent || isSendingRequest) return;
+                    try {
+                      await sendRequest({ targetUserId: selectedUserForInfo._id });
+                      toast.success('Đã gửi lời mời kết bạn!');
+                    } catch (err: any) {
+                      toast.error(parseError(err));
+                    }
+                  }}
+                  disabled={hasSent || isSendingRequest}
+                  style={{
+                    position: 'absolute',
+                    top: '-12px',
+                    left: '0px',
+                    background: 'transparent',
+                    border: 'none',
+                    color: hasSent ? 'var(--text-muted)' : 'var(--accent-primary)',
+                    cursor: hasSent || isSendingRequest ? 'default' : 'pointer',
+                    padding: '8px',
+                    borderRadius: '50%',
+                    transition: 'all 0.2s',
+                    zIndex: 50,
+                    opacity: hasSent ? 0.7 : 1,
+                  }}
+                  onMouseEnter={e => { if (!hasSent && !isSendingRequest) e.currentTarget.style.background = 'rgba(99,102,241,0.1)'; }}
+                  onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
+                  title={hasSent ? 'Đã gửi lời mời kết bạn' : 'Thêm bạn'}
+                >
+                  {isSendingRequest
+                    ? <div className="loading-spinner" style={{ width: 18, height: 18 }} />
+                    : hasSent
+                      ? <UserCheck size={22} />
+                      : <UserPlus size={22} />}
+                </button>
+              );
+            })()}
+
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '0 0 24px 0', marginTop: '-12px' }}>
               {/* Avatar */}
             <div 
@@ -2754,6 +2798,7 @@ export default function ChatPage() {
       {/* Report User Modal */}
       {selectedUserForInfo && (
         <ReportUserModal
+          key={`${selectedUserForInfo._id}-${showReportModal ? 'open' : 'closed'}`}
           isOpen={showReportModal}
           onClose={() => setShowReportModal(false)}
           targetUserId={selectedUserForInfo._id}

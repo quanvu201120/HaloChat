@@ -120,25 +120,25 @@ export default function ChangePasswordPage() {
   };
 
   return (
-    <div>
-      <div style={{ marginBottom: '24px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-        <button 
-          onClick={() => window.history.back()}
-          style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', alignSelf: 'flex-start', padding: 0, fontSize: '13px' }}
-        >
-          ← Quay lại
-        </button>
-        <div>
-          <h1 style={{ fontSize: '26px', fontWeight: 800, color: 'var(--text-primary)', marginBottom: '4px' }}>
-            Đổi mật khẩu
-          </h1>
-          <p style={{ color: 'var(--text-muted)', fontSize: '14px' }}>
-            Cập nhật mật khẩu để bảo mật tài khoản
-          </p>
+    <div style={{ flex: 1, overflowY: 'auto', padding: '32px 24px' }}>
+      <div style={{ maxWidth: '560px', margin: '0 auto' }}>
+        <div style={{ marginBottom: '24px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          <button 
+            onClick={() => window.history.back()}
+            style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', alignSelf: 'flex-start', padding: 0, fontSize: '13px' }}
+          >
+            ← Quay lại
+          </button>
+          <div>
+            <h1 style={{ fontSize: '26px', fontWeight: 800, color: 'var(--text-primary)', marginBottom: '4px' }}>
+              Đổi mật khẩu
+            </h1>
+            <p style={{ color: 'var(--text-muted)', fontSize: '14px' }}>
+              Cập nhật mật khẩu để bảo mật tài khoản
+            </p>
+          </div>
         </div>
-      </div>
 
-      <div style={{ maxWidth: '480px' }}>
         <div className="card">
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '24px', paddingBottom: '16px', borderBottom: '1px solid var(--border)' }}>
             <div style={{ width: '44px', height: '44px', borderRadius: 'var(--radius-md)', background: 'rgba(99,102,241,0.15)', color: 'var(--accent-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -211,4 +211,5 @@ export default function ChangePasswordPage() {
       </div>
     </div>
   );
+
 }

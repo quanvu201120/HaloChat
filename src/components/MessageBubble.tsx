@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect, useRef } from 'react';
+import { useMemo, useState, useEffect, useLayoutEffect, useRef } from 'react';
 import {
   CornerUpLeft, Pencil, Trash2, Heart, Download,
 } from 'lucide-react';
@@ -129,10 +129,27 @@ export default function MessageBubble({
   const [showActions, setShowActions] = useState(false);
   const [showStatus, setShowStatus] = useState(false);
   const [showReactionPicker, setShowReactionPicker] = useState(false);
+  const [reactionPickerPlacement, setReactionPickerPlacement] = useState<'above' | 'below'>('above');
   const [isDownloading, setIsDownloading] = useState(false);
   const actionsRef = useRef<HTMLDivElement>(null);
   const reactionsRef = useRef<HTMLDivElement>(null);
+  const reactionCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const toast = useToast();
+
+  const clearReactionPickerCloseTimer = () => {
+    if (reactionCloseTimerRef.current) {
+      clearTimeout(reactionCloseTimerRef.current);
+      reactionCloseTimerRef.current = null;
+    }
+  };
+
+  const scheduleReactionPickerClose = () => {
+    clearReactionPickerCloseTimer();
+    reactionCloseTimerRef.current = setTimeout(() => {
+      setShowReactionPicker(false);
+      setShowActions(false);
+    }, 120);
+  };
 
   // Dynamic positioning for mobile edge cases
   useEffect(() => {
@@ -175,6 +192,24 @@ export default function MessageBubble({
       }
     }
   }, [showReactionPicker]);
+
+  useLayoutEffect(() => {
+    if (!showReactionPicker || !reactionsRef.current) return;
+
+    const headerEl = document.querySelector('.chat-header') as HTMLElement | null;
+    const triggerRect = actionsRef.current?.getBoundingClientRect();
+    if (!triggerRect) return;
+    const pickerRect = reactionsRef.current.getBoundingClientRect();
+    const headerBottom = headerEl?.getBoundingClientRect().bottom ?? 0;
+    const gap = 1;
+    const needsBelow = triggerRect.top - pickerRect.height - gap < headerBottom;
+
+    setReactionPickerPlacement(needsBelow ? 'below' : 'above');
+  }, [showReactionPicker]);
+
+  useEffect(() => () => {
+    clearReactionPickerCloseTimer();
+  }, []);
 
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout> | undefined;
@@ -283,10 +318,14 @@ export default function MessageBubble({
   return (
     <div
       className={`msg-row${isMe ? ' me' : ' other'}${showActions && !isSenderDisabled && !disableActions ? ' show-actions' : ''}`}
-      onMouseEnter={() => !isSenderDisabled && !disableActions && setShowActions(true)}
+      onMouseEnter={() => {
+        if (isSenderDisabled || disableActions) return;
+        clearReactionPickerCloseTimer();
+        setShowActions(true);
+      }}
       onMouseLeave={() => {
-        setShowActions(false);
-        setShowReactionPicker(false);
+        if (isSenderDisabled || disableActions) return;
+        scheduleReactionPickerClose();
       }}
       onClick={() => !isSenderDisabled && !disableActions && setShowActions((prev) => !prev)}
     >
@@ -318,12 +357,19 @@ export default function MessageBubble({
                 style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                 onClick={(e) => {
                   e.stopPropagation();
+                  clearReactionPickerCloseTimer();
                   setShowReactionPicker((prev) => !prev);
                 }}
               >
                 <Heart size={14} style={{ fill: myReaction ? 'var(--error)' : 'transparent', color: myReaction ? 'var(--error)' : 'inherit' }} />
                 {showReactionPicker && (
-                  <div ref={reactionsRef} className={`msg-reaction-picker${isMe ? ' me' : ' other'}`} onClick={(e) => e.stopPropagation()}>
+                  <div
+                    ref={reactionsRef}
+                    className={`msg-reaction-picker${isMe ? ' me' : ' other'}${reactionPickerPlacement === 'below' ? ' below' : ''}`}
+                    onClick={(e) => e.stopPropagation()}
+                    onMouseEnter={clearReactionPickerCloseTimer}
+                    onMouseLeave={scheduleReactionPickerClose}
+                  >
                     {REACTIONS.map((reaction) => (
                       <button
                         key={reaction.type}

@@ -225,7 +225,7 @@ export default function ForgotPasswordPage() {
                   placeholder="Nhập mã từ email..."
                   {...resetForm.register('code')}
                   autoFocus
-                  style={{ letterSpacing: '2px', fontSize: '16px', textAlign: 'center' }}
+                  style={{ letterSpacing: '2px', fontSize: '14px', textAlign: 'center' }}
                 />
                 {resetForm.formState.errors.code && <div className="error-message" style={{ color: 'var(--error-color)', fontSize: '13px', marginTop: '4px' }}>{resetForm.formState.errors.code.message}</div>}
               </div>

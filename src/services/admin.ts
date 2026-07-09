@@ -19,6 +19,7 @@ export interface InfrastructureStats {
 
 export const ReportStatusEnum = {
     PENDING: 'pending',
+    RESOLVING: 'resolving',
     RESOLVED: 'resolved',
     DISMISSED: 'dismissed',
     APPEAL_PENDING: 'appeal_pending',
@@ -53,6 +54,12 @@ export interface Report {
   resolvedAt?: Date;
   createdAt: string | Date;
   updatedAt: string | Date;
+}
+
+export interface ReportPenaltySuggestion {
+  action: string | null;
+  durationDays: number;
+  strike: number;
 }
 
 export interface StatsOverview {
@@ -298,8 +305,8 @@ export const adminApi = {
 
   // === TAB 5: REPORTS ===
   getReports: (params?: {
-    current?: string;
-    pageSize?: string;
+    current?: number | string;
+    pageSize?: number | string;
     status?: string;
     targetUserId?: string;
     reporterId?: string;
@@ -314,6 +321,6 @@ export const adminApi = {
 
   resolveReport: (reportId: string, data: { status: typeof ReportStatusEnum.RESOLVED | typeof ReportStatusEnum.DISMISSED; adminNote: string; overridePenaltyAction?: string; overridePenaltyDurationDays?: number; resetAvatar?: boolean; resetName?: boolean; resetBio?: boolean }) =>
       api.patch(`/reports/${reportId}/resolve`, data).then(res => res.data?.data || res.data),
-  calculatePenalty: (reportId: string) => 
+  calculatePenalty: (reportId: string): Promise<ReportPenaltySuggestion> => 
       api.get(`/reports/${reportId}/calculate-penalty`).then(res => res.data?.data || res.data),
 };

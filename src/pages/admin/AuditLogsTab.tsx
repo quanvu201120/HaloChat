@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { ChevronLeft, User, Clock, Activity, Globe, Monitor, FileJson, Hash, Shield, Mail, Phone, Info, Image, Box, Database, FileText, AlertTriangle, MessageSquare, Gavel } from 'lucide-react';
+import { ChevronLeft, User, Clock, Activity, Globe, Monitor, FileJson, Hash, Shield, Phone, Image, Box, Database, FileText, AlertTriangle, MessageSquare, Gavel } from 'lucide-react';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { adminApi, type AuditLogData, type UserAdminData } from '../../services/admin';
 import { UserRole } from '../../constants/roles';
@@ -226,7 +226,6 @@ export default function AuditLogsTab() {
   const [selectedLog, setSelectedLog] = useState<AuditLogData | null>(null);
   const [lightboxData, setLightboxData] = useState<{ medias: any[], initialIndex: number } | null>(null);
   const [actorId, setActorId] = useState<string | undefined>();
-  const [targetId, setTargetId] = useState<string | undefined>();
   const [actionFilter, setActionFilter] = useState('all');
   const [roleFilter, setRoleFilter] = useState('all');
   const [targetTypeFilter, setTargetTypeFilter] = useState('all');
@@ -242,11 +241,10 @@ export default function AuditLogsTab() {
     isLoading,
     isFetching
   } = useInfiniteQuery({
-    queryKey: ['admin_audit_logs', actorId, targetId, actionFilter, roleFilter, targetTypeFilter, startDate, endDate, ipFilter],
+    queryKey: ['admin_audit_logs', actorId, actionFilter, roleFilter, targetTypeFilter, startDate, endDate, ipFilter],
     queryFn: ({ pageParam }) => adminApi.getAuditLogs({ 
       cursor: pageParam as string | undefined,
       actorId: actorId,
-      targetId: targetId,
       action: actionFilter !== 'all' ? actionFilter : undefined,
       actorRole: roleFilter !== 'all' ? roleFilter.toUpperCase() : undefined,
       targetType: targetTypeFilter !== 'all' ? targetTypeFilter : undefined,
@@ -259,6 +257,29 @@ export default function AuditLogsTab() {
   });
 
   const logs = data?.pages.flatMap(p => p.items) || [];
+
+  const renderCompactUser = (user: unknown, fallback = 'Không rõ') => {
+    if (!user || typeof user !== 'object' || Array.isArray(user)) {
+      return (
+        <span className="block text-sm font-semibold mt-0.5 break-words whitespace-normal text-[var(--text-primary)]">
+          {typeof user === 'string' && user ? user : fallback}
+        </span>
+      );
+    }
+
+    const userData = user as { name?: string; email?: string };
+
+    return (
+      <div className="flex flex-col">
+        <span className="text-sm font-semibold text-[var(--text-primary)] break-words whitespace-normal">
+          {userData.name || fallback}
+        </span>
+        <span className="text-xs text-[var(--text-muted)] break-words whitespace-normal">
+          {userData.email || 'Không có email'}
+        </span>
+      </div>
+    );
+  };
 
   const observer = useRef<IntersectionObserver | null>(null);
   const lastLogElementRef = useCallback((node: HTMLTableRowElement) => {
@@ -281,13 +302,6 @@ export default function AuditLogsTab() {
           label="Người thực hiện"
           value={actorId}
           onChange={setActorId}
-          labelBgColor={labelBgColor}
-        />
-
-        <UserAutocomplete
-          label="Đối tượng thực hiện"
-          value={targetId}
-          onChange={setTargetId}
           labelBgColor={labelBgColor}
         />
 
@@ -432,9 +446,10 @@ export default function AuditLogsTab() {
                         </td>
                         <td className="px-6 py-4">
                           <div className="font-medium text-[var(--text-primary)]">
-                            {log.target ? (typeof log.target === 'object' ? (log.target.name || log.target.email || log.target._id) : `ID: ${log.target}`) : 'Unknown'}
+                            <span className="inline-flex items-center px-2.5 py-1 rounded text-xs font-bold bg-[var(--bg-secondary)] text-[var(--text-primary)] border border-[var(--border)] uppercase tracking-wider">
+                              {log.targetType?.toUpperCase() || 'UNKNOWN'}
+                            </span>
                           </div>
-                          <div className="text-xs text-[var(--text-muted)] mt-1">{log.targetType}</div>
                         </td>
                         <td className="px-6 py-4">
                           <div className="text-[var(--text-secondary)]">{log.ip}</div>
@@ -460,33 +475,34 @@ export default function AuditLogsTab() {
       {/* Detail View */}
         {selectedLog && (
           <div className="flex flex-col h-full animate-in fade-in slide-in-from-right-4 duration-300">
-            {/* Header */}
-            <div 
-              style={{padding:'5px'}}
-              className="relative flex items-center bg-[var(--bg-card)] rounded-sm border border-[var(--border)] shadow-sm mb-4 mt-2 px-2 sm:px-5 py-1.5"
-            >
-              <button
-                onClick={() => setSelectedLog(null)}
-                className="flex items-center gap-1 sm:gap-2 px-1 sm:px-2.5 py-1 text-[var(--text-secondary)] hover:text-indigo-600 dark:hover:text-indigo-400 rounded transition-all duration-200 font-medium text-sm z-10 cursor-pointer"
-                title="Quay lại"
-              >
-                <ChevronLeft size={16} />
-                Quay lại
-              </button>
-              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                <h2 className="text-base sm:text-lg font-bold text-[var(--text-primary)] pointer-events-auto flex items-center gap-2">
-                  Chi tiết
-                  
-                </h2>
-              </div>
-            </div>
-
             {/* Content */}
             <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar">
+              
+
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 pb-10 w-full">
-                
+                {/* Header */}
+              <div 
+                style={{padding:'5px'}}
+                className="relative flex items-center bg-[var(--bg-card)] rounded-sm border border-[var(--border)] shadow-sm mb-4 mt-2 px-2 sm:px-5 py-1.5"
+              >
+                <button
+                  onClick={() => setSelectedLog(null)}
+                  className="flex items-center gap-1 sm:gap-2 px-1 sm:px-2.5 py-1 text-[var(--text-secondary)] hover:text-indigo-600 dark:hover:text-indigo-400 rounded transition-all duration-200 font-medium text-sm z-10 cursor-pointer"
+                  title="Quay lại"
+                >
+                  <ChevronLeft size={16} />
+                  Quay lại
+                </button>
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                  <h2 className="text-base sm:text-lg font-bold text-[var(--text-primary)] pointer-events-auto flex items-center gap-2">
+                    Chi tiết
+                    
+                  </h2>
+                </div>
+              </div>
                 {/* General Info */}
                 <div style={{ padding: '10px' }} className="bg-[var(--bg-card)] rounded-sm border border-[var(--border)] shadow-sm flex flex-col justify-start">
+                  
                   <h4 className="text-xs font-bold text-[var(--text-primary)] uppercase tracking-wider mb-2 font-semibold">
                     Thông tin chung
                   </h4>
@@ -651,23 +667,52 @@ export default function AuditLogsTab() {
                             rp_status: 'Trạng thái xử lý',
                             rp_adminNote: 'Ghi chú của Admin',
                             rp_penaltyApplied: 'Hình phạt áp dụng',
-                            rp_reporterId: 'ID Người báo cáo',
-                            rp_targetUserId: 'ID Người bị báo cáo',
+                            rp_reporterId: 'Người báo cáo',
+                            rp_targetUserId: 'Người bị báo cáo',
                           };
                           
                           const label = targetTranslations[key] || key.replace(/([A-Z])/g, ' $1').trim();
+                          const isReportUserField = key === 'rp_reporterId' || key === 'rp_targetUserId';
                           let displayValue = typeof value === 'object' ? JSON.stringify(value) : String(value);
 
                           if (key === 'rp_status') {
-                            const statusMap: Record<string, string> = {
-                              resolved: 'Đã xử lý',
-                              dismissed: 'Từ chối',
-                              pending: 'Chờ xử lý',
-                              appeal_pending: 'Đang kháng cáo',
-                              appeal_rejected: 'Kháng cáo thất bại',
-                              appeal_success: 'Kháng cáo thành công',
+                            const statusMap: Record<string, { label: string; className: string }> = {
+                              resolved: {
+                                label: 'Đã xử lý',
+                                className: 'bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-500/15 dark:text-emerald-300 dark:border-emerald-500/25',
+                              },
+                              dismissed: {
+                                label: 'Từ chối',
+                                className: 'bg-rose-100 text-rose-700 border-rose-200 dark:bg-rose-500/15 dark:text-rose-300 dark:border-rose-500/25',
+                              },
+                              appeal_rejected: {
+                                label: 'Kháng cáo thất bại',
+                                className: 'bg-orange-100 text-orange-700 border-orange-200 dark:bg-orange-500/15 dark:text-orange-300 dark:border-orange-500/25',
+                              },
+                              appeal_success: {
+                                label: 'Kháng cáo thành công',
+                                className: 'bg-violet-100 text-violet-700 border-violet-200 dark:bg-violet-500/15 dark:text-violet-300 dark:border-violet-500/25',
+                              },
                             };
-                            displayValue = statusMap[displayValue] || displayValue;
+                            const status = statusMap[displayValue] || {
+                              label: displayValue,
+                              className: 'bg-[var(--bg-secondary)] text-[var(--text-primary)] border-[var(--border)]',
+                            };
+                            displayValue = status.label;
+
+                            return (
+                              <InfoItem
+                                key={key}
+                                icon={<Activity size={16} />}
+                                label={label}
+                              >
+                                <span
+                                  className={`inline-flex items-center rounded px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider border shadow-sm ${status.className}`}
+                                >
+                                  {displayValue}
+                                </span>
+                              </InfoItem>
+                            );
                           } else if (key === 'rp_reason') {
                             const reasonMap: Record<string, string> = {
                               spam_harassment: 'Spam / Quấy rối',
@@ -704,12 +749,25 @@ export default function AuditLogsTab() {
                           }
 
                           let IconComponent = Database;
-                          if (key === 'targetId' || key === 'rp_reporterId' || key === 'rp_targetUserId') IconComponent = Hash;
+                          if (key === 'targetId') IconComponent = Hash;
+                          else if (isReportUserField) IconComponent = User;
                           else if (key === 'rp_reason') IconComponent = AlertTriangle;
                           else if (key === 'rp_description') IconComponent = FileText;
                           else if (key === 'rp_status') IconComponent = Activity;
                           else if (key === 'rp_adminNote') IconComponent = MessageSquare;
                           else if (key === 'rp_penaltyApplied') IconComponent = Gavel;
+
+                          if (isReportUserField) {
+                            return (
+                              <InfoItem 
+                                key={key}
+                                icon={<IconComponent size={16} />}
+                                label={label}
+                              >
+                                {renderCompactUser(value)}
+                              </InfoItem>
+                            );
+                          }
 
                           return (
                             <InfoItem 

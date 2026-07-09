@@ -314,9 +314,27 @@ export interface CreateReportPayload {
   reason: 'spam_harassment' | 'inappropriate_content' | 'impersonation' | 'other';
   description?: string;
   optionalDescription?: string;
-  evidenceMediaIds?: string[];
+  evidenceFiles?: File[];
 }
 
 export const reportsApi = {
-  create: (data: CreateReportPayload) => api.post('/reports', data).then(res => res.data),
+  create: (data: CreateReportPayload) => {
+    const formData = new FormData();
+    formData.append('targetUserId', data.targetUserId);
+    formData.append('reason', data.reason);
+
+    if (data.description) {
+      formData.append('description', data.description);
+    }
+
+    if (data.optionalDescription) {
+      formData.append('optionalDescription', data.optionalDescription);
+    }
+
+    data.evidenceFiles?.forEach((file) => {
+      formData.append('files', file);
+    });
+
+    return api.post('/reports', formData).then(res => res.data);
+  },
 };

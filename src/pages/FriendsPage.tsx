@@ -664,6 +664,7 @@ export default function FriendsPage() {
       {/* Report User Modal */}
       {selectedUserForInfo && (
         <ReportUserModal
+          key={`${selectedUserForInfo._id}-${showReportModal ? 'open' : 'closed'}`}
           isOpen={showReportModal}
           onClose={() => setShowReportModal(false)}
           targetUserId={selectedUserForInfo._id}

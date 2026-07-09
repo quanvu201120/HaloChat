@@ -890,7 +890,16 @@ export default function UsersTab() {
                 {/* Phải: Nút hành động */}
                 <div className="shrink-0 flex flex-row gap-2.5 items-center justify-center sm:justify-end">
                   
-                  
+                  {currentUser?.role === UserRole.SUPER_ADMIN && (
+                    <button
+                      onClick={() => { setSelectedNewRole(selectedUser.role as UserRole); setShowRoleModal(true); }}
+                      style={{ cursor: 'pointer', padding: '5px 10px' }}
+                      className="text-xs font-semibold text-white bg-orange-600 hover:bg-warning-700 rounded transition-colors flex items-center gap-1.5 shadow-sm uppercase tracking-wider border border-transparent cursor-pointer"
+                    >
+                      <User size={14} />
+                      Thay đổi quyền
+                    </button>
+                  )}
                   <div className="relative" ref={actionsDropdownRef}>
                     <button
                       onClick={() => setShowActionsDropdown(!showActionsDropdown)}
@@ -1005,16 +1014,7 @@ export default function UsersTab() {
                     )}
                   </div>
 
-                  {currentUser?.role === UserRole.SUPER_ADMIN && (
-                    <button
-                      onClick={() => { setSelectedNewRole(selectedUser.role as UserRole); setShowRoleModal(true); }}
-                      style={{ cursor: 'pointer', padding: '5px 10px' }}
-                      className="text-xs font-semibold text-white bg-orange-600 hover:bg-warning-700 rounded transition-colors flex items-center gap-1.5 shadow-sm uppercase tracking-wider border border-transparent cursor-pointer"
-                    >
-                      <User size={14} />
-                      Thay đổi quyền
-                    </button>
-                  )}
+                  
                 </div>
 
               </div>
@@ -1546,7 +1546,7 @@ export default function UsersTab() {
 
       {/* Create User Modal */}
       {showCreateModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-black/50 animate-in fade-in">
+        <div className="fixed inset-0 z-[120] flex items-center justify-center p-6 bg-black/50 animate-in fade-in">
           <div
             style={{
               background: 'var(--bg-card)',

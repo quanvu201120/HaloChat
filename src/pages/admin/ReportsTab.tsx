@@ -27,6 +27,8 @@ function UserAutocomplete({ label, value, onChange, labelBgColor = 'var(--bg-pri
     queryKey: ['admin_users_search', debouncedSearch],
     queryFn: () => adminApi.getUsers({ search: debouncedSearch, limit: 10 }),
     enabled: debouncedSearch.length > 0 && open,
+    staleTime: 0,
+    gcTime: 0,
   });
 
   const [selectedLabel, setSelectedLabel] = useState<string>('');
@@ -198,11 +200,15 @@ export default function ReportsTab() {
       reportId: debouncedReportId || undefined,
       sort: sortOrder,
     }),
+    staleTime: 0,
+    gcTime: 0,
   });
 
   const reports = data?.reports || [];
   const total = data?.totalItems || 0;
   const totalPages = data?.totalPages || 1;
+  const isProcessingReport = selectedReport?.status === ReportStatusEnum.RESOLVING;
+  const canOpenResolveModal = selectedReport?.status === ReportStatusEnum.PENDING;
 
   useEffect(() => {
     if (selectedReport) {
@@ -219,6 +225,8 @@ export default function ReportsTab() {
       case ReportStatusEnum.PENDING:
       case ReportStatusEnum.APPEAL_PENDING:
         return <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold bg-amber-100 text-amber-700 uppercase tracking-wider shadow-sm whitespace-nowrap">Chờ xử lý</span>;
+      case ReportStatusEnum.RESOLVING:
+        return <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold bg-blue-100 text-blue-700 uppercase tracking-wider shadow-sm whitespace-nowrap">Đang xử lý</span>;
       case ReportStatusEnum.RESOLVED:
       case ReportStatusEnum.APPEAL_SUCCESS:
         return <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold bg-green-100 text-green-700 uppercase tracking-wider shadow-sm whitespace-nowrap">Đã giải quyết</span>;
@@ -332,6 +340,7 @@ export default function ReportsTab() {
         options={[
           { value: 'all', label: 'Tất cả trạng thái' },
           { value: ReportStatusEnum.PENDING, label: 'Đang chờ xử lý' },
+          { value: ReportStatusEnum.RESOLVING, label: 'Đang xử lý' },
           { value: ReportStatusEnum.RESOLVED, label: 'Đã giải quyết' },
           { value: ReportStatusEnum.DISMISSED, label: 'Đã bỏ qua' },
           { value: ReportStatusEnum.APPEAL_PENDING, label: 'Đang kháng cáo' },
@@ -558,13 +567,15 @@ export default function ReportsTab() {
         </div>
       ) : (
         <div className="flex-1 overflow-auto px-4 pb-4 animate-in fade-in slide-in-from-right-4 duration-300">
-          <div style={{padding:'5px'}} className="relative flex items-center bg-[var(--bg-card)] rounded-sm border border-[var(--border)] shadow-sm mb-4 px-2 sm:px-5 py-1.5">
+          
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 pb-10 w-full">
+            <div style={{padding:'5px'}} className="relative flex items-center bg-[var(--bg-card)] rounded-sm border border-[var(--border)] shadow-sm mb-4 mt-2 px-2 sm:px-5 py-1.5">
             <button onClick={() => setSelectedReport(null)} className="flex items-center gap-1 sm:gap-2 px-1 sm:px-2.5 py-1 text-[var(--text-secondary)] hover:text-indigo-600 dark:hover:text-indigo-400 rounded transition-all duration-200 font-medium text-sm z-10 cursor-pointer">
-              <ChevronLeft size={16} /> Quay lại danh sách
+              <ChevronLeft size={16} /> Quay lại
             </button>
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none"><h2 className="text-base sm:text-lg font-bold text-[var(--text-primary)] pointer-events-auto">Chi tiết báo cáo</h2></div>
           </div>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 pb-10 w-full">
+
             <div style={{ padding: '10px' }} className="bg-[var(--bg-card)] rounded-sm border border-[var(--border)] shadow-sm flex flex-col justify-start">
               <h4 className="text-xs font-bold text-[var(--text-primary)] uppercase tracking-wider mb-2 font-semibold">Thông tin báo cáo</h4>
               <div className="flex flex-col">
@@ -595,12 +606,18 @@ export default function ReportsTab() {
                     {selectedReport.penaltyApplied && <InfoItem icon={<AlertCircle size={16} />} label="Hình phạt áp dụng" value={getPenaltyText(selectedReport.penaltyApplied)} valueClass="text-red-500 font-bold" />}
                     {selectedReport.adminNote && <InfoItem icon={<FileText size={16} />} label="Ghi chú của Admin" value={selectedReport.adminNote} />}
                   </div>
+                ) : isProcessingReport ? (
+                  <div className="flex flex-col gap-3">
+                    <p className="text-sm font-medium text-[var(--text-primary)]">Báo cáo này đang được một admin khác xử lý.</p>
+                    <p className="text-sm text-[var(--text-muted)]">Vui lòng chờ hoàn tất hoặc tải lại danh sách để xem trạng thái mới nhất.</p>
+                  </div>
                 ) : (
                   <div className="flex flex-col gap-3">
                     <p className="text-sm font-medium text-[var(--text-primary)]">Báo cáo này đang chờ giải quyết.</p>
                     <button 
                       onClick={() => setIsResolveModalOpen(true)}
-                      className="cursor-pointer px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded shadow-sm text-sm transition-colors self-start"
+                      disabled={!canOpenResolveModal}
+                      className={`px-4 py-2 bg-amber-500 text-white font-bold rounded shadow-sm text-sm transition-colors self-start ${canOpenResolveModal ? 'cursor-pointer hover:bg-amber-600' : 'cursor-not-allowed opacity-60'}`}
                     >
                       Tiến hành xử lý
                     </button>
@@ -716,9 +733,11 @@ export default function ReportsTab() {
 
       {selectedReport && (
         <ResolveReportModal 
+          key={`${selectedReport._id}-${isResolveModalOpen ? 'open' : 'closed'}`}
           isOpen={isResolveModalOpen} 
           onClose={() => setIsResolveModalOpen(false)} 
           reportId={selectedReport._id}
+          reportStatus={selectedReport.status}
           isTargetSuperAdmin={(selectedReport.targetUserId as any)?.role === 'SUPER_ADMIN' || selectedReport.snapshot?.role === 'SUPER_ADMIN'} 
         />
       )}

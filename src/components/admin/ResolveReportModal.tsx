@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
-import { X, ShieldAlert, AlertTriangle, UserX, MessageSquareOff, UserMinus, Image as ImageIcon, Type, FileText } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { X, ShieldAlert, AlertTriangle, UserX } from 'lucide-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { adminApi, ReportStatusEnum } from '../../services/admin';
+import { adminApi, ReportStatusEnum, type ReportPenaltySuggestion } from '../../services/admin';
 import { parseError } from '../../services/api';
 import { useToast } from '../../context/ToastContext';
 
@@ -9,12 +9,14 @@ interface ResolveReportModalProps {
   isOpen: boolean;
   onClose: () => void;
   reportId: string;
+  reportStatus: typeof ReportStatusEnum[keyof typeof ReportStatusEnum];
   isTargetSuperAdmin?: boolean;
 }
 
-export default function ResolveReportModal({ isOpen, onClose, reportId, isTargetSuperAdmin }: ResolveReportModalProps) {
+export default function ResolveReportModal({ isOpen, onClose, reportId, reportStatus, isTargetSuperAdmin }: ResolveReportModalProps) {
+  const superAdminDismissNote = 'Bỏ qua báo cáo SUPER_ADMIN';
   const [status, setStatus] = useState<typeof ReportStatusEnum.RESOLVED | typeof ReportStatusEnum.DISMISSED>(isTargetSuperAdmin ? ReportStatusEnum.DISMISSED : ReportStatusEnum.RESOLVED);
-  const [adminNote, setAdminNote] = useState('');
+  const [adminNote, setAdminNote] = useState(isTargetSuperAdmin ? superAdminDismissNote : '');
   
   const [useOverride, setUseOverride] = useState(false);
   const [penaltyAction, setPenaltyAction] = useState<string>('WARNING');
@@ -27,10 +29,12 @@ export default function ResolveReportModal({ isOpen, onClose, reportId, isTarget
   const queryClient = useQueryClient();
 
   // Fetch penalty recommendation
-  const { data: penaltySuggestion, isLoading: isLoadingSuggestion } = useQuery({
+  const { data: penaltySuggestion, isLoading: isLoadingSuggestion } = useQuery<ReportPenaltySuggestion>({
     queryKey: ['report_penalty', reportId],
     queryFn: () => adminApi.calculatePenalty(reportId),
-    enabled: isOpen,
+    enabled: isOpen && reportStatus === ReportStatusEnum.PENDING,
+    staleTime: 0,
+    gcTime: 0,
   });
 
   // Pre-fill override forms with suggestion if available
@@ -44,11 +48,11 @@ export default function ResolveReportModal({ isOpen, onClose, reportId, isTarget
   }, [penaltySuggestion]);
 
   useEffect(() => {
-    if (isTargetSuperAdmin) {
-      setStatus(ReportStatusEnum.DISMISSED);
-      setAdminNote('Bỏ qua báo cáo SUPER_ADMIN');
-    }
-  }, [isTargetSuperAdmin]);
+    if (!isOpen) return;
+
+    setStatus(isTargetSuperAdmin ? ReportStatusEnum.DISMISSED : ReportStatusEnum.RESOLVED);
+    setAdminNote(isTargetSuperAdmin ? superAdminDismissNote : '');
+  }, [isOpen, isTargetSuperAdmin]);
 
   const resolveMutation = useMutation({
     mutationFn: (data: any) => adminApi.resolveReport(reportId, data),
@@ -105,6 +109,11 @@ export default function ResolveReportModal({ isOpen, onClose, reportId, isTarget
         
         {/* Body */}
         <div style={{ padding: '0 28px 24px', display: 'flex', flexDirection: 'column', gap: '20px', maxHeight: '70vh', overflowY: 'auto' }}>
+          {reportStatus !== ReportStatusEnum.PENDING && (
+            <div style={{ padding: '10px 14px', background: 'rgba(59, 130, 246, 0.08)', border: '1px solid rgba(59, 130, 246, 0.2)', borderRadius: '8px', color: '#2563eb', fontSize: '13px' }}>
+              Báo cáo này không còn ở trạng thái chờ xử lý, vui lòng tải lại danh sách trước khi tiếp tục.
+            </div>
+          )}
           
           {/* Hướng xử lý */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
@@ -299,11 +308,17 @@ export default function ResolveReportModal({ isOpen, onClose, reportId, isTarget
             Hủy
           </button>
           <button 
-            disabled={resolveMutation.isPending || (status === ReportStatusEnum.DISMISSED && !adminNote.trim())}
+            disabled={
+              reportStatus !== ReportStatusEnum.PENDING ||
+              resolveMutation.isPending ||
+              (status === ReportStatusEnum.DISMISSED &&
+                !(isTargetSuperAdmin ? superAdminDismissNote : adminNote).trim())
+            }
             onClick={() => {
+              const normalizedAdminNote = (isTargetSuperAdmin ? superAdminDismissNote : adminNote).trim();
               const payload: any = {
                 status,
-                adminNote: adminNote.trim()
+                adminNote: normalizedAdminNote
               };
               if (status === ReportStatusEnum.RESOLVED) {
                 payload.resetAvatar = resetAvatar;
@@ -327,8 +342,18 @@ export default function ResolveReportModal({ isOpen, onClose, reportId, isTarget
               background: status === ReportStatusEnum.RESOLVED ? '#f59e0b' : '#6b7280', 
               border: 'none', 
               borderRadius: '6px', 
-              cursor: (resolveMutation.isPending || (status === ReportStatusEnum.DISMISSED && !adminNote.trim())) ? 'not-allowed' : 'pointer', 
-              opacity: (resolveMutation.isPending || (status === ReportStatusEnum.DISMISSED && !adminNote.trim())) ? 0.6 : 1,
+              cursor: (
+                reportStatus !== ReportStatusEnum.PENDING ||
+                resolveMutation.isPending ||
+                (status === ReportStatusEnum.DISMISSED &&
+                  !(isTargetSuperAdmin ? superAdminDismissNote : adminNote).trim())
+              ) ? 'not-allowed' : 'pointer', 
+              opacity: (
+                reportStatus !== ReportStatusEnum.PENDING ||
+                resolveMutation.isPending ||
+                (status === ReportStatusEnum.DISMISSED &&
+                  !(isTargetSuperAdmin ? superAdminDismissNote : adminNote).trim())
+              ) ? 0.6 : 1,
               transition: 'background 0.2s'
             }}
           >
