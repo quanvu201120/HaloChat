@@ -1,9 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useAuthStore } from '../../store/authStore';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, LayoutDashboard, Users, Sparkles, Sun, Moon, RefreshCw, CloudSync, LogOut, Server, Menu, ClipboardList, Flag } from 'lucide-react';
+import { LayoutDashboard, Users, Sparkles, Sun, Moon, RefreshCw, LogOut, Server, Menu, ClipboardList, Flag } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
-import { useMemo } from 'react';
 import OverviewTab from './OverviewTab';
 import UsersTab from './UsersTab';
 import MaintenanceTab from './MaintenanceTab';
@@ -13,7 +12,6 @@ import ReportsTab from './ReportsTab';
 import { useQueryClient, useMutation } from '@tanstack/react-query';
 import { adminApi } from '../../services/admin';
 import { toast } from 'react-hot-toast';
-import SocketManager from '../../components/SocketManager';
 import AdminSocketManager from '../../components/AdminSocketManager';
 import { AdminMobileFilter } from '../../components/admin/AdminMobileFilter';
 import { MuiSelect } from '../../components/admin/MuiSelect';

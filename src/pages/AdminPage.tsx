@@ -3,8 +3,6 @@ import { useAuthStore } from '../store/authStore';
 import { UserRole } from '../constants/roles';
 import { Navigate, useNavigate } from 'react-router-dom';
 import ConfirmPasswordModal from '../components/ConfirmPasswordModal';
-import { ArrowLeft } from 'lucide-react';
-
 import AdminLayout from './admin/AdminLayout';
 
 export default function AdminPage() {

@@ -7,6 +7,7 @@ import { AdminMobileFilter } from '../../components/admin/AdminMobileFilter';
 import { MuiSelect } from '../../components/admin/MuiSelect';
 import MediaLightbox from '../../components/MediaLightbox';
 import { UI_LIMITS } from '../../constants/limits';
+import { formatDateVN } from '../../utils/date';
 
 interface InfoItemProps {
   icon: React.ReactNode;
@@ -432,7 +433,7 @@ export default function AuditLogsTab() {
                           className="border-b border-[var(--border)] hover:bg-[var(--bg-card-hover)] transition-colors cursor-pointer"
                         >
                         <td className="px-6 py-4 text-[var(--text-secondary)]">
-                          {new Date(log.createdAt).toLocaleString('vi-VN')}
+                          {formatDateVN(log.createdAt)}
                         </td>
                         <td className="px-6 py-4">
                           <div className="font-medium text-[var(--text-primary)]">
@@ -476,31 +477,33 @@ export default function AuditLogsTab() {
       {/* Detail View */}
         {selectedLog && (
           <div className="flex flex-col h-full animate-in fade-in slide-in-from-right-4 duration-300">
+            
+
             {/* Content */}
             <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar">
-              
-
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 pb-10 w-full">
-                {/* Header */}
-              <div 
-                style={{padding:'5px'}}
-                className="relative flex items-center bg-[var(--bg-card)] rounded-sm border border-[var(--border)] shadow-sm mb-4 mt-2 px-2 sm:px-5 py-1.5"
-              >
-                <button
-                  onClick={() => setSelectedLog(null)}
-                  className="flex items-center gap-1 sm:gap-2 px-1 sm:px-2.5 py-1 text-[var(--text-secondary)] hover:text-indigo-600 dark:hover:text-indigo-400 rounded transition-all duration-200 font-medium text-sm z-10 cursor-pointer"
-                  title="Quay lại"
+             
+              {/* Header */}
+                <div 
+                  style={{padding:'5px', marginBottom:'20px'}}
+                  className="relative flex items-center bg-[var(--bg-card)] rounded-sm border border-[var(--border)] shadow-sm mb-4 mt-2 px-2 sm:px-5 py-1.5"
                 >
-                  <ChevronLeft size={16} />
-                  Quay lại
-                </button>
-                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                  <h2 className="text-base sm:text-lg font-bold text-[var(--text-primary)] pointer-events-auto flex items-center gap-2">
-                    Chi tiết
-                    
-                  </h2>
+                  <button
+                    onClick={() => setSelectedLog(null)}
+                    className="flex items-center gap-1 sm:gap-2 px-1 sm:px-2.5 py-1 text-[var(--text-secondary)] hover:text-indigo-600 dark:hover:text-indigo-400 rounded transition-all duration-200 font-medium text-sm z-10 cursor-pointer"
+                    title="Quay lại"
+                  >
+                    <ChevronLeft size={16} />
+                    Quay lại
+                  </button>
+                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                    <h2 className="text-base sm:text-lg font-bold text-[var(--text-primary)] pointer-events-auto flex items-center gap-2">
+                      Chi tiết
+                    </h2>
+                  </div>
                 </div>
-              </div>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 pb-10 w-full">
+                 
+                    
                 {/* General Info */}
                 <div style={{ padding: '10px' }} className="bg-[var(--bg-card)] rounded-sm border border-[var(--border)] shadow-sm flex flex-col justify-start">
                   
@@ -511,7 +514,7 @@ export default function AuditLogsTab() {
                     <InfoItem 
                       icon={<Clock size={16} />}
                       label="Thời gian"
-                      value={new Date(selectedLog.createdAt).toLocaleString('vi-VN')}
+                      value={formatDateVN(selectedLog.createdAt)}
                     />
                     <InfoItem 
                       icon={<Activity size={16} />}

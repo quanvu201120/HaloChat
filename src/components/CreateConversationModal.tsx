@@ -1,6 +1,6 @@
 import { useMemo, useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { X, UserPlus, Users, Check, RefreshCcw } from 'lucide-react';
+import { X, UserPlus, Users, Check } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRelationships } from '../hooks/useRelationships';
 import { conversationsApi } from '../services/conversations';

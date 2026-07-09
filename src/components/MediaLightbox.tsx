@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { X, ChevronLeft, ChevronRight, Download, PlayCircle } from 'lucide-react';
 import { type MediaResponse, MediaResourceTypeEnum } from '../services/media';
+import { api } from '../services/api';
 
 interface MediaLightboxProps {
   medias: MediaResponse[];
@@ -24,8 +25,21 @@ export default function MediaLightbox({ medias, initialIndex, onClose }: MediaLi
     const activeMedia = medias[currentIndex] || medias[0];
     if (!activeMedia?.url) return;
     try {
-      const response = await fetch(activeMedia.url);
-      const blob = await response.blob();
+      let blob: Blob;
+      const isR2Media = Boolean(activeMedia.provider === 'r2' || (activeMedia.objectKey && activeMedia._id));
+      if (isR2Media) {
+        // R2 media: dùng backend để đảm bảo Content-Disposition: attachment
+        const response = await api.get(`/media/${activeMedia._id}/download`, {
+          responseType: 'blob',
+        });
+        blob = response.data instanceof Blob
+          ? response.data
+          : new Blob([response.data], { type: activeMedia.mimeType || 'application/octet-stream' });
+      } else {
+        // Cloudinary hoặc URL thông thường
+        const response = await fetch(activeMedia.url);
+        blob = await response.blob();
+      }
       const blobUrl = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = blobUrl;

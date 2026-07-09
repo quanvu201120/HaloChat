@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -28,7 +28,7 @@ const loginSchema = z.object({
 type LoginFormValues = z.infer<typeof loginSchema>;
 
 export default function LoginPage() {
-  const { login, isLoading, user, accessToken } = useAuth();
+  const { login, isLoading } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const toast = useToast();
   const navigate = useNavigate();
@@ -46,9 +46,6 @@ export default function LoginPage() {
     reValidateMode: 'onChange',
   });
 
-  // Nếu đã đăng nhập rồi thì redirect về trang chính
-
-
   const onSubmit = async (data: LoginFormValues) => {
     try {
       await login(data.identifier, data.password);
@@ -57,11 +54,8 @@ export default function LoginPage() {
     } catch (err: any) {
       const msg: string = parseError(err);
 
-      // LocalStrategy ném BadRequestException 400: 'User is not active'
-      const isInactive =
-        err?.response?.status === 400 &&
-        (msg.toLowerCase().includes('not active') ||
-          msg.toLowerCase().includes('inactive'));
+      // LocalStrategy ném ForbiddenException 403 khi isActive === false
+      const isInactive = err?.response?.status === 403;
 
       if (isInactive) {
         toast.warning('Tài khoản chưa được kích hoạt. Vui lòng nhập mã xác nhận.');

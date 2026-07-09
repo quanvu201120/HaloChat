@@ -29,7 +29,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     setToasts((prev) => [...prev, { id, type, message }]);
     setTimeout(() => {
       setToasts((prev) => prev.filter((t) => t.id !== id));
-    }, 1000);
+    }, 1500);
   }, []);
 
   const remove = (id: string) => setToasts((prev) => prev.filter((t) => t.id !== id));

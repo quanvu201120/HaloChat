@@ -1,25 +1,12 @@
 import { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { adminApi, type CleanupJob } from '../../services/admin';
-import { TerminalSquare, ChevronLeft, ChevronRight, X, Play, Info } from 'lucide-react';
+import { TerminalSquare, ChevronLeft, ChevronRight, Play, Info } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { AdminMobileFilter } from '../../components/admin/AdminMobileFilter';
 import { UI_LIMITS } from '../../constants/limits';
 import { UI_MESSAGES } from '../../constants/messages';
-
-function useDebounce<T>(value: T, delay: number): T {
-  const [debouncedValue, setDebouncedValue] = useState<T>(value);
-
-  useEffect(() => {
-    const handler = setTimeout(() => {
-      setDebouncedValue(value);
-    }, delay);
-
-    return () => clearTimeout(handler);
-  }, [value, delay]);
-
-  return debouncedValue;
-}
+import { formatDateVN } from '../../utils/date';
 
 const getCleanedPayload = (payload: any) => {
   if (!payload) return null;
@@ -35,17 +22,6 @@ const getCleanedPayload = (payload: any) => {
   });
   
   return Object.keys(cleaned).length > 0 ? cleaned : null;
-};
-
-const formatDate = (dateStr: string | Date) => {
-  if (!dateStr) return '-';
-  return new Date(dateStr).toLocaleString('vi-VN', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit'
-  });
 };
 
 const LIMIT = UI_LIMITS.ADMIN_TABLE_PAGE_SIZE;
@@ -351,16 +327,16 @@ export default function MaintenanceTab() {
                           <div className="font-semibold text-[var(--text-primary)]">{job.action}</div>
                         </td>
                         <td className="px-6 py-4 text-[var(--text-secondary)]">
-                          {job.createdAt ? formatDate(job.createdAt) : '-'}
+                          {job.createdAt ? formatDateVN(job.createdAt) : '-'}
                         </td>
                         <td className="px-6 py-4 text-[var(--text-secondary)]">
-                          {job.nextRetryAt ? formatDate(job.nextRetryAt) : '-'}
+                          {job.nextRetryAt ? formatDateVN(job.nextRetryAt) : '-'}
                         </td>
                         <td className="px-6 py-4">
                           <JobBadge status={job.status} />
                         </td>
                         <td className="px-6 py-4 text-[var(--text-secondary)]">
-                          {job.resolvedAt ? formatDate(job.resolvedAt) : '-'}
+                          {job.resolvedAt ? formatDateVN(job.resolvedAt) : '-'}
                         </td>
                         <td className="px-6 py-4 text-center">
                           {canExecuteJob(job) && (
@@ -516,23 +492,23 @@ export default function MaintenanceTab() {
                 <div className="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-y-4 gap-x-8">
                   <div className="flex flex-col gap-1">
                     <span className="text-xs font-medium text-[var(--text-muted)] uppercase tracking-wider">Ngày tạo</span>
-                    <span className="text-[var(--text-primary)] font-medium text-sm">{selectedJob.createdAt ? formatDate(selectedJob.createdAt) : '-'}</span>
+                    <span className="text-[var(--text-primary)] font-medium text-sm">{selectedJob.createdAt ? formatDateVN(selectedJob.createdAt) : '-'}</span>
                   </div>
                   <div className="flex flex-col gap-1">
                     <span className="text-xs font-medium text-[var(--text-muted)] uppercase tracking-wider">Ngày cập nhật</span>
-                    <span className="text-[var(--text-primary)] font-medium text-sm">{selectedJob.updatedAt ? formatDate(selectedJob.updatedAt) : '-'}</span>
+                    <span className="text-[var(--text-primary)] font-medium text-sm">{selectedJob.updatedAt ? formatDateVN(selectedJob.updatedAt) : '-'}</span>
                   </div>
                   <div className="flex flex-col gap-1">
                     <span className="text-xs font-medium text-[var(--text-muted)] uppercase tracking-wider">Lần chạy gần nhất</span>
-                    <span className="text-[var(--text-primary)] font-medium text-sm">{selectedJob.lastTriedAt ? formatDate(selectedJob.lastTriedAt) : '-'}</span>
+                    <span className="text-[var(--text-primary)] font-medium text-sm">{selectedJob.lastTriedAt ? formatDateVN(selectedJob.lastTriedAt) : '-'}</span>
                   </div>
                   <div className="flex flex-col gap-1">
                     <span className="text-xs font-medium text-[var(--text-muted)] uppercase tracking-wider">Lần chạy tiếp theo</span>
-                    <span className="text-[var(--text-primary)] font-medium text-sm">{selectedJob.nextRetryAt ? formatDate(selectedJob.nextRetryAt) : '-'}</span>
+                    <span className="text-[var(--text-primary)] font-medium text-sm">{selectedJob.nextRetryAt ? formatDateVN(selectedJob.nextRetryAt) : '-'}</span>
                   </div>
                   <div className="flex flex-col gap-1">
                     <span className="text-xs font-medium text-[var(--text-muted)] uppercase tracking-wider">Thời gian hoàn tất</span>
-                    <span className="text-[var(--text-primary)] font-medium text-sm">{selectedJob.resolvedAt ? formatDate(selectedJob.resolvedAt) : '-'}</span>
+                    <span className="text-[var(--text-primary)] font-medium text-sm">{selectedJob.resolvedAt ? formatDateVN(selectedJob.resolvedAt) : '-'}</span>
                   </div>
                   <div className="flex flex-col gap-1">
                     <span className="text-xs font-medium text-[var(--text-muted)] uppercase tracking-wider">Số lần chạy</span>

@@ -8,6 +8,7 @@ import { Flag, ChevronRight, ChevronLeft, Clock, AlertCircle, FileText, CheckCir
 import MediaLightbox from '../../components/MediaLightbox';
 import ResolveReportModal from '../../components/admin/ResolveReportModal';
 import { UI_LIMITS } from '../../constants/limits';
+import { formatDateVN } from '../../utils/date';
 
 function useDebounce<T>(value: T, delay: number): T {
   const [debouncedValue, setDebouncedValue] = useState<T>(value);
@@ -274,7 +275,7 @@ export default function ReportsTab() {
       if (untilMatch) {
          try {
             const d = new Date(untilMatch[1]);
-            untilDateStr = `(Đến ${d.toLocaleString('vi-VN')})`;
+            untilDateStr = `(Đến ${formatDateVN(d)})`;
          } catch (e) {
             untilDateStr = `(Đến ${untilMatch[1]})`;
          }
@@ -496,7 +497,7 @@ export default function ReportsTab() {
                         <td className="py-3 px-4">{renderUserInfo(report.reporterId)}</td>
                         <td className="py-3 px-4">{renderUserInfo(report.targetUserId)}</td>
                         <td className="py-3 px-4">{getStatusBadge(report.status)}</td>
-                        <td className="py-3 px-4 text-[12px] text-[var(--text-muted)] font-medium">{new Date(report.createdAt).toLocaleString('vi-VN')}</td>
+                        <td className="py-3 px-4 text-[12px] text-[var(--text-muted)] font-medium">{formatDateVN(report.createdAt)}</td>
                         <td className="py-3 px-4">{renderUserInfo(report.resolvedBy)}</td>
                       </tr>
                     ))
@@ -569,14 +570,18 @@ export default function ReportsTab() {
       ) : (
         <div className="flex-1 overflow-auto px-4 pb-4 animate-in fade-in slide-in-from-right-4 duration-300">
           
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 pb-10 w-full">
-            <div style={{padding:'5px'}} className="relative flex items-center bg-[var(--bg-card)] rounded-sm border border-[var(--border)] shadow-sm mb-4 mt-2 px-2 sm:px-5 py-1.5">
-            <button onClick={() => setSelectedReport(null)} className="flex items-center gap-1 sm:gap-2 px-1 sm:px-2.5 py-1 text-[var(--text-secondary)] hover:text-indigo-600 dark:hover:text-indigo-400 rounded transition-all duration-200 font-medium text-sm z-10 cursor-pointer">
-              <ChevronLeft size={16} /> Quay lại
-            </button>
-            <div className="absolute inset-0 flex items-center justify-center pointer-events-none"><h2 className="text-base sm:text-lg font-bold text-[var(--text-primary)] pointer-events-auto">Chi tiết báo cáo</h2></div>
-          </div>
+           {/* Header*/}
+            <div style={{padding:'5px', marginBottom:'20px'}} className="relative flex items-center bg-[var(--bg-card)] rounded-sm border border-[var(--border)] shadow-sm mb-4 mt-2 px-2 sm:px-5 py-1.5">
+              <button onClick={() => setSelectedReport(null)} className="flex items-center gap-1 sm:gap-2 px-1 sm:px-2.5 py-1 text-[var(--text-secondary)] hover:text-indigo-600 dark:hover:text-indigo-400 rounded transition-all duration-200 font-medium text-sm z-10 cursor-pointer">
+                <ChevronLeft size={16} /> Quay lại
+              </button>
+              <div className="absolute inset-0 flex items-center justify-center pointer-events-none"><h2 className="text-base sm:text-lg font-bold text-[var(--text-primary)] pointer-events-auto">Chi tiết báo cáo</h2></div>
+            </div>
 
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 pb-10 w-full">
+
+           
+            
             <div style={{ padding: '10px' }} className="bg-[var(--bg-card)] rounded-sm border border-[var(--border)] shadow-sm flex flex-col justify-start">
               <h4 className="text-xs font-bold text-[var(--text-primary)] uppercase tracking-wider mb-2 font-semibold">Thông tin báo cáo</h4>
               <div className="flex flex-col">
@@ -584,8 +589,8 @@ export default function ReportsTab() {
                 <InfoItem icon={<AlertCircle size={16} />} label="Lý do" value={getReasonText(selectedReport.reason)} valueClass="text-red-500" />
                 <InfoItem icon={<FileText size={16} />} label="Mô tả chi tiết" value={selectedReport.description} />
                 <InfoItem icon={<Flag size={16} />} label="Trạng thái">{getStatusBadge(selectedReport.status)}</InfoItem>
-                <InfoItem icon={<Clock size={16} />} label="Thời gian tạo" value={new Date(selectedReport.createdAt).toLocaleString('vi-VN')} />
-                <InfoItem icon={<Clock size={16} />} label="Cập nhật cuối" value={new Date(selectedReport.updatedAt).toLocaleString('vi-VN')} />
+                <InfoItem icon={<Clock size={16} />} label="Thời gian tạo" value={formatDateVN(selectedReport.createdAt)} />
+                <InfoItem icon={<Clock size={16} />} label="Cập nhật cuối" value={formatDateVN(selectedReport.updatedAt)} />
                 <InfoItem icon={<Image size={16} />} label="Bằng chứng vi phạm">
                   {selectedReport.evidenceMediaIds && selectedReport.evidenceMediaIds.length > 0 ? (
                     renderMediaList(selectedReport.evidenceMediaIds)
@@ -603,7 +608,7 @@ export default function ReportsTab() {
                 {selectedReport.resolvedBy ? (
                   <div className="flex flex-col">
                     <InfoItem icon={<CheckCircle size={16} />} label="Người xử lý" value={typeof selectedReport.resolvedBy !== 'string' ? `${selectedReport.resolvedBy.name} (${selectedReport.resolvedBy.email})` : selectedReport.resolvedBy} />
-                    <InfoItem icon={<Clock size={16} />} label="Thời gian xử lý" value={selectedReport.resolvedAt ? new Date(selectedReport.resolvedAt).toLocaleString('vi-VN') : undefined} />
+                    <InfoItem icon={<Clock size={16} />} label="Thời gian xử lý" value={selectedReport.resolvedAt ? formatDateVN(selectedReport.resolvedAt) : undefined} />
                     {selectedReport.penaltyApplied && <InfoItem icon={<AlertCircle size={16} />} label="Hình phạt áp dụng" value={getPenaltyText(selectedReport.penaltyApplied)} valueClass="text-red-500 font-bold" />}
                     {selectedReport.adminNote && <InfoItem icon={<FileText size={16} />} label="Ghi chú của Admin" value={selectedReport.adminNote} />}
                   </div>
@@ -678,9 +683,9 @@ export default function ReportsTab() {
                  <h4 className="text-xs font-bold text-[var(--text-primary)] uppercase tracking-wider mb-2 font-semibold text-amber-500">Thông tin kháng cáo</h4>
                  <div className="flex flex-col">
                    {selectedReport.status === ReportStatusEnum.APPEAL_PENDING && selectedReport.updatedAt && (
-                     <InfoItem icon={<Clock size={16} />} label="Thời gian gửi" value={new Date(selectedReport.updatedAt).toLocaleString('vi-VN')} />
+                     <InfoItem icon={<Clock size={16} />} label="Thời gian gửi" value={formatDateVN(selectedReport.updatedAt)} />
                    )}
-                   {selectedReport.appealDeadline && <InfoItem icon={<Clock size={16} />} label="Hạn chót kháng cáo" value={new Date(selectedReport.appealDeadline).toLocaleString('vi-VN')} />}
+                   {selectedReport.appealDeadline && <InfoItem icon={<Clock size={16} />} label="Hạn chót kháng cáo" value={formatDateVN(selectedReport.appealDeadline)} />}
                    {selectedReport.appealText && <InfoItem icon={<FileText size={16} />} label="Nội dung kháng cáo" value={selectedReport.appealText} />}
                    {selectedReport.appealEvidenceMediaIds && selectedReport.appealEvidenceMediaIds.length > 0 && (
                      <InfoItem icon={<Image size={16} />} label="Bằng chứng kháng cáo">
