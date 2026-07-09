@@ -9,6 +9,8 @@ import { useToast } from '../context/ToastContext';
 import { useChatStore as useChat } from '../store/chatStore';
 import { conversationsApi } from '../services/conversations';
 import ConfirmModal from './ConfirmModal';
+import { UI_LIMITS } from '../constants/limits';
+import { UI_MESSAGES } from '../constants/messages';
 
 interface Props {
   isOpen: boolean;
@@ -102,7 +104,7 @@ export default function AddFriendModal({ isOpen, onClose }: Props) {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
       performSearch(trimmed);
-    }, 600);
+    }, UI_LIMITS.FRIEND_SEARCH_DEBOUNCE_MS);
 
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -115,7 +117,7 @@ export default function AddFriendModal({ isOpen, onClose }: Props) {
     if (!trimmed) return;
     
     if (!isValidSearch(trimmed)) {
-      toast.error('Vui lòng nhập email hoặc số điện thoại hợp lệ');
+      toast.error(UI_MESSAGES.friends.invalidSearch);
       return;
     }
 
@@ -159,7 +161,7 @@ export default function AddFriendModal({ isOpen, onClose }: Props) {
       onClose();
       navigate(`/chat/${conv._id}`);
     } catch (err) {
-      toast.error(parseError(err) || 'Lỗi khi mở đoạn chat');
+      toast.error(parseError(err) || UI_MESSAGES.friends.openChatFailed);
     } finally {
       setIsNavigating(false);
     }
@@ -225,17 +227,17 @@ export default function AddFriendModal({ isOpen, onClose }: Props) {
     }
     
     return (
-      <button 
-        className="btn btn-primary" 
-        onClick={async () => {
-          try {
-            await sendRequest({ targetUserId: result._id });
-            toast.success('Đã gửi yêu cầu kết bạn');
-          } catch (err) {
-            toast.error(parseError(err) || 'Không thể gửi yêu cầu');
-          }
-        }}
-        disabled={isSendingRequest}
+          <button 
+            className="btn btn-primary" 
+            onClick={async () => {
+              try {
+                await sendRequest({ targetUserId: result._id });
+            toast.success(UI_MESSAGES.friends.sendRequestSuccess);
+              } catch (err) {
+            toast.error(parseError(err) || UI_MESSAGES.friends.sendRequestFailed);
+              }
+            }}
+            disabled={isSendingRequest}
       >
         <UserPlus size={16} /> Thêm bạn
       </button>
@@ -270,7 +272,7 @@ export default function AddFriendModal({ isOpen, onClose }: Props) {
             transition={{ duration: 0.2, ease: "easeOut" }}
           >
             <div className="modal-header">
-              <span className="modal-title">Thêm bạn bè</span>
+              <span className="modal-title">{UI_MESSAGES.friends.title}</span>
               <button className="icon-btn" onClick={onClose}><X size={18} /></button>
             </div>
 
@@ -279,7 +281,7 @@ export default function AddFriendModal({ isOpen, onClose }: Props) {
                 <div style={{ display: 'flex', gap: '8px' }}>
                   <input
                     className="form-input"
-                    placeholder="Nhập email hoặc số điện thoại..."
+                    placeholder={UI_MESSAGES.friends.searchPlaceholder}
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
                     style={{ width: '100%' }}
@@ -290,7 +292,7 @@ export default function AddFriendModal({ isOpen, onClose }: Props) {
 
               {isSearching ? (
                 <div style={{ textAlign: 'center', padding: '20px', color: 'var(--text-muted)' }}>
-                  Đang tìm kiếm...
+                  {UI_MESSAGES.friends.searchLoading}
                 </div>
               ) : result ? (
                 <div style={{ 
@@ -332,7 +334,7 @@ export default function AddFriendModal({ isOpen, onClose }: Props) {
                 </div>
               ) : search && !isSearching && (
                  <div style={{ textAlign: 'center', padding: '20px', color: 'var(--text-muted)' }}>
-                   {!isValidSearch(search.trim()) ? 'Email hoặc số điện thoại chưa hợp lệ' : 'Không tìm thấy người dùng phù hợp'}
+                   {!isValidSearch(search.trim()) ? UI_MESSAGES.friends.invalidSearchResult : UI_MESSAGES.friends.notFoundBySearch}
                  </div>
               )}
             </div>
@@ -348,17 +350,17 @@ export default function AddFriendModal({ isOpen, onClose }: Props) {
         if (userToUnblock) {
           try {
             await unblock({ targetUserId: userToUnblock._id });
-            toast.success('Đã bỏ chặn người dùng');
+            toast.success(UI_MESSAGES.friends.unblockSuccess);
             setUserToUnblock(null);
           } catch (err) {
-            toast.error(parseError(err) || 'Không thể bỏ chặn');
+            toast.error(parseError(err) || UI_MESSAGES.friends.unblockFailed);
           }
         }
       }}
-      title="Bỏ chặn người dùng"
+      title={UI_MESSAGES.friends.unblockTitle}
       message={`Bạn có chắc chắn muốn bỏ chặn ${userToUnblock?.name || userToUnblock?.email || 'người dùng này'} không? Họ sẽ có thể tìm thấy và nhắn tin cho bạn.`}
-      confirmText="Bỏ chặn"
-      cancelText="Hủy"
+      confirmText={UI_MESSAGES.friends.unblockConfirmLabel}
+      cancelText={UI_MESSAGES.friends.cancel}
       isDanger={true}
     />
     </>

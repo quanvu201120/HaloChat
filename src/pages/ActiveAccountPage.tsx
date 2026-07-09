@@ -7,10 +7,11 @@ import { authApi, parseError } from '../services/api';
 import { useToast } from '../context/ToastContext';
 import { useTheme } from '../context/ThemeContext';
 import { ShieldCheck, RefreshCw, ArrowLeft, Moon, Sun } from 'lucide-react';
+import { UI_MESSAGES } from '../constants/messages';
 
 const activeSchema = z.object({
-  email: z.string().email('Email không hợp lệ'),
-  code: z.string().min(1, 'Vui lòng nhập mã kích hoạt')
+  email: z.string().email(UI_MESSAGES.register.emailInvalid),
+  code: z.string().min(1, UI_MESSAGES.activeAccount.codeRequired)
 });
 
 type ActiveFormValues = z.infer<typeof activeSchema>;
@@ -54,7 +55,7 @@ export default function ActiveAccountPage() {
     setIsLoading(true);
     try {
       await authApi.active(data.email.trim(), data.code.trim());
-      toast.success('Kích hoạt tài khoản thành công! Vui lòng đăng nhập.');
+      toast.success(UI_MESSAGES.activeAccount.activateSuccess);
       navigate('/login', { replace: true });
     } catch (err: any) {
       toast.error(parseError(err));
@@ -67,13 +68,13 @@ export default function ActiveAccountPage() {
     if (resendCooldown > 0) return;
     const currentEmail = getValues('email');
     if (!currentEmail || !currentEmail.trim()) {
-      toast.error('Vui lòng nhập email để gửi lại mã kích hoạt');
+      toast.error(UI_MESSAGES.activeAccount.resendEmailRequired);
       return;
     }
     setResendLoading(true);
     try {
       await authApi.resendCode(currentEmail.trim());
-      toast.success('Đã gửi lại mã kích hoạt. Kiểm tra email!');
+      toast.success(UI_MESSAGES.activeAccount.resendSuccess);
       setResendCooldown(60);
     } catch (err: any) {
       toast.error(parseError(err));
@@ -86,7 +87,7 @@ export default function ActiveAccountPage() {
     <div className="login-page" style={{ position: 'relative' }}>
       <button 
         onClick={toggleTheme}
-        title={theme === 'dark' ? 'Chế độ sáng' : 'Chế độ tối'}
+        title={theme === 'dark' ? UI_MESSAGES.activeAccount.themeLight : UI_MESSAGES.activeAccount.themeDark}
         style={{ 
           position: 'absolute', top: '24px', right: '24px', 
           width: '40px', height: '40px', borderRadius: '50%', 

@@ -8,6 +8,8 @@ import { parseError, usersApi } from '../services/api';
 import { useAuthStore as useAuth } from '../store/authStore';
 import { useChatStore as useChat } from '../store/chatStore';
 import { useToast } from '../context/ToastContext';
+import { UI_LIMITS } from '../constants/limits';
+import { UI_MESSAGES } from '../constants/messages';
 
 interface UserResult {
   _id: string;
@@ -89,7 +91,7 @@ export default function CreateConversationModal({ isOpen, onClose }: Props) {
       } finally {
         setIsSearching(false);
       }
-    }, 500);
+    }, UI_LIMITS.SEARCH_DEBOUNCE_MS);
 
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -124,15 +126,15 @@ export default function CreateConversationModal({ isOpen, onClose }: Props) {
 
   const handleCreate = async () => {
     if (selected.length === 0) {
-      toast.error('Chọn ít nhất 1 người dùng');
+      toast.error(UI_MESSAGES.conversations.selectAtLeastOneUser);
       return;
     }
     if (tab === 'group' && !groupName.trim()) {
-      toast.error('Nhập tên nhóm');
+      toast.error(UI_MESSAGES.conversations.groupNameRequired);
       return;
     }
     if (tab === 'group' && selected.length < 2) {
-      toast.error('Nhóm cần ít nhất 2 thành viên (ngoài bạn)');
+      toast.error(UI_MESSAGES.conversations.minGroupMembers);
       return;
     }
 
@@ -140,7 +142,7 @@ export default function CreateConversationModal({ isOpen, onClose }: Props) {
     try {
       const userIds = selected.map((u) => u._id).filter(Boolean);
       if (userIds.length !== selected.length) {
-        toast.error('Danh sách người dùng không hợp lệ');
+        toast.error(UI_MESSAGES.conversations.invalidUserList);
         return;
       }
       const payload =
@@ -154,7 +156,7 @@ export default function CreateConversationModal({ isOpen, onClose }: Props) {
       onClose();
       if (conv?._id) navigate(`/chat/${conv._id}`);
     } catch (err: unknown) {
-      toast.error(parseError(err) || 'Không tạo được cuộc trò chuyện');
+      toast.error(parseError(err) || UI_MESSAGES.conversations.createFailed);
     } finally {
       setIsCreating(false);
     }
@@ -181,7 +183,7 @@ export default function CreateConversationModal({ isOpen, onClose }: Props) {
             transition={{ duration: 0.2, ease: "easeOut" }}
           >
             <div className="modal-header">
-          <span className="modal-title">{tab === 'direct' ? 'Chat với bạn bè' : 'Tạo nhóm chat'}</span>
+          <span className="modal-title">{tab === 'direct' ? UI_MESSAGES.conversations.directTitle : UI_MESSAGES.conversations.groupTitle}</span>
           <div style={{ display: 'flex', gap: '4px' }}>
             <button className="icon-btn" onClick={onClose}><X size={18} /></button>
           </div>
@@ -216,10 +218,10 @@ export default function CreateConversationModal({ isOpen, onClose }: Props) {
         <div className="modal-body">
           {tab === 'group' && (
             <div className="form-group">
-              <label className="form-label">Tên nhóm *</label>
+              <label className="form-label">{UI_MESSAGES.conversations.groupNameLabel}</label>
               <input
                 className="form-input"
-                placeholder="Ví dụ: Nhóm chat vui vẻ"
+                placeholder={UI_MESSAGES.conversations.groupNamePlaceholder}
                 value={groupName}
                 onChange={(e) => setGroupName(e.target.value)}
                 autoFocus
@@ -230,7 +232,7 @@ export default function CreateConversationModal({ isOpen, onClose }: Props) {
           <div className="form-group" style={{ marginBottom: '12px' }}>
             <input
               className="form-input"
-              placeholder="Tìm theo tên, email hoặc số điện thoại"
+              placeholder={UI_MESSAGES.conversations.searchPlaceholder}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />

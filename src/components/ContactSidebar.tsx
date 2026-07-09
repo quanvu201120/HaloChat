@@ -1,6 +1,7 @@
 import { NavLink } from 'react-router-dom';
 import { Contact, Users, UserPlus, User, ArrowUpRight, AlignLeft } from 'lucide-react';
 import { useRelationships } from '../hooks/useRelationships';
+import { UI_LIMITS } from '../constants/limits';
 
 export default function ContactSidebar() {
   const { receivedRequests } = useRelationships();
@@ -39,7 +40,7 @@ export default function ContactSidebar() {
                   {item.icon}
                   {typeof item.badge === 'number' && item.badge > 0 && (
                     <span className="md:hidden absolute -top-1 -right-1 flex items-center justify-center min-w-[16px] h-[16px] px-[5px] bg-[#ef4444] text-white text-[9px] font-bold rounded-full shadow-sm leading-none">
-                      {item.badge > 99 ? '99+' : item.badge}
+                      {item.badge > UI_LIMITS.UNREAD_BADGE_MAX ? `${UI_LIMITS.UNREAD_BADGE_MAX}+` : item.badge}
                     </span>
                   )}
                 </div>
@@ -47,7 +48,7 @@ export default function ContactSidebar() {
                   <span className="text-[15px]">{item.label}</span>
                   {typeof item.badge === 'number' && item.badge > 0 && (
                     <span className="flex items-center justify-center min-w-[20px] h-[20px] px-[6px] bg-[#ef4444] text-white text-[11px] font-bold rounded-full shadow-sm leading-none">
-                      {item.badge > 99 ? '99+' : item.badge}
+                      {item.badge > UI_LIMITS.UNREAD_BADGE_MAX ? `${UI_LIMITS.UNREAD_BADGE_MAX}+` : item.badge}
                     </span>
                   )}
                 </div>

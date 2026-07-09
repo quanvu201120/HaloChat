@@ -17,6 +17,7 @@ import SocketManager from '../../components/SocketManager';
 import AdminSocketManager from '../../components/AdminSocketManager';
 import { AdminMobileFilter } from '../../components/admin/AdminMobileFilter';
 import { MuiSelect } from '../../components/admin/MuiSelect';
+import { UI_MESSAGES } from '../../constants/messages';
 
 const CustomCloudSync = ({ className, isSpinning }: { className?: string; isSpinning?: boolean }) => (
   <svg 
@@ -321,17 +322,17 @@ export default function AdminLayout() {
       await queryClient.invalidateQueries({ queryKey: ['admin_audit_logs'] });
     }
 
-    toast.success('Đã làm mới dữ liệu!');
+    toast.success(UI_MESSAGES.admin.refreshSuccess);
     setIsRefreshing(false);
   };
 
   const syncMutation = useMutation({
     mutationFn: adminApi.syncStats,
     onSuccess: () => {
-      toast.success('Đồng bộ dữ liệu thành công');
+      toast.success(UI_MESSAGES.admin.syncSuccess);
       handleRefresh(); // Tự động làm mới UI sau khi sync
     },
-    onError: () => toast.error('Lỗi khi đồng bộ dữ liệu')
+    onError: () => toast.error(UI_MESSAGES.admin.syncFailed)
   });
 
   return (

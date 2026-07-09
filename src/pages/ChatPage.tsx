@@ -46,6 +46,7 @@ import ReportUserModal from '../components/ReportUserModal';
 import MessageReactionsModal from '../components/MessageReactionsModal';
 import { normalizeId } from '../utils/chat';
 import { CHAT_DEFAULTS, MESSAGE_PREVIEWS, MIME_TYPES, TIMING } from '../constants/chat';
+import { UI_MESSAGES } from '../constants/messages';
 
 /**
  * Formats a given number of seconds into an mm:ss string.
@@ -365,9 +366,9 @@ export default function ChatPage() {
           clearUnread(conv._id);
         });
       }
-      toast.success('Đã chấp nhận kết nối');
+      toast.success(UI_MESSAGES.chat.acceptConnectionSuccess);
     } catch {
-      toast.error('Có lỗi xảy ra khi chấp nhận');
+      toast.error(UI_MESSAGES.chat.acceptConnectionFailed);
     }
   };
 
@@ -375,15 +376,15 @@ export default function ChatPage() {
     if (!otherUser || !conv) return;
     setConfirmAction({
       title: 'Chặn người dùng',
-      message: `Bạn có chắc chắn muốn chặn ${otherUser.name || otherUser.email}?`,
+      message: UI_MESSAGES.chat.blockConfirm(otherUser.name || otherUser.email || ''),
       isDanger: true,
       confirmText: 'Chặn',
       action: async () => {
         try {
           await block({ targetUserId: otherUser._id });
-          toast.success('Đã chặn người dùng');
+          toast.success(UI_MESSAGES.chat.blockSuccess);
         } catch {
-          toast.error('Có lỗi xảy ra khi chặn');
+          toast.error(UI_MESSAGES.chat.blockFailed);
         }
       }
     });
@@ -393,15 +394,15 @@ export default function ChatPage() {
     if (!otherUser) return;
     setConfirmAction({
       title: 'Bỏ chặn người dùng',
-      message: `Bạn có chắc chắn muốn bỏ chặn ${otherUser.name || otherUser.email}?`,
+      message: UI_MESSAGES.chat.unblockConfirm(otherUser.name || otherUser.email || ''),
       isDanger: false,
       confirmText: 'Bỏ chặn',
       action: async () => {
         try {
           await unblock({ targetUserId: otherUser._id });
-          toast.success('Đã bỏ chặn người dùng');
+          toast.success(UI_MESSAGES.chat.unblockSuccess);
         } catch {
-          toast.error('Có lỗi xảy ra khi bỏ chặn');
+          toast.error(UI_MESSAGES.chat.unblockFailed);
         }
       }
     });
@@ -411,19 +412,19 @@ export default function ChatPage() {
     if (!conv) return;
     setConfirmAction({
       title: 'Xóa tin nhắn chờ',
-      message: 'Bạn có chắc chắn muốn xóa cuộc trò chuyện này?',
+      message: UI_MESSAGES.chat.deleteRequestConfirm,
       isDanger: true,
       confirmText: 'Xóa',
       action: async () => {
         try {
           await conversationsApi.hideHistory(conv._id);
-          toast.success('Đã xóa tin nhắn chờ');
+          toast.success(UI_MESSAGES.chat.deleteRequestSuccess);
           hasHandledMissingConversationRef.current = true; // Prevent false error toast
           setConversations((prev) => prev.filter((c) => c._id !== conv._id));
           refetchConversations();
           navigate('/message-requests');
         } catch {
-          toast.error('Có lỗi xảy ra khi xóa');
+          toast.error(UI_MESSAGES.chat.deleteRequestFailed);
         }
       }
     });
@@ -433,21 +434,21 @@ export default function ChatPage() {
     if (!conv) return;
     setConfirmAction({
       title: 'Rời nhóm',
-      message: 'Bạn có chắc chắn muốn rời nhóm này?',
+      message: UI_MESSAGES.chat.leaveGroupConfirm,
       isDanger: true,
       confirmText: 'Rời nhóm',
       action: async () => {
         try {
           isLeavingOrDisbandingRef.current = true;
           await conversationsApi.leaveGroup(conv._id);
-          toast.success('Đã rời nhóm');
+          toast.success(UI_MESSAGES.chat.leaveGroupSuccess);
           hasHandledMissingConversationRef.current = true;
           setConversations((prev) => prev.filter((c) => c._id !== conv._id));
           refetchConversations();
           navigate('/message-requests');
         } catch {
           isLeavingOrDisbandingRef.current = false;
-          toast.error('Có lỗi xảy ra khi rời nhóm');
+          toast.error(UI_MESSAGES.chat.leaveGroupFailed);
         }
       }
     });
@@ -625,7 +626,7 @@ export default function ChatPage() {
     if (hasHandledMissingConversationRef.current) return;
 
     hasHandledMissingConversationRef.current = true;
-    toast.error('Cuoc tro chuyen khong con kha dung');
+    toast.error(UI_MESSAGES.chat.conversationUnavailable);
     navigate('/', { replace: true });
   }, [activeConversationId, conv, hasLoadedConversations, isLoadingConv, navigate, toast]);
 
@@ -701,7 +702,7 @@ export default function ChatPage() {
         markConversationRead(ordered[ordered.length - 1]);
       })
       .catch(() => {
-        if (!cached) toast.error('Không tải được tin nhắn');
+        if (!cached) toast.error(UI_MESSAGES.chat.loadMessagesFailed);
       })
       .finally(() => {
         if (messagesRequestIdRef.current !== requestId) return;
@@ -955,7 +956,7 @@ export default function ChatPage() {
       if (normalizeId(data.conversationId) !== activeConversationId) return;
       if (data.removedMemberId === currentUserId) {
         if (!isLeavingOrDisbandingRef.current) {
-          toast.error('Ban da bi xoa khoi cuoc tro chuyen');
+          toast.error(UI_MESSAGES.chat.removedFromConversation);
         }
         navigate('/', { replace: true });
         return;
@@ -972,7 +973,7 @@ export default function ChatPage() {
     const onConversationDisbanded = (data: { conversationId: string }) => {
       if (normalizeId(data.conversationId) !== activeConversationId) return;
       if (!isLeavingOrDisbandingRef.current) {
-        toast.error('Nhom nay da giai tan');
+        toast.error(UI_MESSAGES.chat.groupDissolved);
       }
       navigate('/', { replace: true });
     };
@@ -1137,7 +1138,7 @@ export default function ChatPage() {
       }));
       updateTextMessage(activeConversationId, editingMessageId, content, (ack: any) => {
         if (!ack?.ok) {
-          toast.error(ack?.message || 'Không sửa được tin nhắn');
+          toast.error(ack?.message || UI_MESSAGES.chat.editMessageFailed);
           return;
         }
 
@@ -1187,7 +1188,7 @@ export default function ChatPage() {
           })
           .catch(() => {
             markMessageError(optimisticId);
-            toast.error('Gửi tin nhắn thất bại');
+            toast.error(UI_MESSAGES.chat.sendMessageFailed);
           });
       });
       return;
@@ -1200,7 +1201,7 @@ export default function ChatPage() {
       syncConversationMessage(createdMessage, { markUnread: false });
     } catch {
       markMessageError(optimisticId);
-      toast.error('Gửi tin nhắn thất bại');
+      toast.error(UI_MESSAGES.chat.sendMessageFailed);
     }
   };
 
@@ -1246,7 +1247,7 @@ export default function ChatPage() {
       syncConversationMessage(createdMessage, { markUnread: false });
     } catch (error: any) {
       markMessageError(optimisticId);
-      toast.error(error?.response?.data?.message || 'Gửi media thất bại');
+      toast.error(error?.response?.data?.message || UI_MESSAGES.chat.sendMediaFailed);
     } finally {
       if (previewUrl) URL.revokeObjectURL(previewUrl);
     }
@@ -1289,7 +1290,7 @@ export default function ChatPage() {
         ...currentMessage,
         reactions: message.reactions,
       }));
-      toast.error(error?.response?.data?.message || 'Không cập nhật được cảm xúc');
+      toast.error(error?.response?.data?.message || UI_MESSAGES.chat.updateReactionFailed);
     }
   };
 
@@ -1304,7 +1305,7 @@ export default function ChatPage() {
 
     setConfirmAction({
       title: 'Thu hồi tin nhắn với mọi người',
-      message: 'Tin nhắn này sẽ bị xóa ở phía tất cả mọi người trong cuộc trò chuyện. Bạn có chắc chắn muốn thu hồi không?',
+      message: UI_MESSAGES.chat.revokeMessageConfirm,
       isDanger: true,
       confirmText: 'Thu hồi',
       action: () => {
@@ -1326,7 +1327,7 @@ export default function ChatPage() {
         revokeMessage(activeConversationId, message._id, (ack: any) => {
           if (!ack?.ok) {
             replaceMessageLocally(message._id, () => ({ ...message }));
-            toast.error(ack?.message || 'Không thu hồi được tin nhắn');
+            toast.error(ack?.message || UI_MESSAGES.chat.revokeMessageFailed);
           }
         });
       }
@@ -1335,12 +1336,12 @@ export default function ChatPage() {
 
   const startVoiceRecording = async () => {
     if (!activeConversationId) {
-      toast.error('Chọn cuộc trò chuyện trước khi ghi âm');
+      toast.error(UI_MESSAGES.chat.recordRequiresConversation);
       return;
     }
 
     if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
-      toast.error('Trình duyệt không hỗ trợ ghi âm');
+      toast.error(UI_MESSAGES.chat.browserNoRecordingSupport);
       return;
     }
 
@@ -1384,7 +1385,7 @@ export default function ChatPage() {
     } catch {
       setIsRecordingVoice(false);
       stopVoiceStream();
-      toast.error('Không thể bật microphone');
+      toast.error(UI_MESSAGES.chat.cannotEnableMicrophone);
     }
   };
 
@@ -1419,9 +1420,9 @@ export default function ChatPage() {
       const res = await conversationsApi.uploadAvatar(activeConversationId, file);
       const updated = normalizeConversation(res.data?.data ?? res.data);
       setConv(updated);
-      toast.success('Cập nhật ảnh đại diện nhóm thành công');
+      toast.success(UI_MESSAGES.chat.updateGroupAvatarSuccess);
     } catch {
-      toast.error('Cập nhật ảnh đại diện thất bại');
+      toast.error(UI_MESSAGES.chat.updateGroupAvatarFailed);
     } finally {
       setIsUploadingAvatar(false);
       if (groupAvatarInputRef.current) groupAvatarInputRef.current.value = '';
@@ -1432,7 +1433,7 @@ export default function ChatPage() {
     if (!activeConversationId) return;
     setConfirmAction({
       title: 'Xóa ảnh đại diện nhóm',
-      message: 'Bạn có chắc chắn muốn xóa ảnh đại diện này?',
+      message: UI_MESSAGES.chat.deleteGroupAvatarConfirm,
       isDanger: true,
       action: () => {
         setConfirmAction(null);
@@ -1441,9 +1442,9 @@ export default function ChatPage() {
           try {
             await conversationsApi.deleteAvatar(activeConversationId);
             setConv((prev) => prev ? { ...prev, avatar: undefined } : prev);
-            toast.success('Đã xóa ảnh đại diện nhóm');
+            toast.success(UI_MESSAGES.chat.deleteGroupAvatarSuccess);
           } catch {
-            toast.error('Xóa ảnh đại diện thất bại');
+            toast.error(UI_MESSAGES.chat.deleteGroupAvatarFailed);
           } finally {
             setIsUploadingAvatar(false);
           }
@@ -1458,9 +1459,9 @@ export default function ChatPage() {
       await conversationsApi.updateName(activeConversationId, groupNameInput.trim());
       setConv((prev) => prev ? { ...prev, name: groupNameInput.trim() } : prev);
       setEditingGroupName(false);
-      toast.success('Đã cập nhật tên nhóm');
+      toast.success(UI_MESSAGES.chat.updateGroupNameSuccess);
     } catch {
-      toast.error('Cập nhật tên nhóm thất bại');
+      toast.error(UI_MESSAGES.chat.updateGroupNameFailed);
     }
   };
 
@@ -1468,7 +1469,7 @@ export default function ChatPage() {
     if (!activeConversationId) return;
     setConfirmAction({
       title: 'Rời nhóm',
-      message: 'Bạn có chắc muốn rời nhóm này không?',
+      message: UI_MESSAGES.chat.leaveGroupConfirm,
       isDanger: true,
       confirmText: 'Rời nhóm',
       action: async () => {
@@ -1476,9 +1477,9 @@ export default function ChatPage() {
         try {
           await conversationsApi.leaveGroup(activeConversationId);
           navigate('/', { replace: true });
-          toast.success('Đã rời nhóm');
+          toast.success(UI_MESSAGES.chat.leaveGroupSuccess);
         } catch {
-          toast.error('Rời nhóm thất bại');
+          toast.error(UI_MESSAGES.chat.leaveGroupFailed);
         }
       }
     });
@@ -1488,7 +1489,7 @@ export default function ChatPage() {
     if (!activeConversationId) return;
     setConfirmAction({
       title: 'Giải tán nhóm',
-      message: 'Giải tán nhóm sẽ xóa toàn bộ tin nhắn và không thể khôi phục. Bạn có chắc chắn muốn tiếp tục?',
+      message: UI_MESSAGES.chat.dissolveGroupConfirm,
       isDanger: true,
       confirmText: 'Giải tán',
       action: async () => {
@@ -1496,9 +1497,9 @@ export default function ChatPage() {
         try {
           await conversationsApi.disbandGroup(activeConversationId);
           navigate('/', { replace: true });
-          toast.success('Đã giải tán nhóm');
+          toast.success(UI_MESSAGES.chat.dissolveGroupSuccess);
         } catch {
-          toast.error('Giải tán nhóm thất bại');
+          toast.error(UI_MESSAGES.chat.dissolveGroupFailed);
         }
       }
     });
@@ -1508,16 +1509,16 @@ export default function ChatPage() {
     if (!activeConversationId) return;
     setConfirmAction({
       title: 'Xóa thành viên',
-      message: `Bạn có chắc muốn xóa ${memberName} khỏi nhóm?`,
+      message: UI_MESSAGES.chat.removeMemberConfirm(memberName),
       isDanger: true,
       confirmText: 'Xóa khỏi nhóm',
       action: async () => {
         try {
           await conversationsApi.removeMember(activeConversationId, memberId);
           setConv((prev) => prev ? { ...prev, users: prev.users.filter(u => u._id !== memberId) } : prev);
-          toast.success(`Đã xóa ${memberName} khỏi nhóm`);
+          toast.success(UI_MESSAGES.chat.removeMemberSuccess(memberName));
         } catch {
-          toast.error('Xóa thành viên thất bại');
+          toast.error(UI_MESSAGES.chat.removeMemberFailed);
         }
       }
     });
@@ -1527,7 +1528,7 @@ export default function ChatPage() {
     if (!activeConversationId) return;
     setConfirmAction({
       title: 'Xác nhận chuyển quyền',
-      message: `Hành động này không thể hoàn tác. Bạn thực sự muốn chuyển quyền quản trị cho ${memberName}?`,
+      message: UI_MESSAGES.chat.transferAdminConfirm(memberName),
       isDanger: true,
       confirmText: 'Chuyển quyền',
       countdown: 5,
@@ -1535,9 +1536,9 @@ export default function ChatPage() {
         try {
           await conversationsApi.changeAdmin(activeConversationId, memberId);
           setConv((prev) => prev ? { ...prev, adminGroupId: memberId } : prev);
-          toast.success(`Đã chuyển quyền quản trị cho ${memberName}`);
+          toast.success(UI_MESSAGES.chat.transferAdminSuccess(memberName));
         } catch {
-          toast.error('Chuyển quyền quản trị thất bại');
+          toast.error(UI_MESSAGES.chat.transferAdminFailed);
         }
       }
     });
@@ -1547,7 +1548,7 @@ export default function ChatPage() {
     if (!activeConversationId) return;
     setConfirmAction({
       title: 'Chuyển quyền quản trị',
-      message: `Bạn có chắc muốn chuyển quyền quản trị cho ${memberName} không? Bạn sẽ trở thành thành viên thường.`,
+      message: UI_MESSAGES.chat.transferAdminConfirmSecondary(memberName),
       isDanger: true,
       confirmText: 'Tiếp tục',
       action: () => {
@@ -1561,7 +1562,7 @@ export default function ChatPage() {
     if (!activeConversationId) return;
     setConfirmAction({
       title: 'Xóa lịch sử chat',
-      message: 'Lịch sử đoạn chat này sẽ bị ẩn đối với bạn. Bạn có chắc chắn muốn xóa không?',
+      message: UI_MESSAGES.chat.deleteChatHistoryConfirm,
       isDanger: true,
       confirmText: 'Xóa lịch sử',
       action: async () => {
@@ -1569,9 +1570,9 @@ export default function ChatPage() {
           await conversationsApi.hideHistory(activeConversationId);
           void refetchConversations({ silent: true });
           navigate('/', { replace: true });
-          toast.success('Đã xóa lịch sử chat');
+          toast.success(UI_MESSAGES.chat.deleteChatHistorySuccess);
         } catch {
-          toast.error('Xóa lịch sử chat thất bại');
+          toast.error(UI_MESSAGES.chat.deleteChatHistoryFailed);
         }
       }
     });
@@ -2437,9 +2438,9 @@ export default function ChatPage() {
                                 console.error('Download error:', err);
                                 if (err.response?.data instanceof Blob) {
                                   const text = await err.response.data.text();
-                                  toast.error(`Lỗi backend: ${text}`);
+                                  toast.error(`${UI_MESSAGES.chat.backendDownloadErrorPrefix}${text}`);
                                 } else {
-                                  toast.error(`Lỗi: ${err.message || 'Không tải được tệp'}`);
+                                  toast.error(`${UI_MESSAGES.chat.downloadErrorPrefix}${err.message || UI_MESSAGES.chat.downloadFailedFallback}`);
                                 }
                               }
                             }}
@@ -2602,7 +2603,7 @@ export default function ChatPage() {
                     if (hasSent || isSendingRequest) return;
                     try {
                       await sendRequest({ targetUserId: selectedUserForInfo._id });
-                      toast.success('Đã gửi lời mời kết bạn!');
+                      toast.success(UI_MESSAGES.chat.sendInvitationSuccess);
                     } catch (err: any) {
                       toast.error(parseError(err));
                     }

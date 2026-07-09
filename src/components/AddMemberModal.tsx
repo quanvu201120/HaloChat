@@ -7,6 +7,8 @@ import { usersApi } from '../services/api';
 import { useAuthStore as useAuth } from '../store/authStore';
 import { useToast } from '../context/ToastContext';
 import { type Conversation } from '../services/conversations';
+import { UI_LIMITS } from '../constants/limits';
+import { UI_MESSAGES } from '../constants/messages';
 
 interface UserResult {
   _id: string;
@@ -87,7 +89,7 @@ export default function AddMemberModal({ isOpen, conversationId, currentMembers,
       } finally {
         setIsSearching(false);
       }
-    }, 500);
+    }, UI_LIMITS.SEARCH_DEBOUNCE_MS);
 
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -125,7 +127,7 @@ export default function AddMemberModal({ isOpen, conversationId, currentMembers,
 
   const handleAddMembers = async () => {
     if (selected.length === 0) {
-      toast.error('Chọn ít nhất 1 người dùng để thêm');
+      toast.error(UI_MESSAGES.conversations.selectAtLeastOneUser);
       return;
     }
 
@@ -134,11 +136,11 @@ export default function AddMemberModal({ isOpen, conversationId, currentMembers,
       const userIds = selected.map((u) => u._id);
       const res = await conversationsApi.addMembers(conversationId, userIds);
       const updatedConv = res.data?.data ?? (res.data as any);
-      toast.success('Đã thêm thành viên vào nhóm!');
+      toast.success(UI_MESSAGES.conversations.addMembersSuccess);
       onSuccess(updatedConv);
       onClose();
     } catch (err: any) {
-      toast.error(err?.response?.data?.message || 'Không thêm được thành viên');
+      toast.error(err?.response?.data?.message || UI_MESSAGES.conversations.addMembersFailed);
     } finally {
       setIsAdding(false);
     }
@@ -167,7 +169,7 @@ export default function AddMemberModal({ isOpen, conversationId, currentMembers,
             {/* Header */}
             <div className="modal-header">
               <span className="modal-title">
-                Thêm thành viên
+                {UI_MESSAGES.conversations.addMembersTitle}
               </span>
               <div style={{ display: 'flex', gap: '4px' }}>
                 <button className="icon-btn" title="Làm mới danh sách" onClick={() => refetchFriends()}>
@@ -182,7 +184,7 @@ export default function AddMemberModal({ isOpen, conversationId, currentMembers,
               <div className="form-group" style={{ marginBottom: '12px' }}>
                 <input
                   className="form-input"
-                  placeholder="Tìm theo tên, email hoặc số điện thoại"
+                  placeholder={UI_MESSAGES.conversations.searchPlaceholder}
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   autoFocus

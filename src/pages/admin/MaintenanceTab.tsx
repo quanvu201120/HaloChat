@@ -4,6 +4,8 @@ import { adminApi, type CleanupJob } from '../../services/admin';
 import { TerminalSquare, ChevronLeft, ChevronRight, X, Play, Info } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { AdminMobileFilter } from '../../components/admin/AdminMobileFilter';
+import { UI_LIMITS } from '../../constants/limits';
+import { UI_MESSAGES } from '../../constants/messages';
 
 function useDebounce<T>(value: T, delay: number): T {
   const [debouncedValue, setDebouncedValue] = useState<T>(value);
@@ -46,7 +48,7 @@ const formatDate = (dateStr: string | Date) => {
   });
 };
 
-const LIMIT = 20;
+const LIMIT = UI_LIMITS.ADMIN_TABLE_PAGE_SIZE;
 
 // ── MUI-style custom Select ──────────────────────────────────────────────────
 interface MuiSelectProps {
@@ -223,10 +225,10 @@ export default function MaintenanceTab() {
   const runJobMutation = useMutation({
     mutationFn: adminApi.runJobManually,
     onSuccess: () => {
-      toast.success('Đã xếp hàng đợi Job');
+      toast.success(UI_MESSAGES.admin.jobQueued);
       queryClient.invalidateQueries({ queryKey: ['admin_jobs'] });
     },
-    onError: () => toast.error('Lỗi khi chạy Job')
+    onError: () => toast.error(UI_MESSAGES.admin.jobFailed)
   });
 
   const renderFilters = (idPrefix: string) => {

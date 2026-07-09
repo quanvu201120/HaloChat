@@ -7,13 +7,15 @@ import { authApi, parseError } from '../services/api';
 import { useToast } from '../context/ToastContext';
 import { useTheme } from '../context/ThemeContext';
 import { UserPlus, Eye, EyeOff, Moon, Sun } from 'lucide-react';
+import { UI_LIMITS } from '../constants/limits';
+import { UI_MESSAGES } from '../constants/messages';
 
 const registerSchema = z.object({
-  email: z.string().email('Email không hợp lệ'),
-  password: z.string().min(6, 'Mật khẩu phải có ít nhất 6 ký tự'),
+  email: z.string().email(UI_MESSAGES.register.emailInvalid),
+  password: z.string().min(UI_LIMITS.PASSWORD_MIN_LENGTH, UI_MESSAGES.register.passwordMinLength),
   confirmPassword: z.string()
 }).refine(data => data.password === data.confirmPassword, {
-  message: 'Mật khẩu xác nhận không khớp',
+  message: UI_MESSAGES.register.confirmMismatch,
   path: ['confirmPassword']
 });
 
@@ -40,7 +42,7 @@ export default function RegisterPage() {
     setIsLoading(true);
     try {
       await authApi.register({ email: data.email, password: data.password, confirmPassword: data.confirmPassword });
-      toast.success('Đăng ký thành công! Vui lòng nhập mã xác nhận được gửi về email.');
+      toast.success(UI_MESSAGES.register.success);
       navigate('/active-account', { state: { email: data.email } });
     } catch (err: any) {
       toast.error(parseError(err));
@@ -53,7 +55,7 @@ export default function RegisterPage() {
     <div className="login-page" style={{ position: 'relative' }}>
       <button 
         onClick={toggleTheme}
-        title={theme === 'dark' ? 'Chế độ sáng' : 'Chế độ tối'}
+        title={theme === 'dark' ? UI_MESSAGES.register.themeLight : UI_MESSAGES.register.themeDark}
         style={{ 
           position: 'absolute', top: '24px', right: '24px', 
           width: '40px', height: '40px', borderRadius: '50%', 
@@ -74,8 +76,8 @@ export default function RegisterPage() {
           <div className="login-icon" style={{ background: 'linear-gradient(135deg, var(--accent-secondary), var(--accent-teal))' }}>
             <UserPlus size={24} color="white" />
           </div>
-          <h1 className="login-title">Tạo tài khoản</h1>
-          <p className="login-subtitle">Đăng ký để sử dụng hệ thống</p>
+          <h1 className="login-title">{UI_MESSAGES.register.title}</h1>
+          <p className="login-subtitle">{UI_MESSAGES.register.subtitle}</p>
         </div>
 
         <form className="login-form" onSubmit={handleSubmit(onSubmit)}>
@@ -99,7 +101,7 @@ export default function RegisterPage() {
                 id="reg-password"
                 className={`form-input ${errors.password ? 'is-invalid' : ''}`}
                 type={showPwd ? 'text' : 'password'}
-                placeholder="Tối thiểu 6 ký tự"
+                placeholder={UI_MESSAGES.register.passwordPlaceholder}
                 {...register('password')}
                 style={{ paddingRight: '44px' }}
               />
@@ -117,7 +119,7 @@ export default function RegisterPage() {
               id="reg-confirm"
               className={`form-input ${errors.confirmPassword ? 'is-invalid' : ''}`}
               type="password"
-              placeholder="Nhập lại mật khẩu"
+              placeholder={UI_MESSAGES.register.confirmPlaceholder}
               {...register('confirmPassword')}
             />
             {errors.confirmPassword && <div className="error-message" style={{ color: 'var(--error-color)', fontSize: '13px', marginTop: '4px' }}>{errors.confirmPassword.message}</div>}
@@ -131,15 +133,15 @@ export default function RegisterPage() {
             style={{ width: '100%', justifyContent: 'center', padding: '11px', marginTop: '24px' }}
           >
             {isLoading
-              ? <><div className="loading-spinner" style={{ width: 16, height: 16 }} /> Đang đăng ký...</>
-              : <><UserPlus size={16} /> Đăng ký</>
+              ? <><div className="loading-spinner" style={{ width: 16, height: 16 }} /> {UI_MESSAGES.register.submitLoading}</>
+              : <><UserPlus size={16} /> {UI_MESSAGES.register.submit}</>
             }
           </button>
 
           <div style={{ textAlign: 'center', fontSize: '13px', color: 'var(--text-muted)', marginTop: '16px' }}>
-            Đã có tài khoản?{' '}
+            {UI_MESSAGES.register.hasAccount}{' '}
             <Link to="/login" style={{ color: 'var(--accent-primary)', textDecoration: 'none', fontWeight: 600 }}>
-              Đăng nhập
+              {UI_MESSAGES.register.loginLink}
             </Link>
           </div>
         </form>

@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useToast } from '../../context/ToastContext';
 import { useAuthStore } from '../../store/authStore';
 import { UserRole } from '../../constants/roles';
+import { UI_LIMITS } from '../../constants/limits';
 
 import { AdminMobileFilter } from '../../components/admin/AdminMobileFilter';
 
@@ -23,7 +24,7 @@ function useDebounce<T>(value: T, delay: number): T {
   return debouncedValue;
 }
 
-const LIMIT = 20; // TODO: đổi lại 20 sau khi test xong
+const LIMIT = UI_LIMITS.ADMIN_TABLE_PAGE_SIZE; // TODO: đổi lại 20 sau khi test xong
 
 // ── MUI-style custom Select ──────────────────────────────────────────────────
 interface MuiSelectProps {
@@ -220,7 +221,7 @@ export default function UsersTab() {
   const queryClient = useQueryClient();
   const toast = useToast();
   const [search, setSearch] = useState('');
-  const debouncedSearch = useDebounce(search, 500);
+  const debouncedSearch = useDebounce(search, UI_LIMITS.SEARCH_DEBOUNCE_MS);
   const [statusFilter, setStatusFilter] = useState('all');
   const [roleFilter, setRoleFilter] = useState('all');
   const [sortFilter, setSortFilter] = useState('newest');

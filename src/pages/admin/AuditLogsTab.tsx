@@ -6,6 +6,7 @@ import { UserRole } from '../../constants/roles';
 import { AdminMobileFilter } from '../../components/admin/AdminMobileFilter';
 import { MuiSelect } from '../../components/admin/MuiSelect';
 import MediaLightbox from '../../components/MediaLightbox';
+import { UI_LIMITS } from '../../constants/limits';
 
 interface InfoItemProps {
   icon: React.ReactNode;
@@ -50,13 +51,13 @@ function useDebounce<T>(value: T, delay: number): T {
 // User Autocomplete Component
 function UserAutocomplete({ label, value, onChange, labelBgColor = 'var(--bg-primary)' }: { label: string, value: string | undefined, onChange: (v: string | undefined) => void, labelBgColor?: string }) {
   const [search, setSearch] = useState('');
-  const debouncedSearch = useDebounce(search, 500);
+  const debouncedSearch = useDebounce(search, UI_LIMITS.SEARCH_DEBOUNCE_MS);
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
   const { data } = useQuery({
     queryKey: ['admin_users_search', debouncedSearch],
-    queryFn: () => adminApi.getUsers({ search: debouncedSearch, limit: 10 }),
+    queryFn: () => adminApi.getUsers({ search: debouncedSearch, limit: UI_LIMITS.ADMIN_AUTOCOMPLETE_LIMIT }),
     enabled: debouncedSearch.length > 0 && open,
   });
 

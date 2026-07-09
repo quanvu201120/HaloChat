@@ -6,8 +6,8 @@ import { useToast } from '../context/ToastContext';
 import { parseError, usersApi } from '../services/api';
 import { fetchUserDetail, useUsersListQuery, type UserSummary } from '../queries/users';
 import { UserRole } from '../constants/roles';
-
-const PAGE_SIZE = 10;
+import { UI_LIMITS } from '../constants/limits';
+import { UI_MESSAGES } from '../constants/messages';
 
 const defaultCreate = {
   name: '',
@@ -47,7 +47,7 @@ export default function UsersPage() {
   const [createForm, setCreateForm] = useState(defaultCreate);
   const [editForm, setEditForm] = useState(defaultEdit);
 
-  const usersQuery = useUsersListQuery(currentPage, appliedSearchText, PAGE_SIZE);
+  const usersQuery = useUsersListQuery(currentPage, appliedSearchText, UI_LIMITS.USER_LIST_PAGE_SIZE);
   const users = usersQuery.data?.userList || [];
   const totalPages = usersQuery.data?.totalPages || 1;
   const isLoading = usersQuery.isPending && !usersQuery.data;
@@ -84,7 +84,7 @@ export default function UsersPage() {
       });
     },
     onSuccess: async () => {
-      toast.success('Tao user thanh cong!');
+      toast.success(UI_MESSAGES.users.createSuccess);
       setShowCreate(false);
       setCreateForm(defaultCreate);
       setCurrentPage(1);
@@ -106,7 +106,7 @@ export default function UsersPage() {
       });
     },
     onSuccess: async () => {
-      toast.success('Cap nhat user thanh cong!');
+      toast.success(UI_MESSAGES.users.updateSuccess);
       setShowEdit(false);
       await queryClient.invalidateQueries({ queryKey: ['users'] });
     },
@@ -121,7 +121,7 @@ export default function UsersPage() {
       await usersApi.delete(selectedUser._id);
     },
     onSuccess: async () => {
-      toast.success('Xoa user thanh cong!');
+      toast.success(UI_MESSAGES.users.deleteSuccess);
       setShowDelete(false);
       await queryClient.invalidateQueries({ queryKey: ['users'] });
     },
@@ -144,23 +144,23 @@ export default function UsersPage() {
 
   const handleCreate = async () => {
     if (!createForm.name.trim()) {
-      toast.error('Ten khong duoc de trong');
+      toast.error(UI_MESSAGES.users.nameRequired);
       return;
     }
     if (!createForm.email) {
-      toast.error('Email khong duoc de trong');
+      toast.error(UI_MESSAGES.users.emailRequired);
       return;
     }
     if (!createForm.password) {
-      toast.error('Mat khau khong duoc de trong');
+      toast.error(UI_MESSAGES.users.passwordRequired);
       return;
     }
-    if (createForm.password.length < 6) {
-      toast.error('Mat khau phai co it nhat 6 ky tu');
+    if (createForm.password.length < UI_LIMITS.PASSWORD_MIN_LENGTH) {
+      toast.error(UI_MESSAGES.users.passwordTooShort);
       return;
     }
     if (createForm.password !== createForm.confirmPassword) {
-      toast.error('Xac nhan mat khau khong khop');
+      toast.error(UI_MESSAGES.users.confirmPasswordMismatch);
       return;
     }
 
@@ -280,7 +280,7 @@ export default function UsersPage() {
               <tbody>
                 {users.map((u, idx) => (
                   <tr key={u._id}>
-                    <td style={{ color: 'var(--text-muted)', fontSize: '12px' }}>{(currentPage - 1) * PAGE_SIZE + idx + 1}</td>
+                    <td style={{ color: 'var(--text-muted)', fontSize: '12px' }}>{(currentPage - 1) * UI_LIMITS.USER_LIST_PAGE_SIZE + idx + 1}</td>
                     <td>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                         <div className="avatar" style={{ width: '30px', height: '30px', fontSize: '11px' }}>

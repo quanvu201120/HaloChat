@@ -9,6 +9,8 @@ import { useChatStore } from '../store/chatStore';
 import ConfirmModal from './ConfirmModal';
 
 import { UserRole } from '../constants/roles';
+import { UI_LIMITS } from '../constants/limits';
+import { UI_MESSAGES } from '../constants/messages';
 
 interface NavigationSidebarProps {
   isOpen: boolean;
@@ -49,17 +51,17 @@ export default function NavigationSidebar({ isOpen, setIsOpen }: NavigationSideb
 
   const handleLogout = () => {
     setConfirmAction({
-      title: 'Đăng xuất',
-      message: 'Bạn có chắc chắn muốn đăng xuất?',
+      title: UI_MESSAGES.navigation.logoutTitle,
+      message: UI_MESSAGES.navigation.logoutConfirm,
       isDanger: true,
-      confirmText: 'Đăng xuất',
+      confirmText: UI_MESSAGES.navigation.logoutConfirmButton,
       action: async () => {
         try {
           await logout();
-          toast.success('Đăng xuất thành công!');
+          toast.success(UI_MESSAGES.navigation.logoutSuccess);
           navigate('/login');
         } catch {
-          toast.error('Đăng xuất thất bại');
+          toast.error(UI_MESSAGES.navigation.logoutFailed);
         }
       }
     });
@@ -71,7 +73,7 @@ export default function NavigationSidebar({ isOpen, setIsOpen }: NavigationSideb
       setTimeout(() => {
         if (action) action();
         navigate(path);
-      }, 300); // Đợi animation đóng sidebar hoàn tất rồi mới chuyển trang
+      }, UI_LIMITS.SIDEBAR_NAVIGATION_DELAY_MS);
     } else {
       if (action) action();
       navigate(path);
@@ -110,7 +112,7 @@ export default function NavigationSidebar({ isOpen, setIsOpen }: NavigationSideb
               <MessageCircle className={iconSizeClass} />
               {unreadMessageCount > 0 && (
                 <span className="absolute -top-1 -right-1 flex items-center justify-center min-w-[16px] h-[16px] px-[5px] bg-[#ef4444] text-white text-[9px] font-bold rounded-full shadow-sm leading-none">
-                  {unreadMessageCount > 99 ? '99+' : unreadMessageCount}
+                  {unreadMessageCount > UI_LIMITS.UNREAD_BADGE_MAX ? `${UI_LIMITS.UNREAD_BADGE_MAX}+` : unreadMessageCount}
                 </span>
               )}
             </div>
@@ -140,7 +142,7 @@ export default function NavigationSidebar({ isOpen, setIsOpen }: NavigationSideb
               <MessageSquareDashed className={iconSizeClass} />
               {pendingRequestCount > 0 && (
                 <span className="absolute -top-1 -right-1 flex items-center justify-center min-w-[16px] h-[16px] px-[5px] bg-[#ef4444] text-white text-[9px] font-bold rounded-full shadow-sm leading-none">
-                  {pendingRequestCount > 99 ? '99+' : pendingRequestCount}
+                  {pendingRequestCount > UI_LIMITS.UNREAD_BADGE_MAX ? `${UI_LIMITS.UNREAD_BADGE_MAX}+` : pendingRequestCount}
                 </span>
               )}
             </div>

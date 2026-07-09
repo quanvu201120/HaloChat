@@ -7,6 +7,7 @@ import { AdminMobileFilter } from '../../components/admin/AdminMobileFilter';
 import { Flag, ChevronRight, ChevronLeft, Clock, AlertCircle, FileText, CheckCircle, Hash, Image, User, Shield } from 'lucide-react';
 import MediaLightbox from '../../components/MediaLightbox';
 import ResolveReportModal from '../../components/admin/ResolveReportModal';
+import { UI_LIMITS } from '../../constants/limits';
 
 function useDebounce<T>(value: T, delay: number): T {
   const [debouncedValue, setDebouncedValue] = useState<T>(value);
@@ -19,13 +20,13 @@ function useDebounce<T>(value: T, delay: number): T {
 
 function UserAutocomplete({ label, value, onChange, labelBgColor = 'var(--bg-primary)' }: { label: string, value: string | undefined, onChange: (v: string | undefined) => void, labelBgColor?: string }) {
   const [search, setSearch] = useState('');
-  const debouncedSearch = useDebounce(search, 500);
+  const debouncedSearch = useDebounce(search, UI_LIMITS.SEARCH_DEBOUNCE_MS);
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
   const { data } = useQuery({
     queryKey: ['admin_users_search', debouncedSearch],
-    queryFn: () => adminApi.getUsers({ search: debouncedSearch, limit: 10 }),
+    queryFn: () => adminApi.getUsers({ search: debouncedSearch, limit: UI_LIMITS.ADMIN_AUTOCOMPLETE_LIMIT }),
     enabled: debouncedSearch.length > 0 && open,
     staleTime: 0,
     gcTime: 0,
@@ -176,14 +177,14 @@ export default function ReportsTab() {
   const [localEndDate, setLocalEndDate] = useState<string>('');
   
   const [reportIdSearch, setReportIdSearch] = useState('');
-  const debouncedReportId = useDebounce(reportIdSearch, 500);
+  const debouncedReportId = useDebounce(reportIdSearch, UI_LIMITS.SEARCH_DEBOUNCE_MS);
   const [sortOrder, setSortOrder] = useState('newest');
   
   const [selectedReport, setSelectedReport] = useState<Report | null>(null);
   const [isMobileFilterOpen, setIsMobileFilterOpen] = useState(false);
   const [lightboxData, setLightboxData] = useState<{ medias: any[], initialIndex: number } | null>(null);
   const [isResolveModalOpen, setIsResolveModalOpen] = useState(false);
-  const LIMIT = 20;
+  const LIMIT = UI_LIMITS.ADMIN_TABLE_PAGE_SIZE;
 
   const { data, isLoading } = useQuery({
     queryKey: ['admin_reports', page, LIMIT, status, targetRole, reporterId, targetUserId, resolvedBy, localStartDate, localEndDate, debouncedReportId, sortOrder],

@@ -11,13 +11,14 @@ import ConfirmModal from '../components/ConfirmModal';
 import UpdateEmailModal from '../components/UpdateEmailModal';
 import MediaLightbox from '../components/MediaLightbox';
 import { UserRole } from '../constants/roles';
+import { UI_MESSAGES } from '../constants/messages';
 
 const profileSchema = z.object({
   name: z.string().optional(),
   phone: z.string()
     .optional()
     .refine((val) => !val || /^(0|\+84)(3|5|7|8|9)[0-9]{8}$/.test(val), {
-      message: 'Số điện thoại không hợp lệ',
+      message: UI_MESSAGES.profile.phoneInvalid,
     }),
   address: z.string().max(150).optional(),
   dateOfBirth: z.string().optional().refine((val) => {
@@ -25,7 +26,7 @@ const profileSchema = z.object({
     const d = new Date(val);
     if (isNaN(d.getTime())) return false;
     return d <= new Date();
-  }, { message: 'Ngày sinh không được lớn hơn ngày hiện tại' }),
+  }, { message: UI_MESSAGES.profile.dateOfBirthInvalid }),
   gender: z.string().optional(),
   bio: z.string().max(250).optional(),
 });
@@ -106,7 +107,7 @@ export function ProfilePageContent() {
         gender: updated.gender || '',
         bio: updated.bio || '',
       });
-      toast.success('Cập nhật hồ sơ thành công!');
+      toast.success(UI_MESSAGES.profile.updateSuccess);
     } catch (err: any) {
       toast.error(parseError(err));
     } finally {
@@ -127,14 +128,14 @@ export function ProfilePageContent() {
   const handleLogoutAll = () => {
     setConfirmAction({
       title: 'Đăng xuất tất cả',
-      message: 'Bạn có chắc chắn muốn đăng xuất khỏi tất cả các thiết bị khác?',
+      message: UI_MESSAGES.profile.logoutAllConfirm,
       isDanger: true,
       confirmText: 'Đăng xuất',
       action: async () => {
         setLogoutAllLoading(true);
         try {
           await logoutAll();
-          toast.success('Đã đăng xuất tất cả thiết bị.');
+          toast.success(UI_MESSAGES.profile.logoutAllSuccess);
           navigate('/login', { replace: true });
         } catch (err: any) {
           toast.error(parseError(err));
@@ -165,7 +166,7 @@ export function ProfilePageContent() {
   const handleDeleteAvatar = () => {
     setConfirmAction({
       title: 'Xóa ảnh đại diện',
-      message: 'Bạn có chắc chắn muốn xóa ảnh đại diện của mình?',
+      message: UI_MESSAGES.profile.deleteAvatarConfirm,
       isDanger: true,
       action: () => {
         setConfirmAction(null);
@@ -175,7 +176,7 @@ export function ProfilePageContent() {
             const res = await usersApi.deleteAvatar();
             const updated = res.data?.data ?? res.data;
             updateUser({ ...updated, avatar: undefined });
-            toast.success('Đã xóa ảnh đại diện');
+            toast.success(UI_MESSAGES.profile.deleteAvatarSuccess);
           } catch (err: any) {
             toast.error(parseError(err));
           } finally {
@@ -188,16 +189,16 @@ export function ProfilePageContent() {
 
   const handleDisableSelfStep3 = () => {
     setConfirmAction({
-      title: 'Xác nhận vô hiệu hóa LẦN CUỐI',
-      message: 'Hành động này KHÔNG THỂ HOÀN TÁC. Bạn có chắc chắn muốn vô hiệu hóa tài khoản?',
+      title: UI_MESSAGES.profile.disableStep3Title,
+      message: UI_MESSAGES.profile.disableStep3Message,
       isDanger: true,
-      confirmText: 'Vô hiệu hóa',
+      confirmText: UI_MESSAGES.profile.disableStep3Confirm,
       countdown: 5,
       action: async () => {
         setIsDisabling(true);
         try {
           await usersApi.disableSelf();
-          toast.success('Tài khoản đã bị vô hiệu hóa.');
+          toast.success(UI_MESSAGES.profile.disableSuccess);
           localLogout();
           navigate('/login', { replace: true });
         } catch (err: any) {
@@ -210,27 +211,25 @@ export function ProfilePageContent() {
 
   const handleDisableSelfStep2 = () => {
     setConfirmAction({
-      title: 'Xác nhận vô hiệu hóa',
-      message: 'Hành động này không thể hoàn tác. Bạn chắc chắn muốn vô hiệu hóa tài khoản?',
+      title: UI_MESSAGES.profile.disableStep2Title,
+      message: UI_MESSAGES.profile.disableStep2Message,
       isDanger: true,
-      confirmText: 'Vẫn muốn vô hiệu hóa',
+      confirmText: UI_MESSAGES.profile.disableStep2Confirm,
       countdown: 5,
       action: () => {
         handleDisableSelfStep3();
-        return false;
       }
     });
   };
 
   const handleDisableSelf = () => {
     setConfirmAction({
-      title: 'CẢNH BÁO: Vô hiệu hóa tài khoản',
-      message: 'Bạn có chắc chắn muốn vô hiệu hóa tài khoản? Bạn sẽ bị đăng xuất và không thể đăng nhập lại cho đến khi liên hệ quản trị viên.',
+      title: UI_MESSAGES.profile.disableStep1Title,
+      message: UI_MESSAGES.profile.disableStep1Message,
       isDanger: true,
-      confirmText: 'Tiếp tục',
+      confirmText: UI_MESSAGES.profile.disableStep1Confirm,
       action: () => {
         handleDisableSelfStep2();
-        return false;
       }
     });
   };
