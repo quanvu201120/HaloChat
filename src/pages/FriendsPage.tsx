@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Search, ArrowUpDown, ChevronDown, MoreHorizontal, Check, ChevronLeft, AlignLeft, Ban, MapPin, Calendar, User as UserIcon, MessageSquare, UserX, UserMinus, AlertTriangle } from 'lucide-react';
+import { Search, ArrowUpDown, ChevronDown, Check, Ban, MapPin, Calendar, User as UserIcon, MessageSquare, UserX, UserMinus, AlertTriangle } from 'lucide-react';
 import { useRelationships } from '../hooks/useRelationships';
 import { conversationsApi } from '../services/conversations';
 import { useChatStore as useChat } from '../store/chatStore';
@@ -9,10 +9,10 @@ import ConfirmModal from '../components/ConfirmModal';
 import Modal from '../components/Modal';
 import ReportUserModal from '../components/ReportUserModal';
 import { useToast } from '../context/ToastContext';
+import { formatDateOnlyVN } from '../utils/date';
 export default function FriendsPage() {
   const location = useLocation();
   const navigate = useNavigate();
-  const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
   const [selectedUserForInfo, setSelectedUserForInfo] = useState<any>(null);
   const [showReportModal, setShowReportModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -85,7 +85,6 @@ export default function FriendsPage() {
 
   const handleAction = async (action: string, friend: any, e: React.MouseEvent) => {
     e.stopPropagation();
-    setActiveDropdown(null);
     const friendName = friend.name || friend.email;
 
     if (action === 'info') {
@@ -234,7 +233,7 @@ export default function FriendsPage() {
   return (  
     <div 
       className="flex flex-col flex-1 w-full bg-transparent"
-      onClick={() => { setActiveDropdown(null); setIsSortDropdownOpen(false); }}
+      onClick={() => { setIsSortDropdownOpen(false); }}
     >
       {location.pathname === '/blocked' && (
         <div className="sidebar-header" style={{ borderBottom: 'none', marginTop:'-7px' }}>
@@ -319,8 +318,8 @@ export default function FriendsPage() {
               </div>
               {/* Sort */}
               <div style={{ position: 'relative' }}>
-                <button 
-                  onClick={(e) => { e.stopPropagation(); setIsSortDropdownOpen(!isSortDropdownOpen); setActiveDropdown(null); }}
+                  <button 
+                    onClick={(e) => { e.stopPropagation(); setIsSortDropdownOpen(!isSortDropdownOpen); }}
                   style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 16px', borderRadius: '8px', border: isSortDropdownOpen ? '1px solid #3b82f6' : '1px solid var(--border)', backgroundColor: 'transparent', fontSize: '14px', fontWeight: 500, color: isSortDropdownOpen ? '#3b82f6' : 'var(--text-primary)', cursor: 'pointer', outline: 'none' }}
                 >
                   <ArrowUpDown size={16} /> {sortOrder === 'asc' ? 'Tên (A-Z)' : 'Tên (Z-A)'} <ChevronDown size={16} />
@@ -535,7 +534,7 @@ export default function FriendsPage() {
                 <div>
                   <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Ngày sinh</div>
                   <div style={{ fontSize: '15px', fontWeight: 500 }}>
-                    {selectedUserForInfo.dateOfBirth ? new Date(selectedUserForInfo.dateOfBirth).toLocaleDateString('vi-VN') : 'Chưa cập nhật'}
+                    {selectedUserForInfo.dateOfBirth ? formatDateOnlyVN(selectedUserForInfo.dateOfBirth) : 'Chưa cập nhật'}
                   </div>
                 </div>
               </div>

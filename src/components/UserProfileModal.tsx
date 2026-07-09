@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, MessageSquare, UserMinus, ShieldAlert, Phone, Mail, MapPin, User, Eye, EyeOff, Ban, Trash2 } from 'lucide-react';
+import { MessageSquare, User, Eye, EyeOff, Ban, Trash2 } from 'lucide-react';
 import { useToast } from '../context/ToastContext';
 import { useChatStore as useChat } from '../store/chatStore';
 import { useRelationships } from '../hooks/useRelationships';
 import { conversationsApi } from '../services/conversations';
 import { parseError } from '../services/api';
+import { formatDateOnlyVN } from '../utils/date';
 import type { RelationshipUser } from '../hooks/useRelationships';
 
 interface Props {
@@ -89,19 +90,7 @@ export default function UserProfileModal({ isOpen, onClose, user }: Props) {
     }
   };
 
-  // Helper function to format DOB
-  const getDob = () => {
-    if (!user.dateOfBirth) return null;
-    try {
-      const date = new Date(user.dateOfBirth);
-      if (isNaN(date.getTime())) return user.dateOfBirth;
-      return `${date.getDate().toString().padStart(2, '0')}/${(date.getMonth() + 1).toString().padStart(2, '0')}`;
-    } catch (e) {
-      return user.dateOfBirth;
-    }
-  };
-
-  const dobFormatted = getDob();
+  const dobFormatted = user.dateOfBirth ? formatDateOnlyVN(user.dateOfBirth) : null;
 
   return (
     <AnimatePresence>

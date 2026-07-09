@@ -1,14 +1,14 @@
 import { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { adminApi, type UserAdminData } from '../../services/admin';
-import { ShieldBan, ShieldCheck, X, ChevronLeft, ChevronRight, ChevronDown, Trash2, Key, Eye, EyeOff, Mail, Phone, MapPin, Calendar, Clock, Cake, User, Fingerprint, Lock, Shield, SquarePen, CalendarDays } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { ShieldBan, ShieldCheck, X, ChevronLeft, ChevronRight, Eye, EyeOff, Mail, Phone, MapPin, Calendar, Clock, User, Lock, Shield, CalendarDays } from 'lucide-react';
 import { useToast } from '../../context/ToastContext';
 import { useAuthStore } from '../../store/authStore';
 import { UserRole } from '../../constants/roles';
 import { UI_LIMITS } from '../../constants/limits';
 
 import { AdminMobileFilter } from '../../components/admin/AdminMobileFilter';
+import { formatDateOnlyVN, formatDateVN } from '../../utils/date';
 
 function useDebounce<T>(value: T, delay: number): T {
   const [debouncedValue, setDebouncedValue] = useState<T>(value);
@@ -194,11 +194,10 @@ interface InfoItemProps {
   label: string;
   value?: string | null;
   placeholder?: string;
-  colorClass?: string; // Kept for interface compatibility
   valueClass?: string;
 }
 
-function InfoItem({ icon, label, value, placeholder = 'Chưa xác định', colorClass = '', valueClass = '' }: InfoItemProps) {
+function InfoItem({ icon, label, value, placeholder = 'Chưa xác định', valueClass = '' }: InfoItemProps) {
   return (
     <div className="flex items-center gap-4 border-b border-[var(--border)] last:border-b-0" style={{ padding: '10px 0' }}>
       <div className="w-9 h-9 flex items-center justify-center bg-[var(--bg-primary)] rounded-sm text-[var(--text-secondary)] shrink-0 border border-[var(--border)]">
@@ -269,7 +268,7 @@ export default function UsersTab() {
 
   const manualBanMutation = useMutation({
     mutationFn: ({ id, reason, durationDays, password, resetAvatar, resetBio, resetName }: { id: string, reason: string, durationDays: number, password?: string, resetAvatar?: boolean, resetBio?: boolean, resetName?: boolean }) => adminApi.manualBan(id, { reason, durationDays, password, resetAvatar, resetBio, resetName }),
-    onSuccess: (data, variables) => {
+    onSuccess: (_data, variables) => {
       toast.success('Đã khóa tài khoản');
       queryClient.invalidateQueries({ queryKey: ['admin_users'] });
       setShowStatusModal(false);
@@ -284,7 +283,7 @@ export default function UsersTab() {
 
   const enableMutation = useMutation({
     mutationFn: ({ id, password, reason }: { id: string, password?: string, reason: string }) => adminApi.enableUser(id, password, reason),
-    onSuccess: (data, variables) => {
+    onSuccess: (_data, variables) => {
       toast.success('Đã kích hoạt lại tài khoản');
       queryClient.invalidateQueries({ queryKey: ['admin_users'] });
       setShowStatusModal(false);
@@ -297,7 +296,7 @@ export default function UsersTab() {
 
   const unbanMutation = useMutation({
     mutationFn: ({ id, password, reason }: { id: string, password?: string, reason: string }) => adminApi.unbanUser(id, password, reason),
-    onSuccess: (data, variables) => {
+    onSuccess: (_data, variables) => {
       toast.success('Đã mở khóa tài khoản');
       queryClient.invalidateQueries({ queryKey: ['admin_users'] });
       setShowStatusModal(false);
@@ -310,7 +309,7 @@ export default function UsersTab() {
 
   const unmuteMutation = useMutation({
     mutationFn: ({ id, password, reason }: { id: string, password?: string, reason: string }) => adminApi.unmuteUser(id, password, reason),
-    onSuccess: (data, variables) => {
+    onSuccess: (_data, variables) => {
       toast.success('Đã mở khóa chat');
       queryClient.invalidateQueries({ queryKey: ['admin_users'] });
       setShowStatusModal(false);
@@ -345,17 +344,10 @@ export default function UsersTab() {
   const [statusReason, setStatusReason] = useState('');
   const [roleReason, setRoleReason] = useState('');
 
-  const handleToggleStatus = (user: UserAdminData) => {
-    setStatusAction(user.isDisabled ? 'enable' : 'disable');
-    setStatusPassword('');
-    setStatusReason('');
-    setShowStatusModal(true);
-  };
-
   const quickPenaltyMutation = useMutation({
     mutationFn: ({ id, reason, resetAvatar, resetBio, resetName, adminNote, password }: { id: string, reason: string, resetAvatar?: boolean, resetBio?: boolean, resetName?: boolean, adminNote?: string, password?: string }) => 
       adminApi.quickPenalty(id, { reason, resetAvatar, resetBio, resetName, adminNote, password }),
-    onSuccess: (data: any, variables) => {
+    onSuccess: (data: { name?: string }, variables) => {
       toast.success('Đã xử lý vi phạm thành công');
       queryClient.invalidateQueries({ queryKey: ['admin_users'] });
       setSelectedUser(prev => {
@@ -374,7 +366,7 @@ export default function UsersTab() {
 
   const changeRoleMutation = useMutation({
     mutationFn: ({ id, role, password, reason }: { id: string, role: string, password?: string, reason?: string }) => adminApi.changeUserRole(id, { role, password: password || '', reason }),
-    onSuccess: (data: any, variables) => {
+    onSuccess: (data: { role: UserRole }, variables) => {
       toast.success('Đã thay đổi quyền thành công');
       queryClient.invalidateQueries({ queryKey: ['admin_users'] });
       setSelectedUser(prev => prev ? { ...prev, role: data.role } : null);
@@ -624,7 +616,7 @@ export default function UsersTab() {
     );
   };
 
-  const users = data?.items || [];
+  const users: UserAdminData[] = data?.items || [];
   const total = data?.total || 0;
 
   // Sync selectedUser if data changes (e.g. after refresh)
@@ -748,7 +740,7 @@ export default function UsersTab() {
                       <UserStatusBadges user={u} variant="table" />
                     </td>
                     <td className="px-6 py-4 text-[var(--text-secondary)]">
-                      {new Date(u.createdAt).toLocaleDateString('vi-VN')}
+                      {formatDateVN(u.createdAt)}
                     </td>
 
                   </tr>
@@ -1064,7 +1056,7 @@ export default function UsersTab() {
 <InfoItem 
                     icon={<Calendar size={16} />}
                     label="Ngày sinh"
-                    value={selectedUser.dateOfBirth ? new Date(selectedUser.dateOfBirth).toLocaleDateString('vi-VN') : undefined}
+                    value={selectedUser.dateOfBirth ? formatDateOnlyVN(selectedUser.dateOfBirth) : undefined}
                     placeholder="Chưa xác định"
                   />
                   <InfoItem 
@@ -1089,7 +1081,7 @@ export default function UsersTab() {
                   <InfoItem 
                     icon={<Clock size={16} />}
                     label="Lần cuối online"
-                    value={selectedUser.lastOnlineAt ? new Date(selectedUser.lastOnlineAt).toLocaleString('vi-VN') : undefined}
+                    value={selectedUser.lastOnlineAt ? formatDateVN(selectedUser.lastOnlineAt) : undefined}
                     placeholder="Chưa xác định"
                   />
 
@@ -1099,10 +1091,7 @@ export default function UsersTab() {
                     icon={<CalendarDays size={16} />}
                     label="Ngày tham gia"
                     value={(() => {
-                      const date = new Date(selectedUser.createdAt);
-                      const timeStr = date.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-                      const dateStr = date.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
-                      return `${timeStr}, Ngày ${dateStr}`;
+                      return formatDateVN(selectedUser.createdAt);
                     })()}
                   />
 
@@ -1116,7 +1105,7 @@ export default function UsersTab() {
                     <InfoItem 
                       icon={<Lock size={16} />}
                       label="Ngày bị khóa"
-                      value={new Date(selectedUser.disabledAt).toLocaleString('vi-VN')}
+                      value={formatDateVN(selectedUser.disabledAt)}
                       valueClass="text-red-500 dark:text-red-400 font-semibold"
                     />
                   )}
@@ -1130,7 +1119,7 @@ export default function UsersTab() {
       )}
       {/* Status Modal (Lock/Unlock) */}
       {showStatusModal && selectedUser && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 animate-in fade-in">
+        <div  className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 animate-in fade-in">
           <div
             style={{
               background: 'var(--bg-card)',
@@ -1440,7 +1429,7 @@ export default function UsersTab() {
 
       {/* Sudo Mode Role Modal */}
       {showRoleModal && selectedUser && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 animate-in fade-in">
+        <div className="fixed inset-0 flex items-center justify-center p-4 bg-black/50 animate-in fade-in" style={{ zIndex: 1000 }}>
           <div
             style={{
               background: 'var(--bg-card)',

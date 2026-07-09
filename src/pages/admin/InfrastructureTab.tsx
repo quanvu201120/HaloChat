@@ -1,8 +1,7 @@
 import { useState, useMemo } from 'react';
-import { useQuery, useMutation } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { adminApi } from '../../services/admin';
-import { Server, Database, Cloud, Activity, RefreshCw, TrendingUp } from 'lucide-react';
-import { toast } from 'react-hot-toast';
+import { Server, Database, Cloud, Activity, TrendingUp } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, AreaChart, Area, XAxis, YAxis, CartesianGrid } from 'recharts';
 
 export default function InfrastructureTab({ startDate, endDate, filterMode }: { startDate?: string, endDate?: string, filterMode?: string }) {
@@ -23,7 +22,7 @@ export default function InfrastructureTab({ startDate, endDate, filterMode }: { 
   // Fetch chart data (Strictly no cache)
   const { data: chartData, isLoading: isChartLoading } = useQuery({
     queryKey: ['admin_infra_chart', chartType, autoTimeRange, startDate, endDate],
-    queryFn: () => adminApi.getChartData(autoTimeRange, chartType, startDate, endDate),
+    queryFn: () => adminApi.getChartData(autoTimeRange, 'bandwidth', startDate, endDate),
     staleTime: 5 * 60 * 1000,
     gcTime: 10 * 60 * 1000,
   });
@@ -62,7 +61,7 @@ export default function InfrastructureTab({ startDate, endDate, filterMode }: { 
   };
 
   // Fetch overview data for Storage progress bars
-  const { data: overview, isLoading: isOverviewLoading } = useQuery({
+  const { data: overview } = useQuery({
     queryKey: ['admin_overview', startDate, endDate],
     queryFn: () => adminApi.getOverview(startDate, endDate),
     staleTime: 5 * 60 * 1000,
@@ -71,7 +70,7 @@ export default function InfrastructureTab({ startDate, endDate, filterMode }: { 
   });
 
   // Fetch health data for Ping and Uptime
-  const { data: health, isLoading: isHealthLoading, refetch: refetchHealth } = useQuery({
+  const { data: health } = useQuery({
     queryKey: ['admin_health'],
     queryFn: adminApi.getHealth,
     staleTime: 5 * 60 * 1000,
@@ -92,8 +91,6 @@ export default function InfrastructureTab({ startDate, endDate, filterMode }: { 
     storage: { ...fallbackOverview.storage, ...overview?.storage },
     limits: { ...fallbackOverview.limits, ...overview?.limits }
   };
-
-  const redisPercent = calculatePercentage(safeOverview.storage.redisRamUsed, safeOverview.storage.redisRamTotal);
 
   // Fallback for Health
   const fallbackHealth = {
@@ -338,18 +335,6 @@ function calculatePercentage(used: number, total: number | string) {
   return 0;
 }
 
-function getStorageChartData(used: number, total: number | string, color: string) {
-  if (typeof total === 'string' && total === 'Unlimited') return null;
-  if (typeof total === 'number' && total > 0) {
-    const free = Math.max(0, total - used);
-    return [
-      { name: 'Used', value: used, color: color },
-      { name: 'Free', value: free, color: '#e5e7eb' }
-    ];
-  }
-  return null;
-}
-
 function formatLimit(limit: number | string, unit: string) {
   if (limit === 'Unlimited') return 'Không giới hạn';
   if (typeof limit === 'number' && limit >= 1024 && unit === 'MB') {
@@ -419,8 +404,8 @@ function SystemCard({ title, icon, pingData, progressData, chartData, stats }: a
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Tooltip 
-                  formatter={(value: number, name: string) => {
-                    const mbValue = Number(value);
+                  formatter={(value, name) => {
+                    const mbValue = Number(value ?? 0);
                     if (mbValue < 1024) return [`${mbValue.toFixed(2)} MB`, name];
                     return [`${(mbValue / 1024).toFixed(2)} GB`, name];
                   }}

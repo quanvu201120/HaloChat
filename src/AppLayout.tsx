@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import { Outlet, Navigate, useLocation } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
 import { useAuthStore as useAuth } from './store/authStore';
 import SocketManager from './components/SocketManager';
 import Sidebar from './components/Sidebar';

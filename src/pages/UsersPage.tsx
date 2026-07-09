@@ -8,6 +8,7 @@ import { fetchUserDetail, useUsersListQuery, type UserSummary } from '../queries
 import { UserRole } from '../constants/roles';
 import { UI_LIMITS } from '../constants/limits';
 import { UI_MESSAGES } from '../constants/messages';
+import { formatDateVN } from '../utils/date';
 
 const defaultCreate = {
   name: '',
@@ -129,8 +130,6 @@ export default function UsersPage() {
       toast.error(parseError(err));
     },
   });
-
-  const formatDate = (value?: string) => (value ? new Date(value).toLocaleDateString('vi-VN') : '—');
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -300,7 +299,7 @@ export default function UsersPage() {
                         {u.isActive ? 'Active' : 'Inactive'}
                       </span>
                     </td>
-                    <td style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{formatDate(u.createdAt)}</td>
+                    <td style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{formatDateVN(u.createdAt)}</td>
                     <td>
                       <div style={{ display: 'flex', gap: '4px' }}>
                         <button className="btn btn-secondary btn-icon" title="Xem chi tiet" onClick={() => openDetail(u)}><Eye size={13} /></button>
@@ -528,7 +527,7 @@ export default function UsersPage() {
               { label: 'Trang thai', value: detailUser.isActive ? 'Da kich hoat' : 'Chua kich hoat' },
               { label: 'So dien thoai', value: detailUser.phone || '—' },
               { label: 'Dia chi', value: detailUser.address || '—' },
-              { label: 'Ngay tao', value: formatDate(detailUser.createdAt) },
+              { label: 'Ngay tao', value: formatDateVN(detailUser.createdAt) },
             ].map((item) => (
               <div key={item.label} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid var(--border)' }}>
                 <span style={{ color: 'var(--text-muted)', fontSize: '13px' }}>{item.label}</span>

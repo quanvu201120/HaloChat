@@ -218,6 +218,7 @@ export function ProfilePageContent() {
       countdown: 5,
       action: () => {
         handleDisableSelfStep3();
+        return false;
       }
     });
   };
@@ -230,6 +231,7 @@ export function ProfilePageContent() {
       confirmText: UI_MESSAGES.profile.disableStep1Confirm,
       action: () => {
         handleDisableSelfStep2();
+        return false;
       }
     });
   };

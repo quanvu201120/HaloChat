@@ -1,13 +1,13 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { adminApi } from '../../services/admin';
-import { Users, MessageSquare, Activity, HardDrive, TrendingUp } from 'lucide-react';
+import { Activity, HardDrive, TrendingUp } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { useMemo } from 'react';
 import { MuiSelect } from '../../components/admin/MuiSelect';
 
 export default function OverviewTab({ startDate, endDate }: { startDate?: string; endDate?: string }) {
-  const [chartType, setChartType] = useState<'users' | 'messages' | 'bandwidth' | 'database' | 'activity'>('users');
+  const [chartType, setChartType] = useState<'users' | 'messages' | 'activity'>('users');
 
   const autoTimeRange = useMemo<'daily' | 'weekly' | 'monthly' | 'yearly'>(() => {
     if (!startDate || !endDate) return 'daily';
@@ -32,7 +32,7 @@ export default function OverviewTab({ startDate, endDate }: { startDate?: string
   // Fetch chart data (Strictly no cache)
   const { data: chartData, isLoading: isChartLoading } = useQuery({
     queryKey: ['admin_chart', chartType, autoTimeRange, startDate, endDate],
-    queryFn: () => adminApi.getChartData(autoTimeRange, chartType, startDate, endDate),
+    queryFn: () => adminApi.getChartData(autoTimeRange, chartType === 'activity' ? 'users' : chartType, startDate, endDate),
     staleTime: 5 * 60 * 1000,
     gcTime: 10 * 60 * 1000,
   });
@@ -52,14 +52,6 @@ export default function OverviewTab({ startDate, endDate }: { startDate?: string
     storage: { ...fallbackOverview.storage, ...overview?.storage },
     limits: { ...fallbackOverview.limits, ...overview?.limits }
   };
-
-  const calculatePercentage = (used: number, total: number | string) => {
-    if (typeof total === 'string' && total === 'Unlimited') return 0;
-    if (typeof total === 'number' && total > 0) return Math.min(100, Math.round((used / total) * 100));
-    return 0;
-  };
-
-  const redisPercent = calculatePercentage(safeOverview.storage.redisRamUsed, safeOverview.storage.redisRamTotal);
 
   const formattedChartData = useMemo(() => {
     if (!chartData || !Array.isArray(chartData)) return [];
@@ -86,7 +78,7 @@ export default function OverviewTab({ startDate, endDate }: { startDate?: string
                 <span className="w-2 h-2 rounded-full" style={{ backgroundColor: entry.color }}></span>
                 <span className="text-gray-200 capitalize">{entry.name}</span>
               </div>
-              <span className="font-medium text-white">{entry.value} {chartType === 'bandwidth' || chartType === 'database' ? 'MB' : ''}</span>
+              <span className="font-medium text-white">{entry.value}</span>
             </div>
           ))}
         </div>
@@ -333,101 +325,6 @@ function BreakdownCard({ title, total, subValue, data, isLoading }: any) {
             </div>
           ))}
         </div>
-      </div>
-    </div>
-  );
-}
-
-function MetricCard({ title, value, subValue, icon, isLoading, color = 'blue' }: any) {
-  const colorMap: Record<string, string> = {
-    blue: 'text-blue-500',
-    purple: 'text-purple-500',
-    pink: 'text-pink-500',
-    yellow: 'text-yellow-500',
-  };
-
-  const strokeMap: Record<string, string> = {
-    blue: '#3b82f6',
-    purple: '#a855f7',
-    pink: '#ec4899',
-    yellow: '#eab308',
-  };
-
-  const textColor = colorMap[color] || colorMap.blue;
-  const strokeColor = strokeMap[color] || strokeMap.blue;
-
-  return (
-    <div className="bg-[var(--bg-card)] rounded-2xl p-5 shadow-sm border border-[var(--border)] relative overflow-hidden flex flex-col justify-between h-[140px]">
-      <div className="flex justify-between items-start w-full z-10">
-        <h4 className="text-[var(--text-secondary)] font-medium text-sm">{title}</h4>
-        <div className={textColor}>
-          {icon}
-        </div>
-      </div>
-      
-      <div className="flex justify-between items-end mt-2 z-10 flex-1">
-        <div className="flex flex-col justify-end">
-          {isLoading ? (
-            <div className="text-4xl font-bold mb-1 text-[var(--text-muted)] animate-pulse">
-              ---
-            </div>
-          ) : (
-            <div className={`text-4xl font-bold mb-1 ${textColor}`}>
-              {value}
-            </div>
-          )}
-          <div className="text-xs font-medium text-[var(--text-muted)] flex items-center gap-1">
-            {subValue.includes('+') ? <TrendingUp size={12} className="text-emerald-500" /> : null}
-            {subValue}
-          </div>
-        </div>
-        
-        {/* Fake sparkline matched to mockup curve style */}
-        <div className="w-24 h-12 relative -bottom-2 -right-2">
-          <svg viewBox="0 0 100 40" className="w-full h-full overflow-visible">
-            <path 
-              d="M0,35 Q20,20 40,30 T80,15 T100,0" 
-              fill="none" 
-              stroke={strokeColor} 
-              strokeWidth="2.5" 
-              strokeLinecap="round" 
-              strokeLinejoin="round" 
-            />
-            <path 
-              d="M0,35 Q20,20 40,30 T80,15 T100,0 L100,45 L0,45 Z" 
-              fill={`url(#gradient-${color})`} 
-              className="opacity-40"
-            />
-            <defs>
-              <linearGradient id={`gradient-${color}`} x1="0" x2="0" y1="0" y2="1">
-                <stop offset="0%" stopColor={strokeColor} stopOpacity="0.5" />
-                <stop offset="100%" stopColor={strokeColor} stopOpacity="0" />
-              </linearGradient>
-            </defs>
-          </svg>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function ProgressBar({ label, used, total, unit }: { label: string, used: number, total: number | string, unit: string }) {
-  const percent = typeof total === 'number' ? Math.min(100, (used / total) * 100) : 0;
-  const isUnlimited = typeof total === 'string' && total === 'Unlimited';
-  
-  return (
-    <div>
-      <div className="flex justify-between text-sm mb-2">
-        <span className="font-medium text-[var(--text-secondary)]">{label}</span>
-        <span className="text-[var(--text-primary)] font-semibold">
-          {used} {unit} {isUnlimited ? '' : `/ ${total} ${unit}`}
-        </span>
-      </div>
-      <div className="w-full bg-[var(--bg-primary)] rounded-full h-2">
-        <div 
-          className="bg-indigo-500 h-2 rounded-full" 
-          style={{ width: isUnlimited ? '100%' : `${percent}%` }}
-        ></div>
       </div>
     </div>
   );

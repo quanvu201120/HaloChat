@@ -170,11 +170,8 @@ export default function ChatPage() {
     syncConversationMessage,
     refetchConversations,
     patchConversation,
-    mergeConversation,
-    fetchConversationById,
     hasLoadedConversations,
     setUsersOnline,
-    setMessageRequestContext,
     setConversations,
   } = useChat();
   const toast = useToast();
@@ -334,7 +331,6 @@ export default function ChatPage() {
 
   const isBlocked = currentRelationship?.status === 'BLOCKED';
   const iBlockedThem = isBlocked && currentRelationship?.blockedBy === currentUserId;
-  const theyBlockedMe = isBlocked && currentRelationship?.blockedBy !== currentUserId;
 
   const headerAvatarUrl = conv?.isGroup 
     ? (conv.avatar?.url || '') 

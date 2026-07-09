@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom';
-import { Contact, Users, UserPlus, User, ArrowUpRight, AlignLeft } from 'lucide-react';
+import { Contact, UserPlus, User, ArrowUpRight } from 'lucide-react';
 import { useRelationships } from '../hooks/useRelationships';
 import { UI_LIMITS } from '../constants/limits';
 
