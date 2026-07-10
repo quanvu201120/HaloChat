@@ -4,9 +4,9 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useAuthStore as useAuth } from '../store/authStore';
-import { usersApi, parseError } from '../services/api';
+import { authApi, usersApi, parseError } from '../services/api';
 import { useToast } from '../context/ToastContext';
-import { UserCircle, Save, Phone, MapPin, Mail, Shield, Activity, LogOut, Camera, Trash2, AlertTriangle, Edit2, ChevronLeft, Calendar, Users, FileText } from 'lucide-react';
+import { UserCircle, Save, Phone, MapPin, Mail, Shield, Activity, LogOut, Camera, Trash2, AlertTriangle, Edit2, ChevronLeft, Calendar, Users, FileText, Monitor, RefreshCw } from 'lucide-react';
 import ConfirmModal from '../components/ConfirmModal';
 import UpdateEmailModal from '../components/UpdateEmailModal';
 import MediaLightbox from '../components/MediaLightbox';
@@ -33,9 +33,142 @@ const profileSchema = z.object({
 
 type ProfileFormValues = z.infer<typeof profileSchema>;
 
+type ProfileSession = {
+  sessionId: string;
+  deviceLabel: string;
+  deviceDetail: string;
+  lastActiveLabel: string;
+  expiresLabel: string;
+  lastActiveAt: number;
+  isCurrent: boolean;
+};
+
+type SessionApiItem = {
+  _id?: string;
+  sessionId?: string;
+  deviceName?: string;
+  userAgent?: string;
+  expiresAt?: string | Date;
+  lastUsedAt?: string | Date;
+  createdAt?: string | Date;
+  updatedAt?: string | Date;
+};
+
+const UNKNOWN_DEVICE_LABEL = 'Thiết bị không xác định';
+
+const decodeJwtPayload = (token?: string | null) => {
+  if (!token) return null;
+
+  const parts = token.split('.');
+  if (parts.length < 2) return null;
+
+  try {
+    const base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    const padded = base64.padEnd(Math.ceil(base64.length / 4) * 4, '=');
+    return JSON.parse(window.atob(padded)) as { sessionId?: string };
+  } catch {
+    return null;
+  }
+};
+
+const formatDateTime = (value?: string | Date | null) => {
+  if (!value) return 'Không rõ';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'Không rõ';
+
+  const time = new Intl.DateTimeFormat('vi-VN', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).format(date);
+
+  const day = String(date.getDate()).padStart(2, '0');
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const year = date.getFullYear();
+
+  return `${time} - ${day}/${month}/${year}`;
+};
+
+const toTimestamp = (value?: string | Date | null) => {
+  if (!value) return 0;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? 0 : date.getTime();
+};
+
+const buildDeviceLabel = (deviceName?: string, userAgent?: string) => {
+  const trimmedDeviceName = deviceName?.trim();
+  if (trimmedDeviceName) return trimmedDeviceName;
+
+  const ua = (userAgent || '').toLowerCase();
+  const browser = ua.includes('edg/')
+    ? 'Edge'
+    : ua.includes('chrome/') && !ua.includes('edg/')
+      ? 'Chrome'
+      : ua.includes('firefox/')
+        ? 'Firefox'
+        : ua.includes('safari/') && !ua.includes('chrome/')
+          ? 'Safari'
+          : ua.includes('opr/') || ua.includes('opera/')
+            ? 'Opera'
+            : '';
+
+  const platform = ua.includes('windows') ? 'Windows'
+    : ua.includes('mac os') || ua.includes('macintosh') ? 'macOS'
+      : ua.includes('android') ? 'Android'
+        : ua.includes('iphone') || ua.includes('ipad') || ua.includes('ios') ? 'iOS'
+          : ua.includes('linux') ? 'Linux'
+            : '';
+
+  if (!browser && !platform) return UNKNOWN_DEVICE_LABEL;
+  if (browser && platform) return `${browser} trên ${platform}`;
+  return browser || platform || UNKNOWN_DEVICE_LABEL;
+};
+
+const buildDeviceDetail = (userAgent?: string) => {
+  if (!userAgent?.trim()) return UNKNOWN_DEVICE_LABEL;
+
+  const ua = userAgent.toLowerCase();
+  const browser = ua.includes('edg/')
+    ? 'Edge'
+    : ua.includes('chrome/') && !ua.includes('edg/')
+      ? 'Chrome'
+      : ua.includes('firefox/')
+        ? 'Firefox'
+        : ua.includes('safari/') && !ua.includes('chrome/')
+          ? 'Safari'
+          : ua.includes('opr/') || ua.includes('opera/')
+            ? 'Opera'
+            : '';
+
+  const platform = ua.includes('windows') ? 'Windows'
+    : ua.includes('mac os') || ua.includes('macintosh') ? 'macOS'
+      : ua.includes('android') ? 'Android'
+        : ua.includes('iphone') || ua.includes('ipad') || ua.includes('ios') ? 'iOS'
+          : ua.includes('linux') ? 'Linux'
+            : '';
+
+  const parts = [browser, platform].filter(Boolean);
+  return parts.length > 0 ? parts.join(' · ') : userAgent;
+};
+
+const mapSessionItem = (session: SessionApiItem, currentSessionId: string | null): ProfileSession | null => {
+  const sessionId = String(session?._id || session?.sessionId || '').trim();
+  if (!sessionId) return null;
+
+  return {
+    sessionId,
+    deviceLabel: buildDeviceLabel(session?.deviceName, session?.userAgent),
+    deviceDetail: buildDeviceDetail(session?.userAgent),
+    lastActiveLabel: `Hoạt động gần nhất: ${formatDateTime(session?.lastUsedAt || session?.updatedAt || session?.createdAt)}`,
+    expiresLabel: `Hết hạn: ${formatDateTime(session?.expiresAt)}`,
+    lastActiveAt: toTimestamp(session?.lastUsedAt || session?.updatedAt || session?.createdAt),
+    isCurrent: Boolean(currentSessionId && sessionId === currentSessionId),
+  };
+};
+
 export function ProfilePageContent() {
   const navigate = useNavigate();
-  const { user, logoutAll, updateUser, localLogout } = useAuth();
+  const { user, accessToken, logoutAll, updateUser, localLogout } = useAuth();
   const toast = useToast();
 
   const {
@@ -59,6 +192,11 @@ export function ProfilePageContent() {
   const [isLoading, setIsLoading] = useState(false);
   const isInitialLoading = !user;
   const [logoutAllLoading, setLogoutAllLoading] = useState(false);
+  const [sessions, setSessions] = useState<ProfileSession[]>([]);
+  const [sessionsLoading, setSessionsLoading] = useState(false);
+  const [sessionsError, setSessionsError] = useState('');
+  const [sessionsReloadKey, setSessionsReloadKey] = useState(0);
+  const [logoutSessionId, setLogoutSessionId] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [isDisabling, setIsDisabling] = useState(false);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
@@ -74,6 +212,7 @@ export function ProfilePageContent() {
   const [selectedMedia, setSelectedMedia] = useState<{ url: string; type: 'image' | 'video' } | null>(null);
   const [isAvatarMenuOpen, setIsAvatarMenuOpen] = useState(false);
   const menuRef = React.useRef<HTMLDivElement>(null);
+  const currentSessionId = decodeJwtPayload(accessToken || localStorage.getItem('accessToken'))?.sessionId || null;
 
   React.useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -84,6 +223,53 @@ export function ProfilePageContent() {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  React.useEffect(() => {
+    if (!user?._id) return;
+
+    let isMounted = true;
+
+    const loadSessions = async () => {
+      setSessionsLoading(true);
+      setSessionsError('');
+
+      try {
+        const res = await authApi.getSessions();
+        const payload = res.data?.data ?? res.data;
+        const list = Array.isArray(payload) ? payload : [];
+        const mapped = list
+          .map((item) => mapSessionItem(item, currentSessionId))
+          .filter(Boolean)
+          .sort((a, b) => {
+            const sessionA = a as ProfileSession;
+            const sessionB = b as ProfileSession;
+
+            if (sessionA.isCurrent !== sessionB.isCurrent) {
+              return sessionA.isCurrent ? -1 : 1;
+            }
+
+            return sessionB.lastActiveAt - sessionA.lastActiveAt;
+          }) as ProfileSession[];
+
+        if (!isMounted) return;
+        setSessions(mapped);
+      } catch (err) {
+        if (!isMounted) return;
+        setSessions([]);
+        setSessionsError(parseError(err));
+      }
+
+      if (isMounted) {
+        setSessionsLoading(false);
+      }
+    };
+
+    void loadSessions();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [user?._id, sessionsReloadKey, currentSessionId]);
 
   const onSubmit = async (data: ProfileFormValues) => {
     setIsLoading(true);
@@ -218,7 +404,38 @@ export function ProfilePageContent() {
       countdown: 5,
       action: () => {
         handleDisableSelfStep3();
-        return false;
+      }
+    });
+  };
+
+  const handleLogoutSession = (session: ProfileSession) => {
+    setConfirmAction({
+      title: 'Đăng xuất thiết bị',
+      message: session.isCurrent
+        ? 'Bạn có chắc chắn muốn đăng xuất thiết bị hiện tại?'
+        : `Bạn có chắc chắn muốn đăng xuất ${session.deviceLabel}?`,
+      isDanger: true,
+      confirmText: 'Đăng xuất',
+      action: async () => {
+        setConfirmAction(null);
+        setLogoutSessionId(session.sessionId);
+
+        try {
+          await authApi.logoutSession(session.sessionId);
+
+          if (session.isCurrent) {
+            localLogout();
+            navigate('/login', { replace: true });
+            return;
+          }
+
+          toast.success(UI_MESSAGES.profile.sessionsLogoutSuccess);
+          setSessionsReloadKey((value) => value + 1);
+        } catch (err: any) {
+          toast.error(parseError(err));
+        } finally {
+          setLogoutSessionId(null);
+        }
       }
     });
   };
@@ -231,7 +448,6 @@ export function ProfilePageContent() {
       confirmText: UI_MESSAGES.profile.disableStep1Confirm,
       action: () => {
         handleDisableSelfStep2();
-        return false;
       }
     });
   };
@@ -659,27 +875,6 @@ export function ProfilePageContent() {
         </div>
 
         <div className="card">
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px', flexWrap: 'wrap', borderBottom: '1px solid var(--border)', paddingBottom: '16px', marginBottom: '16px' }}>
-            <div>
-              <div style={{ fontWeight: 600, color: 'var(--text-primary)', marginBottom: '4px' }}>Phiên đăng nhập</div>
-              <div style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
-                Thu hồi mọi phiên hoạt động trên các thiết bị khác.
-              </div>
-            </div>
-            <button
-              id="btn-logout-all"
-              type="button"
-              className="btn btn-secondary"
-              onClick={handleLogoutAll}
-              disabled={logoutAllLoading}
-              style={{ color: 'var(--error)' }}
-            >
-              {logoutAllLoading
-                ? <><div className="loading-spinner" style={{ width: 14, height: 14 }} /> Đang xử lý...</>
-                : <><LogOut size={15} /> Đăng xuất tất cả</>}
-            </button>
-          </div>
-
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px', flexWrap: 'wrap' }}>
             <div>
               <div style={{ fontWeight: 600, color: 'var(--error)', marginBottom: '4px' }}>Vô hiệu hóa tài khoản</div>
@@ -700,7 +895,142 @@ export function ProfilePageContent() {
             </button>
           </div>
         </div>
+
+        <div className="card">
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '16px', flexWrap: 'wrap', borderBottom: '1px solid var(--border)', paddingBottom: '16px', marginBottom: '16px' }}>
+            <div>
+              <div style={{ fontWeight: 600, color: 'var(--text-primary)', marginBottom: '4px' }}>
+                {UI_MESSAGES.profile.sessionsTitle}
+              </div>
+              <div style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
+                {UI_MESSAGES.profile.sessionsSubtitle}
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => setSessionsReloadKey((value) => value + 1)}
+                disabled={sessionsLoading}
+              >
+                {sessionsLoading
+                  ? <><div className="loading-spinner" style={{ width: 14, height: 14 }} /> Đang tải...</>
+                  : <><RefreshCw size={15} /> Làm mới</>}
+              </button>
+              <button
+                id="btn-logout-all"
+                type="button"
+                className="btn btn-secondary"
+                onClick={handleLogoutAll}
+                disabled={logoutAllLoading}
+                style={{ color: 'var(--error)' }}
+              >
+                {logoutAllLoading
+                  ? <><div className="loading-spinner" style={{ width: 14, height: 14 }} /> Đang xử lý...</>
+                  : <><LogOut size={15} /> Đăng xuất tất cả</>}
+              </button>
+            </div>
+          </div>
+
+          {sessionsLoading && sessions.length === 0 ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: 'var(--text-muted)', fontSize: '14px', padding: '8px 0' }}>
+              <div className="loading-spinner" style={{ width: 14, height: 14 }} />
+              <span>{UI_MESSAGES.profile.sessionsLoading}</span>
+            </div>
+          ) : sessionsError ? (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap', padding: '8px 0' }}>
+              <div style={{ color: 'var(--error)', fontSize: '14px' }}>{sessionsError || UI_MESSAGES.profile.sessionsLoadFailed}</div>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => setSessionsReloadKey((value) => value + 1)}
+              >
+                Thử lại
+              </button>
+            </div>
+          ) : sessions.length === 0 ? (
+            <div style={{ color: 'var(--text-muted)', fontSize: '14px', padding: '8px 0' }}>
+              {UI_MESSAGES.profile.sessionsEmpty}
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              {sessions.map((session) => (
+                <div
+                  key={session.sessionId}
+                  style={{
+                    border: '1px solid var(--border)',
+                    borderRadius: 'var(--radius-md)',
+                    padding: '14px 16px',
+                    background: session.isCurrent ? 'rgba(99,102,241,0.03)' : 'var(--bg-card)',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '16px', flexWrap: 'wrap' }}>
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', minWidth: 0 }}>
+                      <div style={{
+                        width: 40,
+                        height: 40,
+                        borderRadius: 'var(--radius-md)',
+                        background: session.isCurrent ? 'rgba(99,102,241,0.12)' : 'rgba(71,85,105,0.08)',
+                        color: session.isCurrent ? 'var(--primary)' : 'var(--text-muted)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexShrink: 0,
+                      }}>
+                        <Monitor size={20} />
+                      </div>
+
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                          <div style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: '14px' }}>
+                            {session.deviceLabel}
+                          </div>
+                          {session.isCurrent && (
+                            <span style={{
+                              fontSize: '11px',
+                              fontWeight: 700,
+                              color: 'var(--primary)',
+                              background: 'rgba(99,102,241,0.12)',
+                              padding: '3px 8px',
+                              borderRadius: '999px',
+                            }}>
+                              Thiết bị hiện tại
+                            </span>
+                          )}
+                        </div>
+
+                        <div style={{ marginTop: '4px', fontSize: '13px', color: 'var(--text-muted)', lineHeight: 1.6 }}>
+                          {session.deviceDetail}
+                        </div>
+                        <div style={{ marginTop: '4px', fontSize: '13px', color: 'var(--text-muted)', lineHeight: 1.6 }}>
+                          {session.lastActiveLabel}
+                        </div>
+                        <div style={{ marginTop: '2px', fontSize: '13px', color: 'var(--text-muted)', lineHeight: 1.6 }}>
+                          {session.expiresLabel}
+                        </div>
+                      </div>
+                    </div>
+
+                    {!session.isCurrent && (
+                      <button
+                        type="button"
+                        className="btn btn-secondary"
+                        onClick={() => handleLogoutSession(session)}
+                        disabled={logoutSessionId === session.sessionId}
+                        style={{ color: 'var(--error)' }}
+                      >
+                        {logoutSessionId === session.sessionId
+                          ? <><div className="loading-spinner" style={{ width: 14, height: 14 }} /> Đang xử lý...</>
+                          : <><LogOut size={15} /> Đăng xuất</>}
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
+      </div>
       </div>
 
       {confirmAction && (

@@ -1342,16 +1342,18 @@ export default function UsersTab() {
               {quickPenaltyData.reason === 'other' && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '10px' }}>
                   <label style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)' }}>Khóa tài khoản</label>
-                  <select
-                    value={quickPenaltyData.manualDurationDays}
-                    onChange={(e) => setQuickPenaltyData(prev => ({ ...prev, manualDurationDays: Number(e.target.value) }))}
-                    style={{ padding: '8px 12px', borderRadius: '6px', border: '1px solid var(--border)', background: 'transparent', color: 'var(--text-primary)', outline: 'none' }}
-                  >
-                    <option value={1}>1 ngày</option>
-                    <option value={7}>7 ngày</option>
-                    <option value={30}>30 ngày</option>
-                    <option value={36500}>Vĩnh viễn</option>
-                  </select>
+                  <MuiSelect
+                    value={String(quickPenaltyData.manualDurationDays)}
+                    onChange={(value) => setQuickPenaltyData(prev => ({ ...prev, manualDurationDays: Number(value) }))}
+                    options={[
+                      { value: '1', label: '1 ngày' },
+                      { value: '7', label: '7 ngày' },
+                      { value: '30', label: '30 ngày' },
+                      { value: '36500', label: 'Vĩnh viễn' },
+                    ]}
+                    minWidth={140}
+                    labelBgColor="var(--bg-card)"
+                  />
                 </div>
               )}
 
@@ -1716,7 +1718,7 @@ export default function UsersTab() {
       )}
       {/* Generic Confirm Modal */}
       {confirmModalConfig.isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 animate-in fade-in">
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/50 animate-in fade-in">
           <div
             style={{
               background: 'var(--bg-card)',

@@ -192,6 +192,8 @@ export default function ChatPage() {
   const groupAvatarMenuRef = useRef<HTMLDivElement>(null);
 
   const isTempConversation = activeConversationId.startsWith('temp_');
+  const isMuted = !!user?.muteUntil && new Date(user.muteUntil) > new Date();
+  const muteUntilLabel = user?.muteUntil ? new Date(user.muteUntil).toLocaleString('vi-VN') : '';
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -625,6 +627,12 @@ export default function ChatPage() {
     toast.error(UI_MESSAGES.chat.conversationUnavailable);
     navigate('/', { replace: true });
   }, [activeConversationId, conv, hasLoadedConversations, isLoadingConv, navigate, toast]);
+
+  useEffect(() => {
+    if (!isMuted) return;
+    setReplyTarget(null);
+    setEditingMessageId(null);
+  }, [isMuted]);
 
   useEffect(() => {
     if (!activeConversationId || !isSocketConnected || isTempConversation) return;
@@ -1092,6 +1100,7 @@ export default function ChatPage() {
   }, [activeConversationId]);
 
   const handleTextChange = (value: string) => {
+    if (isMuted) return;
     setText(value);
     if (activeConversationId && socket?.connected) {
       if (!value.trim()) {
@@ -1123,6 +1132,7 @@ export default function ChatPage() {
   }, []);
 
   const handleSend = async () => {
+    if (isMuted) return;
     const content = text.trim();
     if (!content || !activeConversationId) return;
 
@@ -1395,7 +1405,7 @@ export default function ChatPage() {
   };
 
   const handleSendVoice = async () => {
-    if (!voiceBlob) return;
+    if (isMuted || !voiceBlob) return;
     const file = new File(
       [voiceBlob],
       `voice-${Date.now()}.${getVoiceFileExtension(voiceMimeType)}`,
@@ -1697,6 +1707,7 @@ export default function ChatPage() {
                   setReactionsModalData({ isOpen: true, message });
                 } : undefined}
                 onReply={() => {
+                  if (isMuted) return;
                   setReplyTarget(message);
                   setEditingMessageId(null);
                 }}
@@ -1708,6 +1719,7 @@ export default function ChatPage() {
                   setLightboxIndex(0);
                 }}
                 disableActions={isMessageRequest || isBlocked}
+                disableReply={isMuted}
               />
             );
           })
@@ -1760,7 +1772,7 @@ export default function ChatPage() {
           <AudioPlayer src={voiceUrl} isMe={true} className="voice-preview-player" />
           <div className="voice-preview-actions">
             <button className="btn btn-secondary" onClick={resetVoiceDraft}>Xóa</button>
-            <button className="btn btn-primary" onClick={handleSendVoice}>Gửi voice</button>
+            <button className="btn btn-primary" onClick={handleSendVoice} disabled={isMuted}>Gửi voice</button>
           </div>
         </div>
       )}
@@ -1796,15 +1808,25 @@ export default function ChatPage() {
               >
                 Rời nhóm
               </button>
-            ) : (
-              <button 
-                className="btn" 
-                style={{ background: '#ef4444', color: '#fff', border: 'none' }}
-                onClick={handleBlockRequest}
-              >
-                Chặn
-              </button>
-            )}
+            ) : !isLoadingRelationships ? (
+              isBlocked && iBlockedThem ? (
+                <button
+                  className="btn"
+                  style={{ background: '#fff', color: '#000', border: '1px solid #d1d5db' }}
+                  onClick={handleUnblockRequest}
+                >
+                  Bỏ chặn
+                </button>
+              ) : !isBlocked ? (
+                <button
+                  className="btn"
+                  style={{ background: '#ef4444', color: '#fff', border: 'none' }}
+                  onClick={handleBlockRequest}
+                >
+                  Chặn
+                </button>
+              ) : null
+            ) : null}
           </div>
         </div>
       ) : isBlocked ? (
@@ -1821,6 +1843,16 @@ export default function ChatPage() {
               để gửi tin nhắn.
             </span>
           ) : 'Không thể gửi tin nhắn. Bạn đã bị chặn.'}
+        </div>
+      ) : isMuted ? (
+        <div className="composer" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '16px', background: 'var(--bg-secondary)', color: 'var(--text-muted)' }}>
+          {muteUntilLabel ? (
+            <span>
+              Bạn đã bị cấm chat đến <strong>{muteUntilLabel}</strong>. Bạn không thể gửi tin nhắn trong thời gian này.
+            </span>
+          ) : (
+            <span>Bạn đã bị cấm chat. Bạn không thể gửi tin nhắn trong thời gian này.</span>
+          )}
         </div>
       ) : (
       <div className="composer">

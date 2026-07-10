@@ -21,6 +21,7 @@ export interface User {
   dateOfBirth?: string;
   gender?: string;
   bio?: string;
+  muteUntil?: string;
   avatar?: {
     _id?: string;
     url?: string;
@@ -41,9 +42,24 @@ interface AuthState {
   init: () => () => void; // call this on app mount to subscribe to storage
 }
 
+const normalizeStoredUser = (user: User | null) => {
+  if (!user?.muteUntil) return user;
+
+  const muteUntilDate = new Date(user.muteUntil);
+  if (Number.isNaN(muteUntilDate.getTime()) || muteUntilDate.getTime() <= Date.now()) {
+    const { muteUntil, ...rest } = user;
+    const normalizedUser = rest as User;
+    localStorage.setItem('user', JSON.stringify(normalizedUser));
+    notifyStoredUserChanged();
+    return normalizedUser;
+  }
+
+  return user;
+};
+
 const readStoredUser = () => {
   const saved = localStorage.getItem('user');
-  return saved ? JSON.parse(saved) as User : null;
+  return saved ? normalizeStoredUser(JSON.parse(saved) as User) : null;
 };
 
 export const useAuthStore = create<AuthState>((set, get) => ({

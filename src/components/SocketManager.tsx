@@ -15,12 +15,43 @@ export default function SocketManager() {
   useEffect(() => {
     // We subscribe to the store instead of calling hook directly to avoid unnecessary re-renders of the manager component
     const unsubAuth = useAuthStore.subscribe((state, prevState) => {
+      if (state.user?.muteUntil !== prevState.user?.muteUntil) {
+        syncMuteExpiration(state.user?.muteUntil);
+      }
+
       if (state.accessToken !== prevState.accessToken || state.user?._id !== prevState.user?._id) {
         initSocket();
       }
     });
 
     let currentSock: ReturnType<typeof connectSocket> | null = null;
+    let muteTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const clearMuteTimer = () => {
+      if (muteTimer) {
+        clearTimeout(muteTimer);
+        muteTimer = null;
+      }
+    };
+
+    const syncMuteExpiration = (muteUntil?: string) => {
+      clearMuteTimer();
+      if (!muteUntil) return;
+
+      const muteUntilDate = new Date(muteUntil);
+      const delay = muteUntilDate.getTime() - Date.now();
+      if (Number.isNaN(muteUntilDate.getTime()) || delay <= 0) {
+        useAuthStore.getState().updateUser({ muteUntil: undefined });
+        return;
+      }
+
+      muteTimer = setTimeout(() => {
+        const currentMuteUntil = useAuthStore.getState().user?.muteUntil;
+        if (currentMuteUntil === muteUntil) {
+          useAuthStore.getState().updateUser({ muteUntil: undefined });
+        }
+      }, delay);
+    };
 
     const initSocket = () => {
       const { user, accessToken } = useAuthStore.getState();
@@ -32,6 +63,8 @@ export default function SocketManager() {
       }
 
       if (!currentUserId || !accessToken) return;
+
+      syncMuteExpiration(user?.muteUntil);
 
       const sock = connectSocket(accessToken);
       currentSock = sock;
@@ -192,6 +225,16 @@ export default function SocketManager() {
         void useChatStore.getState().refetchConversations({ silent: true });
       };
 
+      const onUserMuted = (data: { muteUntil: string | Date }) => {
+        const muteUntil = data.muteUntil ? new Date(data.muteUntil).toISOString() : undefined;
+        useAuthStore.getState().updateUser({ muteUntil });
+        syncMuteExpiration(muteUntil);
+      };
+
+      const onUserUnmuted = () => {
+        useAuthStore.getState().updateUser({ muteUntil: undefined });
+      };
+
       const onRelationshipCreated = () => {
         void queryClient.invalidateQueries({ queryKey: ['relationships'] });
       };
@@ -232,6 +275,8 @@ export default function SocketManager() {
       sock.on('chat:message-deleted', onMessageDeleted);
       sock.on('user:mark-read', onMarkRead);
       sock.on('user:disabled', onUserDisabled);
+      sock.on('user:muted', onUserMuted);
+      sock.on('user:unmuted', onUserUnmuted);
       sock.on('relationship:created', onRelationshipCreated);
       sock.on('relationship:accepted', onRelationshipAccepted);
       sock.on('relationship:deleted', onRelationshipDeleted);
@@ -260,6 +305,7 @@ export default function SocketManager() {
     return () => {
       unsubAuth();
       unsubFetch();
+      clearMuteTimer();
       if (currentSock) disconnectSocket();
     };
   }, []);

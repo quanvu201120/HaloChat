@@ -187,6 +187,10 @@ export const authApi = {
 
   logoutAll: () => apiWithCookies.post('/auth/logoutAll'),
 
+  getSessions: () => api.get('/auth/sessions'),
+
+  logoutSession: (sessionId: string) => apiWithCookies.delete(`/auth/sessions/${sessionId}`),
+
   // RegisterAuthDto: { email, password, confirmPassword }
   register: (data: { email: string; password: string; confirmPassword: string }) =>
     api.post('/auth/register', data),

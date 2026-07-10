@@ -25,6 +25,7 @@ interface Props {
   onMediaClick?: (media: any) => void;
   onAvatarClick?: () => void;
   disableActions?: boolean;
+  disableReply?: boolean;
 }
 
 export const REACTIONS = [
@@ -125,6 +126,7 @@ export default function MessageBubble({
   onMediaClick,
   onAvatarClick,
   disableActions,
+  disableReply,
 }: Props) {
   const [showActions, setShowActions] = useState(false);
   const [showStatus, setShowStatus] = useState(false);
@@ -389,9 +391,11 @@ export default function MessageBubble({
                   </div>
                 )}
               </div>
-              <button className="action-btn" title="Trả lời" onClick={(e) => { e.stopPropagation(); onReply?.(); setShowActions(false); }}>
-                <CornerUpLeft size={14} />
-              </button>
+              {!disableReply && (
+                <button className="action-btn" title="Trả lời" onClick={(e) => { e.stopPropagation(); onReply?.(); setShowActions(false); }}>
+                  <CornerUpLeft size={14} />
+                </button>
+              )}
               {canDownload && typeof message.media === 'object' && message.media?.url && (
                 <button
                   className="action-btn"

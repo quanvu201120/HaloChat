@@ -184,7 +184,7 @@ export default function ResolveReportModal({ isOpen, onClose, reportId, reportSt
                             {' '} (Vi phạm lần {penaltySuggestion.strike})
                           </span>
                         ) : (
-                          <span style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: '4px' }}>Không có đề xuất, admin tự đưa ra hình thức xử lí</span>
+                          <span style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: '4px' }}>Không có đề xuất</span>
                         )}
                       </div>
                     </label>
