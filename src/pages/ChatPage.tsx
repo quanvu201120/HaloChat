@@ -46,7 +46,9 @@ import ReportUserModal from '../components/ReportUserModal';
 import MessageReactionsModal from '../components/MessageReactionsModal';
 import { normalizeId } from '../utils/chat';
 import { CHAT_DEFAULTS, MESSAGE_PREVIEWS, MIME_TYPES, TIMING } from '../constants/chat';
+import { PERMANENT_BAN_DAYS } from '../constants/penalty';
 import { UI_MESSAGES } from '../constants/messages';
+import { formatDateVN } from '../utils/date';
 
 /**
  * Formats a given number of seconds into an mm:ss string.
@@ -58,6 +60,32 @@ function formatDuration(seconds: number): string {
   const m = Math.floor(seconds / 60);
   const s = Math.floor(seconds % 60);
   return `${m}:${s.toString().padStart(2, '0')}`;
+}
+
+function getBanStatusText(banUntil?: string): string {
+  if (!banUntil) return 'Tài khoản này đã bị khóa.';
+
+  const diffMs = new Date(banUntil).getTime() - Date.now();
+  if (diffMs <= 0) return 'Tài khoản này đã bị khóa.';
+
+  const totalDays = Math.ceil(diffMs / 86400000);
+  if (totalDays >= PERMANENT_BAN_DAYS) return 'Tài khoản này đã bị khóa.';
+
+  const totalMinutes = Math.ceil(diffMs / 60000);
+  const days = Math.floor(totalMinutes / 1440);
+  const hours = Math.floor((totalMinutes % 1440) / 60);
+  const minutes = totalMinutes % 60;
+
+  let remaining = '';
+  if (days > 0) {
+    remaining = `${days} ngày${hours > 0 ? ` ${hours} giờ` : ''}${minutes > 0 ? ` ${minutes} phút` : ''}`;
+  } else if (hours > 0) {
+    remaining = `${hours} giờ${minutes > 0 ? ` ${minutes} phút` : ''}`;
+  } else {
+    remaining = `${Math.max(minutes, 1)} phút`;
+  }
+
+  return `Tài khoản này đã bị khóa. Còn ${remaining}.`;
 }
 
 type LocalMessage = Message & {
@@ -76,7 +104,7 @@ type LocalMessage = Message & {
 function getConversationName(conv: Conversation, currentUserId: string): string {
   if (conv.isGroup) return conv.name || CHAT_DEFAULTS.GROUP_NAME;
   const other = conv.users.find((u) => u._id !== currentUserId);
-  return other?.name || other?.email || CHAT_DEFAULTS.USER_NAME;
+  return other?.name || CHAT_DEFAULTS.USER_NAME;
 }
 
 /**
@@ -193,7 +221,7 @@ export default function ChatPage() {
 
   const isTempConversation = activeConversationId.startsWith('temp_');
   const isMuted = !!user?.muteUntil && new Date(user.muteUntil) > new Date();
-  const muteUntilLabel = user?.muteUntil ? new Date(user.muteUntil).toLocaleString('vi-VN') : '';
+  const muteUntilLabel = user?.muteUntil ? formatDateVN(user.muteUntil) : '';
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -252,7 +280,7 @@ export default function ChatPage() {
   const [isLoadingUserDetail, setIsLoadingUserDetail] = useState(false);
 
   const handleShowUserProfile = async (userObj: any) => {
-    if (!userObj || !userObj._id) return;
+    if (!userObj || !userObj._id || userObj.isDisabled) return;
     setSelectedUserForInfo(userObj);
     setIsLoadingUserDetail(true);
     try {
@@ -308,7 +336,7 @@ export default function ChatPage() {
   const typingUsers = activeConversationId ? (typing[activeConversationId] ?? []) : [];
   const typingNames = typingUsers
     .filter((id) => id !== currentUserId)
-    .map((id) => conv?.users.find((u) => u._id === id)?.name || conv?.users.find((u) => u._id === id)?.email || 'ai đó');
+    .map((id) => conv?.users.find((u) => u._id === id)?.name || 'ai đó');
 
   const visibleMessages = useMemo(() => (
     loadedMessagesConversationId === activeConversationId
@@ -319,6 +347,8 @@ export default function ChatPage() {
   const otherUser = conv && !conv.isGroup
     ? conv.users.find((u) => u._id !== currentUserId)
     : null;
+  const isTargetUserDisabled = !!otherUser?.isDisabled;
+  const isTargetUserBanned = !!otherUser?.banUntil && new Date(otherUser.banUntil).getTime() > Date.now();
   const isOtherOnline = otherUser ? online[otherUser._id] === true : false;
   const convName = conv ? getConversationName(conv, currentUserId) : '...';
   const { block, unblock, rawRelationships, friends, sentRequests, sendRequest, isSendingRequest, isLoading: isLoadingRelationships } = useRelationships();
@@ -374,7 +404,7 @@ export default function ChatPage() {
     if (!otherUser || !conv) return;
     setConfirmAction({
       title: 'Chặn người dùng',
-      message: UI_MESSAGES.chat.blockConfirm(otherUser.name || otherUser.email || ''),
+      message: UI_MESSAGES.chat.blockConfirm(otherUser.name || ''),
       isDanger: true,
       confirmText: 'Chặn',
       action: async () => {
@@ -392,7 +422,7 @@ export default function ChatPage() {
     if (!otherUser) return;
     setConfirmAction({
       title: 'Bỏ chặn người dùng',
-      message: UI_MESSAGES.chat.unblockConfirm(otherUser.name || otherUser.email || ''),
+      message: UI_MESSAGES.chat.unblockConfirm(otherUser.name || ''),
       isDanger: false,
       confirmText: 'Bỏ chặn',
       action: async () => {
@@ -453,7 +483,7 @@ export default function ChatPage() {
   };
 
   // Tick counter to refresh relative time display every minute
-  const [, setTick] = useState(0);
+  const [timeTick, setTick] = useState(0);
   useEffect(() => {
     if (conv?.isGroup || isOtherOnline) return;
     const interval = setInterval(() => setTick((t) => t + 1), TIMING.RELATIVE_TIME_REFRESH_MS);
@@ -462,6 +492,8 @@ export default function ChatPage() {
 
   const memberSummary = useMemo(() => {
     if (!conv) return '';
+    if (isTargetUserDisabled) return '';
+    if (isTargetUserBanned) return '';
     if (isBlocked) return ''; // Hide status if blocked
     if (!conv.isGroup) {
       if (isOtherOnline) return 'Đang hoạt động';
@@ -485,7 +517,7 @@ export default function ChatPage() {
     const onlineCount = conv.users.filter((u) => u._id === currentUserId || online[u._id] === true).length;
     return `Online ${onlineCount}/${conv.users.length}`;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [conv, isOtherOnline, otherUser, online, currentUserId, isBlocked]);
+  }, [conv, isOtherOnline, otherUser, online, currentUserId, isBlocked, isTargetUserDisabled, isTargetUserBanned, timeTick]);
 
   const stopVoiceStream = useCallback(() => {
     mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
@@ -629,10 +661,10 @@ export default function ChatPage() {
   }, [activeConversationId, conv, hasLoadedConversations, isLoadingConv, navigate, toast]);
 
   useEffect(() => {
-    if (!isMuted) return;
+    if (!isMuted && !isTargetUserBanned) return;
     setReplyTarget(null);
     setEditingMessageId(null);
-  }, [isMuted]);
+  }, [isMuted, isTargetUserBanned]);
 
   useEffect(() => {
     if (!activeConversationId || !isSocketConnected || isTempConversation) return;
@@ -1599,13 +1631,11 @@ export default function ChatPage() {
     }
   }, [messages, hasMore, nextCursor, activeConversationId, loadedMessagesConversationId]);
 
-  const isTargetUserDisabled = conv && !conv.isGroup && conv.users.some((u: any) => u._id !== currentUserId && u.isDisabled);
-
   return (
     <div className="chat-page-layout">
       <div className="chat-page">
       <div className="chat-header">
-        <div className="chat-header-info">
+          <div className="chat-header-info">
           <button 
             className="icon-btn mobile-back-btn" 
             onClick={() => navigate('/')}
@@ -1626,22 +1656,27 @@ export default function ChatPage() {
           </div>
           <div>
             <div className="chat-header-name">{convName}</div>
-            <div 
-              className="chat-header-sub"
-              style={{ cursor: 'pointer', userSelect: 'none' }}
-              onClick={() => {
-                if (conv?.isGroup) setShowOnlineModal(true);
-              }}
-              title={conv?.isGroup ? "Nhấp để xem ai đang online" : ""}
-            >
-              {isLoadingConv ? '...' : memberSummary}
-            </div>
+            {(isLoadingConv || memberSummary) && (
+              <div 
+                className="chat-header-sub"
+                style={{
+                  cursor: conv?.isGroup ? 'pointer' : 'default',
+                  userSelect: 'none',
+                }}
+                onClick={() => {
+                  if (conv?.isGroup) setShowOnlineModal(true);
+                }}
+                title={conv?.isGroup ? "Nhấp để xem ai đang online" : ""}
+              >
+                {isLoadingConv ? '...' : memberSummary}
+              </div>
+            )}
           </div>
         </div>
 
         {!isMessageRequest && (
           <div className="chat-header-actions">
-            {!isBlocked && (
+            {!isBlocked && !isTargetUserBanned && (
               <>
                 <button className="icon-btn" title="Gọi thoại">
                   <Phone size={18} />
@@ -1692,7 +1727,7 @@ export default function ChatPage() {
                 isGroup={conv?.isGroup}
                 senderAvatarUrl={typeof message.sender === 'object' ? message.sender?.avatar?.url : undefined}
                 onAvatarClick={() => {
-                  if (getSenderId(message) !== currentUserId && typeof message.sender === 'object') {
+                  if (getSenderId(message) !== currentUserId && typeof message.sender === 'object' && !message.sender.isDisabled && !isTargetUserBanned) {
                     setSelectedUserForInfo(message.sender as any);
                   }
                 }}
@@ -1707,7 +1742,7 @@ export default function ChatPage() {
                   setReactionsModalData({ isOpen: true, message });
                 } : undefined}
                 onReply={() => {
-                  if (isMuted) return;
+                  if (isMuted || isTargetUserBanned) return;
                   setReplyTarget(message);
                   setEditingMessageId(null);
                 }}
@@ -1719,7 +1754,7 @@ export default function ChatPage() {
                   setLightboxIndex(0);
                 }}
                 disableActions={isMessageRequest || isBlocked}
-                disableReply={isMuted}
+                disableReply={isMuted || isTargetUserBanned}
               />
             );
           })
@@ -1780,6 +1815,10 @@ export default function ChatPage() {
       {isTargetUserDisabled ? (
         <div style={{ padding: '16px', background: 'var(--bg-primary)', textAlign: 'center', color: 'var(--text-secondary)', borderTop: '1px solid var(--border)', fontSize: '13px' }}>
           Người này hiện không có mặt trên HaloChat. 
+        </div>
+      ) : isTargetUserBanned ? (
+        <div className="composer" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '16px', background: 'var(--bg-secondary)', color: 'var(--text-muted)' }}>
+          <span style={{color:'red'}}>{getBanStatusText(otherUser?.banUntil)}</span>
         </div>
       ) : isMessageRequest ? (
         <div style={{ padding: '16px', background: 'var(--bg-primary)', textAlign: 'center', borderTop: '1px solid var(--border)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
@@ -2156,9 +2195,10 @@ export default function ChatPage() {
               )
             ) : (
               <div 
-                className="info-sidebar-name clickable" 
-                onClick={() => handleShowUserProfile(otherUser || (conv && conv.users.find((u) => u._id === currentUserId)))}
-                title="Xem thông tin"
+                className={isTargetUserDisabled ? 'info-sidebar-name' : 'info-sidebar-name clickable'} 
+                onClick={isTargetUserDisabled ? undefined : () => handleShowUserProfile(otherUser || (conv && conv.users.find((u) => u._id === currentUserId)))}
+                title={isTargetUserDisabled ? undefined : 'Xem thông tin'}
+                style={{ cursor: isTargetUserDisabled ? 'default' : 'pointer' }}
               >
                 {convName}
               </div>
@@ -2211,13 +2251,13 @@ export default function ChatPage() {
                   <div className="info-sidebar-members">
                   {conv.users.filter(member => {
                     if (!memberSearchQuery) return true;
-                    const name = (member.name || member.email || '').toLowerCase();
+                    const name = (member.name || '').toLowerCase();
                     return name.includes(memberSearchQuery.toLowerCase());
                   }).map((member) => {
                   const avatar = typeof member.avatar === 'object' && member.avatar?.url
                     ? member.avatar.url
                     : typeof member.avatar === 'string' ? member.avatar : null;
-                  const displayName = member.name || member.email || 'Người dùng';
+                  const displayName = member.name || 'Người dùng';
                   const isMemberAdmin = conv.adminGroupId === member._id;
                   return (
                     <div key={member._id} className="info-sidebar-member">
@@ -2228,9 +2268,10 @@ export default function ChatPage() {
                       </div>
                       <div className="info-sidebar-member-info">
                         <div 
-                          className="info-sidebar-member-name clickable"
-                          onClick={() => handleShowUserProfile(member)}
-                          title="Xem thông tin"
+                          className={member.isDisabled ? 'info-sidebar-member-name' : 'info-sidebar-member-name clickable'}
+                          onClick={member.isDisabled ? undefined : () => handleShowUserProfile(member)}
+                          title={member.isDisabled ? undefined : 'Xem thông tin'}
+                          style={{ cursor: member.isDisabled ? 'default' : 'pointer' }}
                         >
                           {displayName}
                           {member._id === currentUserId && <span className="info-badge-me">Bạn</span>}
@@ -2679,7 +2720,7 @@ export default function ChatPage() {
                 position: 'relative'
               }}
             >
-              {!selectedUserForInfo.avatar?.url && (selectedUserForInfo.name || selectedUserForInfo.email || 'U').charAt(0).toUpperCase()}
+              {!selectedUserForInfo.avatar?.url && (selectedUserForInfo.name || 'U').charAt(0).toUpperCase()}
               {isLoadingUserDetail && (
                 <div style={{
                   position: 'absolute',
@@ -2697,7 +2738,7 @@ export default function ChatPage() {
             
             {/* Name */}
             <h3 style={{ fontSize: '24px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '8px' }}>
-              {selectedUserForInfo.name || selectedUserForInfo.email}
+              {selectedUserForInfo.name || 'Người dùng'}
             </h3>
             
             {/* Bio */}
@@ -2773,16 +2814,16 @@ export default function ChatPage() {
             </div>
             {conv.users.filter(u => online[u._id] === true || u._id === user?._id).map(u => (
               <div key={u._id} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '8px 20px' }}>
-                <div style={{ position: 'relative', width: 36, height: 36, borderRadius: '50%', background: 'linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 600 }}>
+              <div style={{ position: 'relative', width: 36, height: 36, borderRadius: '50%', background: 'linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 600 }}>
                   {u.avatar && typeof u.avatar === 'object' && u.avatar.url ? (
-                    <img src={u.avatar.url} alt={u.name || u.email} style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
+                    <img src={u.avatar.url} alt={u.name || 'Người dùng'} style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
                   ) : (
-                    (u.name || u.email || '?').slice(0, 1).toUpperCase()
+                    (u.name || '?').slice(0, 1).toUpperCase()
                   )}
                   <span className="online-dot" style={{ position: 'absolute', bottom: 0, right: 0, width: 10, height: 10, border: '2px solid var(--bg-card)' }} />
                 </div>
                 <div>
-                  <div style={{ fontSize: '14px', fontWeight: 500, color: 'var(--text-primary)' }}>{u.name || u.email} {u._id === user?._id && '(Bạn)'}</div>
+                  <div style={{ fontSize: '14px', fontWeight: 500, color: 'var(--text-primary)' }}>{u.name || 'Người dùng'} {u._id === user?._id && '(Bạn)'}</div>
                 </div>
               </div>
             ))}
@@ -2794,13 +2835,13 @@ export default function ChatPage() {
               <div key={u._id} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '8px 20px', opacity: 0.7 }}>
                 <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 600 }}>
                   {u.avatar && typeof u.avatar === 'object' && u.avatar.url ? (
-                    <img src={u.avatar.url} alt={u.name || u.email} style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
+                    <img src={u.avatar.url} alt={u.name || 'Người dùng'} style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
                   ) : (
-                    (u.name || u.email || '?').slice(0, 1).toUpperCase()
+                    (u.name || '?').slice(0, 1).toUpperCase()
                   )}
                 </div>
                 <div>
-                  <div style={{ fontSize: '14px', fontWeight: 500, color: 'var(--text-primary)' }}>{u.name || u.email}</div>
+                  <div style={{ fontSize: '14px', fontWeight: 500, color: 'var(--text-primary)' }}>{u.name || 'Người dùng'}</div>
                 </div>
               </div>
             ))}
@@ -2831,7 +2872,7 @@ export default function ChatPage() {
           isOpen={showReportModal}
           onClose={() => setShowReportModal(false)}
           targetUserId={selectedUserForInfo._id}
-          targetUserName={selectedUserForInfo.name || selectedUserForInfo.email}
+          targetUserName={selectedUserForInfo.name}
         />
       )}
     </div>

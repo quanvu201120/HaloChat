@@ -61,7 +61,7 @@ export default function UserProfileModal({ isOpen, onClose, user }: Props) {
 
   const handleUnfriend = async () => {
     if (!user.relationshipId) return;
-    if (!window.confirm(`Bạn có chắc chắn muốn hủy kết bạn với ${user.name || user.email}?`)) return;
+    if (!window.confirm(`Bạn có chắc chắn muốn hủy kết bạn với ${user.name}?`)) return;
     
     setIsLoading(true);
     try {
@@ -76,7 +76,7 @@ export default function UserProfileModal({ isOpen, onClose, user }: Props) {
   };
 
   const handleBlock = async () => {
-    if (!window.confirm(`Bạn có chắc chắn muốn chặn ${user.name || user.email}?`)) return;
+    if (!window.confirm(`Bạn có chắc chắn muốn chặn ${user.name}?`)) return;
     
     setIsLoading(true);
     try {

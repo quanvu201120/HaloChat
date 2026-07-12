@@ -7,6 +7,7 @@ export interface MessageUser {
   _id: string;
   name?: string;
   email?: string;
+  isDisabled?: boolean;
   avatar?: {
     _id?: string;
     url?: string;

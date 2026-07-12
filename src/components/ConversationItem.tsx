@@ -7,7 +7,7 @@ import { useChatStore } from '../store/chatStore';
 function getConversationName(conv: Conversation, currentUserId: string): string {
   if (conv.isGroup) return conv.name || 'Nhóm chưa đặt tên';
   const other = conv.users.find((u) => u._id !== currentUserId);
-  return other?.name || other?.email || 'Người dùng';
+  return other?.name || 'Người dùng';
 }
 
 function getConversationAvatar(conv: Conversation, currentUserId: string): string | null {
@@ -28,6 +28,13 @@ function getIsTargetUserDisabled(conv: Conversation, currentUserId: string): boo
   if (conv.isGroup) return false;
   const other = conv.users.find((u) => u._id !== currentUserId);
   return !!(other as any)?.isDisabled;
+}
+
+function getIsTargetUserBanned(conv: Conversation, currentUserId: string): boolean {
+  if (conv.isGroup) return false;
+  const other = conv.users.find((u) => u._id !== currentUserId);
+  if (!other?.banUntil) return false;
+  return new Date(other.banUntil).getTime() > Date.now();
 }
 
 function getLastMessagePreview(conv: Conversation, currentUserId: string): string {
@@ -80,6 +87,7 @@ function ConversationItem({
   const avatarUrl = getConversationAvatar(conv, currentUserId);
   const initials = getInitials(name);
   const isTargetUserDisabled = getIsTargetUserDisabled(conv, currentUserId);
+  const isTargetUserBanned = getIsTargetUserBanned(conv, currentUserId);
   const preview = getLastMessagePreview(conv, currentUserId);
   const timeStr = conv.lastMessage?.createdAt
     ? formatTime(conv.lastMessage.createdAt)
@@ -111,7 +119,32 @@ function ConversationItem({
       {/* Info */}
       <div className="conv-info">
         <div className="conv-name-row">
-          <span className="conv-name">{name}</span>
+          <span
+            className="conv-name"
+            style={isTargetUserBanned ? { color: '#ef4444' } : undefined}
+          >
+            {name}
+          </span>
+          {isTargetUserBanned && (
+            <span
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                padding: '1px 6px',
+                borderRadius: '999px',
+                background: 'rgba(239, 68, 68, 0.12)',
+                color: '#ef4444',
+                fontSize: '10px',
+                fontWeight: 700,
+                textTransform: 'uppercase',
+                letterSpacing: '0.04em',
+                lineHeight: 1.4,
+                flexShrink: 0,
+              }}
+            >
+              Ban
+            </span>
+          )}
           {timeStr && <span className="conv-time">{timeStr}</span>}
         </div>
         <div className="conv-preview-row">

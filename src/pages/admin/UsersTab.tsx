@@ -10,6 +10,22 @@ import { UI_LIMITS } from '../../constants/limits';
 
 import { AdminMobileFilter } from '../../components/admin/AdminMobileFilter';
 import { formatDateOnlyVN, formatDateVN } from '../../utils/date';
+import { BAN_DURATION_1_DAY, BAN_DURATION_7_DAYS, BAN_DURATION_30_DAYS, PERMANENT_BAN_DAYS } from '../../constants/penalty';
+
+const DAY_IN_MS = 24 * 60 * 60 * 1000;
+
+function getBanStatusLabel(banUntil?: string) {
+  if (!banUntil) return null;
+  const banDate = new Date(banUntil);
+  if (Number.isNaN(banDate.getTime()) || banDate <= new Date()) return null;
+
+  const diffDays = Math.ceil((banDate.getTime() - Date.now()) / DAY_IN_MS);
+  if (diffDays >= PERMANENT_BAN_DAYS) {
+    return 'Khóa vĩnh viễn';
+  }
+
+  return `Khóa ${diffDays} ngày`;
+}
 
 function useDebounce<T>(value: T, delay: number): T {
   const [debouncedValue, setDebouncedValue] = useState<T>(value);
@@ -141,8 +157,8 @@ function MuiSelect({ label, value, onChange, options, minWidth = 140, labelBgCol
 const UserStatusBadges = ({ user, variant = 'table' }: { user: UserAdminData, variant?: 'table' | 'detail' }) => {
   const badges = [];
   const now = new Date();
-  
-  const isBanned = user.banUntil && new Date(user.banUntil) > now;
+  const banStatusLabel = getBanStatusLabel(user.banUntil);
+  const isBanned = !!banStatusLabel;
   const isMuted = user.muteUntil && new Date(user.muteUntil) > now;
 
   const renderBadge = (key: string, text: string, colorClass: string, detailColor: string) => {
@@ -161,15 +177,7 @@ const UserStatusBadges = ({ user, variant = 'table' }: { user: UserAdminData, va
   };
 
   if (isBanned) {
-    const banDate = new Date(user.banUntil!);
-    const diffYears = banDate.getFullYear() - now.getFullYear();
-    if (diffYears > 10) {
-      badges.push(renderBadge('ban', 'Khóa vĩnh viễn', 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400', 'bg-[#e74c3c]'));
-    } else {
-      const diffTime = Math.abs(banDate.getTime() - now.getTime());
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-      badges.push(renderBadge('ban', `Khóa ${diffDays} ngày`, 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400', 'bg-[#e74c3c]'));
-    }
+    badges.push(renderBadge('ban', banStatusLabel!, 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400', 'bg-[#e74c3c]'));
   } else if (user.isDisabled) {
     badges.push(renderBadge('disabled', 'Vô hiệu hóa', 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400', 'bg-[#e74c3c]'));
   } else {
@@ -275,9 +283,10 @@ export default function UsersTab() {
       setShowStatusModal(false);
       setShowQuickPenaltyModal(false);
       setStatusPassword('');
-      setQuickPenaltyData({ reason: 'other', adminNote: '', resetAvatar: false, resetBio: false, resetName: false, password: '', manualDurationDays: 1 });
-      setSelectedUser(prev => prev ? { ...prev, isDisabled: true } : null);
-      updateUserInList(variables.id, { isDisabled: true });
+      setQuickPenaltyData({ reason: 'other', adminNote: '', resetAvatar: false, resetBio: false, resetName: false, password: '', manualDurationDays: BAN_DURATION_1_DAY });
+      const banUntil = new Date(Date.now() + variables.durationDays * DAY_IN_MS).toISOString();
+      setSelectedUser(prev => prev ? { ...prev, banUntil } : null);
+      updateUserInList(variables.id, { banUntil });
     },
     onError: (err: any) => toast.error(err.response?.data?.message || 'Lỗi khi khóa tài khoản')
   });
@@ -360,7 +369,7 @@ export default function UsersTab() {
         return updated;
       });
       setShowQuickPenaltyModal(false);
-      setQuickPenaltyData({ reason: 'other', adminNote: '', resetAvatar: false, resetBio: false, resetName: false, password: '', manualDurationDays: 1 });
+      setQuickPenaltyData({ reason: 'other', adminNote: '', resetAvatar: false, resetBio: false, resetName: false, password: '', manualDurationDays: BAN_DURATION_1_DAY });
     },
     onError: (err: any) => toast.error(err.response?.data?.message || 'Lỗi khi xử lý vi phạm')
   });
@@ -389,7 +398,7 @@ export default function UsersTab() {
     resetBio: false,
     resetName: false,
     password: '',
-    manualDurationDays: 1
+    manualDurationDays: BAN_DURATION_1_DAY
   });
   
   const [showActionsDropdown, setShowActionsDropdown] = useState(false);
@@ -635,9 +644,7 @@ export default function UsersTab() {
     }
   }, [data?.items, selectedUser?._id]);
 
-  const isPermanentlyBanned = selectedUser?.banUntil 
-    ? new Date(selectedUser.banUntil).getFullYear() - new Date().getFullYear() > 10 
-    : false;
+  const isPermanentlyBanned = !!getBanStatusLabel(selectedUser?.banUntil || undefined);
 
   return (
     <>
@@ -1181,13 +1188,13 @@ export default function UsersTab() {
                     type="number" 
                     value={statusDuration}
                     onChange={(e) => setStatusDuration(Number(e.target.value))}
-                    min="1"
-                    placeholder="Ví dụ: 7 (nhập số ngày, tối đa 3650)"
+                    min={BAN_DURATION_1_DAY}
+                    placeholder={`Ví dụ: ${BAN_DURATION_7_DAYS} (nhập số ngày, tối đa ${PERMANENT_BAN_DAYS})`}
                     style={{ width: '100%', padding: '10px 12px', background: 'transparent', border: '1px solid var(--border)', borderRadius: '6px', color: 'var(--text-primary)', fontSize: '14px', outline: 'none', transition: 'border-color 0.2s' }}
                     onFocus={e => e.target.style.borderColor = '#ef4444'}
                     onBlur={e => e.target.style.borderColor = 'var(--border)'}
                   />
-                  <span className="text-xs text-[var(--text-muted)] mt-1">Sử dụng 3650 (10 năm) cho khóa vĩnh viễn.</span>
+                    <span className="text-xs text-[var(--text-muted)] mt-1">Sử dụng {PERMANENT_BAN_DAYS} ngày cho khóa vĩnh viễn.</span>
                 </div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
@@ -1242,7 +1249,7 @@ export default function UsersTab() {
           onMouseDown={(e) => {
             if (e.target === e.currentTarget) {
               setShowQuickPenaltyModal(false);
-              setQuickPenaltyData({ reason: 'other', adminNote: '', resetAvatar: false, resetBio: false, resetName: false, password: '', manualDurationDays: 1 });
+              setQuickPenaltyData({ reason: 'other', adminNote: '', resetAvatar: false, resetBio: false, resetName: false, password: '', manualDurationDays: BAN_DURATION_1_DAY });
             }
           }}
         >
@@ -1263,7 +1270,7 @@ export default function UsersTab() {
               <button 
                 onClick={() => {
                   setShowQuickPenaltyModal(false);
-                  setQuickPenaltyData({ reason: 'other', adminNote: '', resetAvatar: false, resetBio: false, resetName: false, password: '', manualDurationDays: 1 });
+              setQuickPenaltyData({ reason: 'other', adminNote: '', resetAvatar: false, resetBio: false, resetName: false, password: '', manualDurationDays: BAN_DURATION_1_DAY });
                 }}
                 style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '4px', borderRadius: '50%' }}
                 onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-primary)')}
@@ -1341,15 +1348,15 @@ export default function UsersTab() {
 
               {quickPenaltyData.reason === 'other' && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '10px' }}>
-                  <label style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)' }}>Khóa tài khoản</label>
-                  <MuiSelect
-                    value={String(quickPenaltyData.manualDurationDays)}
-                    onChange={(value) => setQuickPenaltyData(prev => ({ ...prev, manualDurationDays: Number(value) }))}
-                    options={[
-                      { value: '1', label: '1 ngày' },
-                      { value: '7', label: '7 ngày' },
-                      { value: '30', label: '30 ngày' },
-                      { value: '36500', label: 'Vĩnh viễn' },
+                <MuiSelect
+                  label="Thời hạn phạt"
+                  value={String(quickPenaltyData.manualDurationDays)}
+                  onChange={(value) => setQuickPenaltyData(prev => ({ ...prev, manualDurationDays: Number(value) }))}
+                  options={[
+                      { value: String(BAN_DURATION_1_DAY), label: `${BAN_DURATION_1_DAY} ngày` },
+                      { value: String(BAN_DURATION_7_DAYS), label: `${BAN_DURATION_7_DAYS} ngày` },
+                      { value: String(BAN_DURATION_30_DAYS), label: `${BAN_DURATION_30_DAYS} ngày` },
+                      { value: String(PERMANENT_BAN_DAYS), label: 'Vĩnh viễn' },
                     ]}
                     minWidth={140}
                     labelBgColor="var(--bg-card)"
@@ -1387,7 +1394,7 @@ export default function UsersTab() {
               <button 
                 onClick={() => {
                   setShowQuickPenaltyModal(false);
-                  setQuickPenaltyData({ reason: 'other', adminNote: '', resetAvatar: false, resetBio: false, resetName: false, password: '', manualDurationDays: 1 });
+              setQuickPenaltyData({ reason: 'other', adminNote: '', resetAvatar: false, resetBio: false, resetName: false, password: '', manualDurationDays: BAN_DURATION_1_DAY });
                 }}
                 style={{ padding: '8px 20px', fontSize: '14px', fontWeight: 500, color: 'var(--text-primary)', background: 'transparent', border: '1px solid var(--border)', borderRadius: '6px', cursor: 'pointer', transition: 'background 0.2s' }}
                 onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-primary)')}

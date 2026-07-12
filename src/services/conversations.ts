@@ -12,6 +12,8 @@ export interface ConversationUser {
   };
   lastOnlineAt?: string;
   isDisabled?: boolean;
+  banUntil?: string;
+  disabledAt?: string;
 }
 
 export interface Conversation {
@@ -38,6 +40,8 @@ function normalizeConversationUser(raw: any): ConversationUser {
     avatar: raw?.avatar,
     lastOnlineAt: raw?.lastOnlineAt,
     isDisabled: Boolean(raw?.isDisabled),
+    banUntil: raw?.banUntil,
+    disabledAt: raw?.disabledAt,
   };
 }
 

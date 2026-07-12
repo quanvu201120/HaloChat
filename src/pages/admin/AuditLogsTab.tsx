@@ -8,6 +8,7 @@ import { MuiSelect } from '../../components/admin/MuiSelect';
 import MediaLightbox from '../../components/MediaLightbox';
 import { UI_LIMITS } from '../../constants/limits';
 import { formatDateVN } from '../../utils/date';
+import { PERMANENT_BAN_DAYS } from '../../constants/penalty';
 
 interface InfoItemProps {
   icon: React.ReactNode;
@@ -736,14 +737,14 @@ export default function AuditLogsTab() {
                                if (matchBan) {
                                  const days = matchBan[2];
                                  const hasReset = matchBan[1].toLowerCase().includes('reset');
-                                 if (days === '36500') {
+                                 if (Number(days) >= PERMANENT_BAN_DAYS) {
                                    displayValue = `Khóa tài khoản vĩnh viễn${hasReset ? ' (kèm xóa thông tin)' : ''}`;
                                  } else {
                                    displayValue = `Khóa tài khoản ${days} ngày${hasReset ? ' (kèm xóa thông tin)' : ''}`;
                                  }
                                } else if (matchMute) {
                                  const days = matchMute[1];
-                                 if (days === '36500') {
+                                 if (Number(days) >= PERMANENT_BAN_DAYS) {
                                    displayValue = `Cấm chat vĩnh viễn`;
                                  } else {
                                    displayValue = `Cấm chat ${days} ngày`;
@@ -792,9 +793,13 @@ export default function AuditLogsTab() {
                           </h4>
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8">
                             <InfoItem icon={<Image size={16} />} label="Ảnh đại diện">
-                              {selectedLog.metadata.oldAvatar ? (
+                              {selectedLog.metadata.oldAvatar && typeof selectedLog.metadata.oldAvatar === 'object' && selectedLog.metadata.oldAvatar.url ? (
                                 <button onClick={() => setLightboxData({ medias: [selectedLog.metadata.oldAvatar], initialIndex: 0 })} className="shrink-0 hover:opacity-80 transition-opacity cursor-pointer border-none bg-transparent p-0 mt-1">
-                                  <img src={typeof selectedLog.metadata.oldAvatar === 'object' ? selectedLog.metadata.oldAvatar.url : selectedLog.metadata.oldAvatar} className="w-12 h-12 rounded-full object-cover border border-[var(--border)] shadow-sm" alt="Avatar" />
+                                  <img src={selectedLog.metadata.oldAvatar.url} className="w-12 h-12 rounded-full object-cover border border-[var(--border)] shadow-sm" alt="Avatar" />
+                                </button>
+                              ) : selectedLog.metadata.oldAvatar && typeof selectedLog.metadata.oldAvatar === 'string' ? (
+                                <button onClick={() => setLightboxData({ medias: [{ url: selectedLog.metadata.oldAvatar }], initialIndex: 0 })} className="shrink-0 hover:opacity-80 transition-opacity cursor-pointer border-none bg-transparent p-0 mt-1">
+                                  <img src={selectedLog.metadata.oldAvatar} className="w-12 h-12 rounded-full object-cover border border-[var(--border)] shadow-sm" alt="Avatar" />
                                 </button>
                               ) : (
                                 <img src={'https://ui-avatars.com/api/?name=' + encodeURIComponent(selectedLog.metadata.oldName || 'User') + '&background=random'} className="w-12 h-12 rounded-full object-cover shrink-0 border border-[var(--border)] shadow-sm mt-1" alt="Avatar" />
@@ -895,14 +900,14 @@ export default function AuditLogsTab() {
                              if (matchBan) {
                                const days = matchBan[2];
                                const hasReset = matchBan[1].toLowerCase().includes('reset');
-                               if (days === '36500') {
+                               if (Number(days) >= PERMANENT_BAN_DAYS) {
                                  displayValue = `Khóa tài khoản vĩnh viễn${hasReset ? ' (kèm xóa thông tin)' : ''}`;
                                } else {
                                  displayValue = `Khóa tài khoản ${days} ngày${hasReset ? ' (kèm xóa thông tin)' : ''}`;
                                }
                              } else if (matchMute) {
                                const days = matchMute[1];
-                               if (days === '36500') {
+                               if (Number(days) >= PERMANENT_BAN_DAYS) {
                                  displayValue = `Cấm chat vĩnh viễn`;
                                } else {
                                  displayValue = `Cấm chat ${days} ngày`;

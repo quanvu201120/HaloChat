@@ -28,7 +28,7 @@ export default function MessageReadersModal({
     const avatar = typeof user.avatar === 'object' && user.avatar?.url
       ? user.avatar.url
       : typeof user.avatar === 'string' ? user.avatar : null;
-    const displayName = user.name || user.email || 'Người dùng';
+    const displayName = user.name || 'Người dùng';
 
     return (
       <div key={user._id} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 0' }}>

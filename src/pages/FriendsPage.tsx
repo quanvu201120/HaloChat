@@ -55,20 +55,20 @@ export default function FriendsPage() {
 
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
-      filteredFriends = filteredFriends.filter(f => (f.name || f.email || '').toLowerCase().includes(q));
+      filteredFriends = filteredFriends.filter(f => (f.name || '').toLowerCase().includes(q));
     }
     
     // Sort alphabetically by name
     filteredFriends.sort((a, b) => {
-      const nameA = (a.name || a.email || '').toLowerCase();
-      const nameB = (b.name || b.email || '').toLowerCase();
+      const nameA = (a.name || '').toLowerCase();
+      const nameB = (b.name || '').toLowerCase();
       return sortOrder === 'asc' ? nameA.localeCompare(nameB) : nameB.localeCompare(nameA);
     });
 
     // Group by first letter
     const grouped: Record<string, any[]> = {};
     filteredFriends.forEach(f => {
-      const name = f.name || f.email || '';
+      const name = f.name || '';
       let firstLetter = name.charAt(0).toUpperCase();
       // Handle non-alphabetic characters
       if (!/[A-Z]/.test(firstLetter)) {
@@ -85,7 +85,7 @@ export default function FriendsPage() {
 
   const handleAction = async (action: string, friend: any, e: React.MouseEvent) => {
     e.stopPropagation();
-    const friendName = friend.name || friend.email;
+    const friendName = friend.name;
 
     if (action === 'info') {
       let tempId: string | null = null;
@@ -395,7 +395,7 @@ export default function FriendsPage() {
                             color: '#fff', fontWeight: 600, fontSize: '18px'
                           }}
                         >
-                          {!friend.avatar?.url && (friend.name || friend.email || 'U').charAt(0).toUpperCase()}
+                          {!friend.avatar?.url && (friend.name || 'U').charAt(0).toUpperCase()}
                         </div>
                         
                         {/* Name */}
@@ -406,7 +406,7 @@ export default function FriendsPage() {
                           color: friend.isDisabled ? 'var(--error)' : 'var(--text-primary)',
                           fontStyle: friend.isDisabled ? 'italic' : 'normal'
                         }}>
-                          {friend.name || friend.email}
+                          {friend.name || 'Người dùng'}
                         </div>
 
                         {/* Actions per tab */}
@@ -486,12 +486,12 @@ export default function FriendsPage() {
                 boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
               }}
             >
-              {!selectedUserForInfo.avatar?.url && (selectedUserForInfo.name || selectedUserForInfo.email || 'U').charAt(0).toUpperCase()}
+              {!selectedUserForInfo.avatar?.url && (selectedUserForInfo.name || 'U').charAt(0).toUpperCase()}
             </div>
             
             {/* Name */}
             <h3 style={{ fontSize: '24px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '8px' }}>
-              {selectedUserForInfo.name || selectedUserForInfo.email}
+              {selectedUserForInfo.name || 'Người dùng'}
             </h3>
             
             {/* Bio */}
@@ -667,7 +667,7 @@ export default function FriendsPage() {
           isOpen={showReportModal}
           onClose={() => setShowReportModal(false)}
           targetUserId={selectedUserForInfo._id}
-          targetUserName={selectedUserForInfo.name || selectedUserForInfo.email}
+          targetUserName={selectedUserForInfo.name}
         />
       )}
     </div>

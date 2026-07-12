@@ -1,6 +1,6 @@
 import { useMemo, useState, useEffect, useLayoutEffect, useRef } from 'react';
 import {
-  CornerUpLeft, Pencil, Trash2, Heart, Download,
+  CornerUpLeft, Pencil, Trash2, Heart, Download, UserX,
 } from 'lucide-react';
 import AudioPlayer from './AudioPlayer';
 import type { Message, MessageReaction } from '../services/messages';
@@ -50,7 +50,7 @@ function getSenderId(message: Message): string {
 
 function getSenderName(message: Message): string {
   if (typeof message.sender === 'string') return '';
-  return message.sender?.name || message.sender?.email || '';
+  return message.sender?.name || '';
 }
 
 function isSameSender(a: Message, b?: Message): boolean {
@@ -254,7 +254,9 @@ export default function MessageBubble({
   const isEmojiOnlyText = message.type === 'text' && !message.isDeleted && !message.replyTo && isEmojiOnly(message.content);
   const emojiSizeClass = isEmojiOnlyText ? getEmojiOnlySizeClass(message.content!) : '';
 
-  const isSenderDisabled = message.isSenderDisabled || (message.content === 'Người dùng bị vô hiệu hoá' && !message.isDeleted);
+  const isSenderDisabled = message.isSenderDisabled
+    || (typeof message.sender === 'object' && !!message.sender?.isDisabled)
+    || (message.content === 'Người dùng vô hiệu hoá' && !message.isDeleted);
 
   const handleDownload = async (event: React.MouseEvent<HTMLButtonElement>) => {
     event.stopPropagation();
@@ -340,16 +342,22 @@ export default function MessageBubble({
           <div 
             className="msg-avatar-container" 
             onClick={onAvatarClick}
-            style={{ width: '32px', height: '32px', flexShrink: 0, borderRadius: '50%', backgroundColor: '#eee', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: 'bold', color: '#666', border: '1px solid #ddd', marginTop: showSenderName ? '20px' : '0', cursor: onAvatarClick ? 'pointer' : 'default' }}
+            style={{ width: '32px', height: '32px', flexShrink: 0, borderRadius: '50%', backgroundColor: isSenderDisabled ? 'var(--bg-secondary)' : '#eee', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: 'bold', color: '#666', border: '1px solid #ddd', marginTop: showSenderName ? '20px' : '0', cursor: onAvatarClick ? 'pointer' : 'default' }}
           >
-            {senderAvatarUrl ? <img src={senderAvatarUrl} alt={senderName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : senderName.slice(0, 2).toUpperCase()}
+            {isSenderDisabled ? (
+              <UserX size={18} style={{ color: 'var(--text-muted)' }} />
+            ) : senderAvatarUrl ? (
+              <img src={senderAvatarUrl} alt={senderName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            ) : (
+              senderName.slice(0, 2).toUpperCase()
+            )}
           </div>
         )}
         <div className={`msg-content-wrapper${isMe ? ' me' : ' other'}${!message.isDeleted && !isSenderDisabled && reactions.length > 0 ? ' has-reactions' : ''}`} style={{ flex: 1, maxWidth: isMe ? '100%' : 'calc(100% - 40px)' }}>
           <div
             className={`msg-bubble${isMe ? ' me' : ' other'}${message.isDeleted ? ' deleted' : ''}${isOptimistic ? ' sending' : ''}${isError ? ' error' : ''}${isMediaOnly ? ' media-only' : ''}${isEmojiOnlyText ? ' emoji-only' : ''}`}
             onClick={() => isMe && setShowStatus((prev) => !prev)}
-            style={isSenderDisabled ? { border: '1px solid var(--error)', opacity: 0.8 } : undefined}
+            style={isSenderDisabled ? { opacity: 0.8 } : undefined}
         >
           {showActions && !message.isDeleted && !isSenderDisabled && (
             <div ref={actionsRef} className={`msg-actions${isMe ? ' me' : ' other'}`} onClick={(e) => e.stopPropagation()}>

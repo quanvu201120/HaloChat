@@ -43,7 +43,7 @@ export default function NavigationSidebar({ isOpen, setIsOpen }: NavigationSideb
   const isAdminRoute = location.pathname.startsWith('/admin');
 
   const getInitials = () => {
-    const n = user?.name || user?.email || 'U';
+    const n = user?.name || 'U';
     const parts = n.trim().split(' ');
     if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
     return n.slice(0, 2).toUpperCase();
@@ -193,7 +193,7 @@ export default function NavigationSidebar({ isOpen, setIsOpen }: NavigationSideb
               {!user?.avatar?.url && getInitials()}
             </div>
             <span className="text-[15px] font-medium block md:hidden truncate flex-1 text-left">
-              {user?.name || user?.email || 'Hồ sơ cá nhân'}
+              {user?.name || 'Hồ sơ cá nhân'}
             </span>
           </button>
 

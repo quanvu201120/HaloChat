@@ -206,7 +206,7 @@ export function ProfilePageContent() {
     isDanger?: boolean;
     confirmText?: string;
     countdown?: number;
-    action: () => void | Promise<void>;
+    action: () => void | boolean | Promise<void | boolean>;
   } | null>(null);
   const [isUpdateEmailModalOpen, setIsUpdateEmailModalOpen] = useState(false);
   const [selectedMedia, setSelectedMedia] = useState<{ url: string; type: 'image' | 'video' } | null>(null);
@@ -404,6 +404,7 @@ export function ProfilePageContent() {
       countdown: 5,
       action: () => {
         handleDisableSelfStep3();
+        return false;
       }
     });
   };
@@ -448,6 +449,7 @@ export function ProfilePageContent() {
       confirmText: UI_MESSAGES.profile.disableStep1Confirm,
       action: () => {
         handleDisableSelfStep2();
+        return false;
       }
     });
   };

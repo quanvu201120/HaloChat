@@ -40,7 +40,7 @@ export default function AddMemberModal({ isOpen, conversationId, currentMembers,
   const { friends, refetch: refetchFriends, isLoading: isFriendsLoading } = useRelationships();
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const isValidSearch = (query: string) => {
+  const isContactQuery = (query: string) => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     const phoneRegex = /^\+?[0-9]{9,15}$/;
     return emailRegex.test(query) || phoneRegex.test(query);
@@ -62,19 +62,14 @@ export default function AddMemberModal({ isOpen, conversationId, currentMembers,
       return;
     }
 
-    if (!isValidSearch(trimmed)) {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    if (!isContactQuery(trimmed)) {
       setServerResult(null);
+      setIsSearching(false);
       return;
     }
 
-    if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(async () => {
-      const localFound = friends.find(u => u.email === trimmed || u.phone === trimmed);
-      if (localFound) {
-        setServerResult(null);
-        return;
-      }
-
       setIsSearching(true);
       try {
         const res = await usersApi.search(trimmed);
@@ -104,9 +99,7 @@ export default function AddMemberModal({ isOpen, conversationId, currentMembers,
     if (!search.trim()) return allUsers;
     const q = search.toLowerCase();
     return allUsers.filter(u => 
-      (u.name || '').toLowerCase().includes(q) || 
-      u.email.toLowerCase().includes(q) ||
-      (u.phone || '').includes(q)
+      (u.name || '').toLowerCase().includes(q)
     );
   }, [search, allUsers]);
 
@@ -204,7 +197,7 @@ export default function AddMemberModal({ isOpen, conversationId, currentMembers,
                         padding: '3px 10px', fontSize: '12px', fontWeight: 600,
                       }}
                     >
-                      {u.name || u.email}
+                      {u.name || 'Người dùng'}
                       <button
                         onClick={() => toggleSelect(u)}
                         style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'inherit', padding: 0, display: 'flex' }}
@@ -246,11 +239,11 @@ export default function AddMemberModal({ isOpen, conversationId, currentMembers,
                         }}
                       >
                         <div className="user-avatar" style={{ width: 32, height: 32, fontSize: '12px', flexShrink: 0 }}>
-                          {(u.name || u.email).slice(0, 2).toUpperCase()}
+                          {(u.name || 'U').slice(0, 2).toUpperCase()}
                         </div>
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ fontSize: '13.5px', fontWeight: 600, color: 'var(--text-primary)' }}>
-                            {u.name || u.email || 'Chưa đặt tên'}
+                            {u.name || 'Chưa đặt tên'}
                           </div>
                         </div>
                         {isSelected && <Check size={16} color="var(--accent-primary)" />}

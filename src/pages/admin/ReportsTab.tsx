@@ -9,6 +9,7 @@ import MediaLightbox from '../../components/MediaLightbox';
 import ResolveReportModal from '../../components/admin/ResolveReportModal';
 import { UI_LIMITS } from '../../constants/limits';
 import { formatDateVN } from '../../utils/date';
+import { PERMANENT_BAN_DAYS } from '../../constants/penalty';
 
 function useDebounce<T>(value: T, delay: number): T {
   const [debouncedValue, setDebouncedValue] = useState<T>(value);
@@ -262,7 +263,7 @@ export default function ReportsTab() {
     const daysMatch = p.match(/for (\d+) days/i);
     if (daysMatch) {
       const dDays = parseInt(daysMatch[1]);
-      if (dDays >= 3650) {
+      if (dDays >= PERMANENT_BAN_DAYS) {
         isPermanent = true;
         duration = 'vĩnh viễn';
       } else {
@@ -743,8 +744,11 @@ export default function ReportsTab() {
           isOpen={isResolveModalOpen} 
           onClose={() => setIsResolveModalOpen(false)} 
           reportId={selectedReport._id}
+          targetUserId={(selectedReport.targetUserId as any)?._id || selectedReport.targetUserId}
           reportStatus={selectedReport.status}
           isTargetSuperAdmin={(selectedReport.targetUserId as any)?.role === 'SUPER_ADMIN' || selectedReport.snapshot?.role === 'SUPER_ADMIN'} 
+          currentMuteUntil={(selectedReport.targetUserId as any)?.muteUntil}
+          currentBanUntil={(selectedReport.targetUserId as any)?.banUntil}
         />
       )}
     </div>

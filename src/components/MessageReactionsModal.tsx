@@ -22,7 +22,7 @@ export default function MessageReactionsModal({
 
   const renderUserReaction = (reaction: { userId: string; type: string }) => {
     const user = conversation.users.find((u) => u._id === reaction.userId);
-    const displayName = user?.name || user?.email || 'Người dùng';
+    const displayName = user?.name || 'Người dùng';
     const avatar = typeof user?.avatar === 'object' && user.avatar?.url
       ? user.avatar.url
       : typeof user?.avatar === 'string' ? user.avatar : null;

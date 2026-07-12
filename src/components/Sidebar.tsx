@@ -65,7 +65,7 @@ export default function Sidebar() {
     const q = search.toLowerCase();
     const name = c.isGroup
       ? (c.name || '').toLowerCase()
-      : c.users.map((u) => (u.name || u.email || '').toLowerCase()).join(' ');
+      : c.users.map((u) => (u.name || '').toLowerCase()).join(' ');
     return name.includes(q);
   }), [conversations, search, isRequestContext, currentUserId]);
 

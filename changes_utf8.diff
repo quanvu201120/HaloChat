@@ -1,0 +1,1530 @@
+﻿diff --git a/src/components/AddFriendModal.tsx b/src/components/AddFriendModal.tsx
+index 493eef4..e8e03f8 100644
+--- a/src/components/AddFriendModal.tsx
++++ b/src/components/AddFriendModal.tsx
+@@ -62,18 +62,30 @@ export default function AddFriendModal({ isOpen, onClose }: Props) {
+     }
+   }, [isOpen]);
+ 
+-  const isValidSearch = (query: string) => {
++  const isContactQuery = (query: string) => {
+     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+     const phoneRegex = /^\+?[0-9]{9,15}$/;
+     return emailRegex.test(query) || phoneRegex.test(query);
+   };
+ 
+   const performSearch = async (query: string) => {
+-    const checkLocal = (users: any[]) => users.find(u => u.email === query || u.phone === query);
+-    
+-    let localFound = checkLocal(friends) || checkLocal(sentRequests) || checkLocal(receivedRequests) || checkLocal(blockedUsers);
+-    if (localFound) {
+-      setResult(localFound);
++    const localFound = [friends, sentRequests, receivedRequests, blockedUsers]
++      .flat()
++      .find((u: any) => (u.name || '').toLowerCase().includes(query.toLowerCase()));
++
++    if (!isContactQuery(query)) {
++      if (localFound) {
++        setResult({
++          ...localFound,
++          avatar: typeof localFound.avatar === 'string'
++            ? localFound.avatar
++            : localFound.avatar?.url
++              ? { url: localFound.avatar.url }
++              : undefined,
++        });
++      } else {
++        setResult(null);
++      }
+       return;
+     }
+ 
+@@ -96,11 +108,6 @@ export default function AddFriendModal({ isOpen, onClose }: Props) {
+       return;
+     }
+ 
+-    if (!isValidSearch(trimmed)) {
+-      setResult(null);
+-      return;
+-    }
+-
+     if (debounceRef.current) clearTimeout(debounceRef.current);
+     debounceRef.current = setTimeout(() => {
+       performSearch(trimmed);
+@@ -115,11 +122,6 @@ export default function AddFriendModal({ isOpen, onClose }: Props) {
+     e.preventDefault();
+     const trimmed = search.trim();
+     if (!trimmed) return;
+-    
+-    if (!isValidSearch(trimmed)) {
+-      toast.error(UI_MESSAGES.friends.invalidSearch);
+-      return;
+-    }
+ 
+     if (debounceRef.current) clearTimeout(debounceRef.current);
+     performSearch(trimmed);
+@@ -321,7 +323,7 @@ export default function AddFriendModal({ isOpen, onClose }: Props) {
+                       {getAvatarUrl(result) ? (
+                         <img src={getAvatarUrl(result)!} alt={result.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                       ) : (
+-                        (result.name || result.email || 'U').slice(0, 2).toUpperCase()
++                        (result.name || 'U').slice(0, 2).toUpperCase()
+                       )}
+                     </div>
+                     <div>
+@@ -334,7 +336,7 @@ export default function AddFriendModal({ isOpen, onClose }: Props) {
+                 </div>
+               ) : search && !isSearching && (
+                  <div style={{ textAlign: 'center', padding: '20px', color: 'var(--text-muted)' }}>
+-                   {!isValidSearch(search.trim()) ? UI_MESSAGES.friends.invalidSearchResult : UI_MESSAGES.friends.notFoundBySearch}
++                   {UI_MESSAGES.friends.notFoundBySearch}
+                  </div>
+               )}
+             </div>
+@@ -358,7 +360,7 @@ export default function AddFriendModal({ isOpen, onClose }: Props) {
+         }
+       }}
+       title={UI_MESSAGES.friends.unblockTitle}
+-      message={`Bß║ín c├│ chß║»c chß║»n muß╗æn bß╗Å chß║╖n ${userToUnblock?.name || userToUnblock?.email || 'ng╞░ß╗¥i d├╣ng n├áy'} kh├┤ng? Hß╗ì sß║╜ c├│ thß╗â t├¼m thß║Ñy v├á nhß║»n tin cho bß║ín.`}
++      message={`Bß║ín c├│ chß║»c chß║»n muß╗æn bß╗Å chß║╖n ${userToUnblock?.name || 'ng╞░ß╗¥i d├╣ng n├áy'} kh├┤ng? Hß╗ì sß║╜ c├│ thß╗â t├¼m thß║Ñy v├á nhß║»n tin cho bß║ín.`}
+       confirmText={UI_MESSAGES.friends.unblockConfirmLabel}
+       cancelText={UI_MESSAGES.friends.cancel}
+       isDanger={true}
+diff --git a/src/components/AddMemberModal.tsx b/src/components/AddMemberModal.tsx
+index c93123c..939db83 100644
+--- a/src/components/AddMemberModal.tsx
++++ b/src/components/AddMemberModal.tsx
+@@ -40,7 +40,7 @@ export default function AddMemberModal({ isOpen, conversationId, currentMembers,
+   const { friends, refetch: refetchFriends, isLoading: isFriendsLoading } = useRelationships();
+   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+ 
+-  const isValidSearch = (query: string) => {
++  const isContactQuery = (query: string) => {
+     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+     const phoneRegex = /^\+?[0-9]{9,15}$/;
+     return emailRegex.test(query) || phoneRegex.test(query);
+@@ -62,19 +62,14 @@ export default function AddMemberModal({ isOpen, conversationId, currentMembers,
+       return;
+     }
+ 
+-    if (!isValidSearch(trimmed)) {
++    if (debounceRef.current) clearTimeout(debounceRef.current);
++    if (!isContactQuery(trimmed)) {
+       setServerResult(null);
++      setIsSearching(false);
+       return;
+     }
+ 
+-    if (debounceRef.current) clearTimeout(debounceRef.current);
+     debounceRef.current = setTimeout(async () => {
+-      const localFound = friends.find(u => u.email === trimmed || u.phone === trimmed);
+-      if (localFound) {
+-        setServerResult(null);
+-        return;
+-      }
+-
+       setIsSearching(true);
+       try {
+         const res = await usersApi.search(trimmed);
+@@ -104,9 +99,7 @@ export default function AddMemberModal({ isOpen, conversationId, currentMembers,
+     if (!search.trim()) return allUsers;
+     const q = search.toLowerCase();
+     return allUsers.filter(u => 
+-      (u.name || '').toLowerCase().includes(q) || 
+-      u.email.toLowerCase().includes(q) ||
+-      (u.phone || '').includes(q)
++      (u.name || '').toLowerCase().includes(q)
+     );
+   }, [search, allUsers]);
+ 
+@@ -204,7 +197,7 @@ export default function AddMemberModal({ isOpen, conversationId, currentMembers,
+                         padding: '3px 10px', fontSize: '12px', fontWeight: 600,
+                       }}
+                     >
+-                      {u.name || u.email}
++                      {u.name || 'Ng╞░ß╗¥i d├╣ng'}
+                       <button
+                         onClick={() => toggleSelect(u)}
+                         style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'inherit', padding: 0, display: 'flex' }}
+@@ -246,11 +239,11 @@ export default function AddMemberModal({ isOpen, conversationId, currentMembers,
+                         }}
+                       >
+                         <div className="user-avatar" style={{ width: 32, height: 32, fontSize: '12px', flexShrink: 0 }}>
+-                          {(u.name || u.email).slice(0, 2).toUpperCase()}
++                          {(u.name || 'U').slice(0, 2).toUpperCase()}
+                         </div>
+                         <div style={{ flex: 1, minWidth: 0 }}>
+                           <div style={{ fontSize: '13.5px', fontWeight: 600, color: 'var(--text-primary)' }}>
+-                            {u.name || u.email || 'Ch╞░a ─æß║╖t t├¬n'}
++                            {u.name || 'Ch╞░a ─æß║╖t t├¬n'}
+                           </div>
+                         </div>
+                         {isSelected && <Check size={16} color="var(--accent-primary)" />}
+diff --git a/src/components/AdminSocketManager.tsx b/src/components/AdminSocketManager.tsx
+index 3ff5764..6e3aae0 100644
+--- a/src/components/AdminSocketManager.tsx
++++ b/src/components/AdminSocketManager.tsx
+@@ -6,7 +6,7 @@ import { useToast } from '../context/ToastContext';
+ import { useNavigate } from 'react-router-dom';
+ /**
+  * Lightweight socket manager d├ánh ri├¬ng cho trang Admin.
+- * Chß╗ë kß║┐t nß╗æi socket ─æß╗â lß║»ng nghe sß╗▒ kiß╗çn bß╗ï v├┤ hiß╗çu h├│a t├ái khoß║ún (user:disabled).
++ * Chß╗ë kß║┐t nß╗æi socket ─æß╗â lß║»ng nghe sß╗▒ kiß╗çn bß╗ï v├┤ hiß╗çu h├│a hoß║╖c bß╗ï kh├│a t├ái khoß║ún.
+  * Kh├┤ng fetch conversations, kh├┤ng fetch users-online.
+  */
+ export default function AdminSocketManager() {
+@@ -24,9 +24,18 @@ export default function AdminSocketManager() {
+       toast.warning('T├ái khoß║ún cß╗ºa bß║ín ─æ├ú bß╗ï v├┤ hiß╗çu h├│a.');
+       navigate('/login');
+     };
++    const onUserBanned = (data: { userId: string; banUntil?: string | Date }) => {
++      const userId = normalizeId(data.userId);
++      if (!userId || userId !== currentUserId) return;
++      useAuthStore.getState().localLogout();
++      toast.warning('T├ái khoß║ún cß╗ºa bß║ín ─æ├ú bß╗ï kh├│a.');
++      navigate('/login');
++    };
+     sock.on('user:disabled', onUserDisabled);
++    sock.on('user:banned', onUserBanned);
+     return () => {
+       sock.off('user:disabled', onUserDisabled);
++      sock.off('user:banned', onUserBanned);
+       disconnectSocket();
+     };
+   }, []);
+diff --git a/src/components/ConversationItem.tsx b/src/components/ConversationItem.tsx
+index e2b73c4..178c286 100644
+--- a/src/components/ConversationItem.tsx
++++ b/src/components/ConversationItem.tsx
+@@ -7,7 +7,7 @@ import { useChatStore } from '../store/chatStore';
+ function getConversationName(conv: Conversation, currentUserId: string): string {
+   if (conv.isGroup) return conv.name || 'Nh├│m ch╞░a ─æß║╖t t├¬n';
+   const other = conv.users.find((u) => u._id !== currentUserId);
+-  return other?.name || other?.email || 'Ng╞░ß╗¥i d├╣ng';
++  return other?.name || 'Ng╞░ß╗¥i d├╣ng';
+ }
+ 
+ function getConversationAvatar(conv: Conversation, currentUserId: string): string | null {
+@@ -30,6 +30,13 @@ function getIsTargetUserDisabled(conv: Conversation, currentUserId: string): boo
+   return !!(other as any)?.isDisabled;
+ }
+ 
++function getIsTargetUserBanned(conv: Conversation, currentUserId: string): boolean {
++  if (conv.isGroup) return false;
++  const other = conv.users.find((u) => u._id !== currentUserId);
++  if (!other?.banUntil) return false;
++  return new Date(other.banUntil).getTime() > Date.now();
++}
++
+ function getLastMessagePreview(conv: Conversation, currentUserId: string): string {
+   const msg = conv.lastMessage;
+   if (!msg) return 'Bß║»t ─æß║ºu cuß╗Öc tr├▓ chuyß╗çn...';
+@@ -80,6 +87,7 @@ function ConversationItem({
+   const avatarUrl = getConversationAvatar(conv, currentUserId);
+   const initials = getInitials(name);
+   const isTargetUserDisabled = getIsTargetUserDisabled(conv, currentUserId);
++  const isTargetUserBanned = getIsTargetUserBanned(conv, currentUserId);
+   const preview = getLastMessagePreview(conv, currentUserId);
+   const timeStr = conv.lastMessage?.createdAt
+     ? formatTime(conv.lastMessage.createdAt)
+@@ -111,7 +119,32 @@ function ConversationItem({
+       {/* Info */}
+       <div className="conv-info">
+         <div className="conv-name-row">
+-          <span className="conv-name">{name}</span>
++          <span
++            className="conv-name"
++            style={isTargetUserBanned ? { color: '#ef4444' } : undefined}
++          >
++            {name}
++          </span>
++          {isTargetUserBanned && (
++            <span
++              style={{
++                display: 'inline-flex',
++                alignItems: 'center',
++                padding: '1px 6px',
++                borderRadius: '999px',
++                background: 'rgba(239, 68, 68, 0.12)',
++                color: '#ef4444',
++                fontSize: '10px',
++                fontWeight: 700,
++                textTransform: 'uppercase',
++                letterSpacing: '0.04em',
++                lineHeight: 1.4,
++                flexShrink: 0,
++              }}
++            >
++              Ban
++            </span>
++          )}
+           {timeStr && <span className="conv-time">{timeStr}</span>}
+         </div>
+         <div className="conv-preview-row">
+diff --git a/src/components/CreateConversationModal.tsx b/src/components/CreateConversationModal.tsx
+index aa3e173..62ce9f5 100644
+--- a/src/components/CreateConversationModal.tsx
++++ b/src/components/CreateConversationModal.tsx
+@@ -42,7 +42,7 @@ export default function CreateConversationModal({ isOpen, onClose }: Props) {
+   const { friends } = useRelationships();
+   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+ 
+-  const isValidSearch = (query: string) => {
++  const isContactQuery = (query: string) => {
+     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+     const phoneRegex = /^\+?[0-9]{9,15}$/;
+     return emailRegex.test(query) || phoneRegex.test(query);
+@@ -66,19 +66,14 @@ export default function CreateConversationModal({ isOpen, onClose }: Props) {
+       return;
+     }
+ 
+-    if (!isValidSearch(trimmed)) {
++    if (debounceRef.current) clearTimeout(debounceRef.current);
++    if (!isContactQuery(trimmed)) {
+       setServerResult(null);
++      setIsSearching(false);
+       return;
+     }
+ 
+-    if (debounceRef.current) clearTimeout(debounceRef.current);
+     debounceRef.current = setTimeout(async () => {
+-      const localFound = friends.find(u => u.email === trimmed || u.phone === trimmed);
+-      if (localFound) {
+-        setServerResult(null);
+-        return;
+-      }
+-
+       setIsSearching(true);
+       try {
+         const res = await usersApi.search(trimmed);
+@@ -102,9 +97,7 @@ export default function CreateConversationModal({ isOpen, onClose }: Props) {
+     if (!search.trim()) return friends;
+     const q = search.toLowerCase();
+     return friends.filter((u) => 
+-      (u.name || '').toLowerCase().includes(q) ||
+-      u.email.toLowerCase().includes(q) ||
+-      (u.phone || '').includes(q)
++      (u.name || '').toLowerCase().includes(q)
+     );
+   }, [search, friends]);
+ 
+@@ -256,7 +249,7 @@ export default function CreateConversationModal({ isOpen, onClose }: Props) {
+                     fontWeight: 600,
+                   }}
+                 >
+-                  {u.name || u.email}
++                  {u.name || 'Ng╞░ß╗¥i d├╣ng'}
+                   <button
+                     onClick={() => toggleSelect(u)}
+                     style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'inherit', padding: 0, display: 'flex' }}
+@@ -302,11 +295,11 @@ export default function CreateConversationModal({ isOpen, onClose }: Props) {
+                     }}
+                   >
+                     <div className="user-avatar" style={{ width: 32, height: 32, fontSize: '12px', flexShrink: 0 }}>
+-                      {(u.name || u.email).slice(0, 2).toUpperCase()}
++                      {(u.name || 'U').slice(0, 2).toUpperCase()}
+                     </div>
+                     <div style={{ flex: 1, minWidth: 0 }}>
+                       <div style={{ fontSize: '13.5px', fontWeight: 600, color: 'var(--text-primary)' }}>
+-                        {u.name || u.email || 'Chua dat ten'}
++                        {u.name || 'Chua dat ten'}
+                       </div>
+                     </div>
+                     {isSelected && <Check size={16} color="var(--accent-primary)" />}
+diff --git a/src/components/MessageBubble.tsx b/src/components/MessageBubble.tsx
+index f1d2886..46b169e 100644
+--- a/src/components/MessageBubble.tsx
++++ b/src/components/MessageBubble.tsx
+@@ -1,6 +1,6 @@
+ import { useMemo, useState, useEffect, useLayoutEffect, useRef } from 'react';
+ import {
+-  CornerUpLeft, Pencil, Trash2, Heart, Download,
++  CornerUpLeft, Pencil, Trash2, Heart, Download, UserX,
+ } from 'lucide-react';
+ import AudioPlayer from './AudioPlayer';
+ import type { Message, MessageReaction } from '../services/messages';
+@@ -50,7 +50,7 @@ function getSenderId(message: Message): string {
+ 
+ function getSenderName(message: Message): string {
+   if (typeof message.sender === 'string') return '';
+-  return message.sender?.name || message.sender?.email || '';
++  return message.sender?.name || '';
+ }
+ 
+ function isSameSender(a: Message, b?: Message): boolean {
+@@ -254,7 +254,9 @@ export default function MessageBubble({
+   const isEmojiOnlyText = message.type === 'text' && !message.isDeleted && !message.replyTo && isEmojiOnly(message.content);
+   const emojiSizeClass = isEmojiOnlyText ? getEmojiOnlySizeClass(message.content!) : '';
+ 
+-  const isSenderDisabled = message.isSenderDisabled || (message.content === 'Ng╞░ß╗¥i d├╣ng bß╗ï v├┤ hiß╗çu ho├í' && !message.isDeleted);
++  const isSenderDisabled = message.isSenderDisabled
++    || (typeof message.sender === 'object' && !!message.sender?.isDisabled)
++    || (message.content === 'Ng╞░ß╗¥i d├╣ng v├┤ hiß╗çu ho├í' && !message.isDeleted);
+ 
+   const handleDownload = async (event: React.MouseEvent<HTMLButtonElement>) => {
+     event.stopPropagation();
+@@ -340,16 +342,22 @@ export default function MessageBubble({
+           <div 
+             className="msg-avatar-container" 
+             onClick={onAvatarClick}
+-            style={{ width: '32px', height: '32px', flexShrink: 0, borderRadius: '50%', backgroundColor: '#eee', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: 'bold', color: '#666', border: '1px solid #ddd', marginTop: showSenderName ? '20px' : '0', cursor: onAvatarClick ? 'pointer' : 'default' }}
++            style={{ width: '32px', height: '32px', flexShrink: 0, borderRadius: '50%', backgroundColor: isSenderDisabled ? 'var(--bg-secondary)' : '#eee', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: 'bold', color: '#666', border: '1px solid #ddd', marginTop: showSenderName ? '20px' : '0', cursor: onAvatarClick ? 'pointer' : 'default' }}
+           >
+-            {senderAvatarUrl ? <img src={senderAvatarUrl} alt={senderName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : senderName.slice(0, 2).toUpperCase()}
++            {isSenderDisabled ? (
++              <UserX size={18} style={{ color: 'var(--text-muted)' }} />
++            ) : senderAvatarUrl ? (
++              <img src={senderAvatarUrl} alt={senderName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
++            ) : (
++              senderName.slice(0, 2).toUpperCase()
++            )}
+           </div>
+         )}
+         <div className={`msg-content-wrapper${isMe ? ' me' : ' other'}${!message.isDeleted && !isSenderDisabled && reactions.length > 0 ? ' has-reactions' : ''}`} style={{ flex: 1, maxWidth: isMe ? '100%' : 'calc(100% - 40px)' }}>
+           <div
+             className={`msg-bubble${isMe ? ' me' : ' other'}${message.isDeleted ? ' deleted' : ''}${isOptimistic ? ' sending' : ''}${isError ? ' error' : ''}${isMediaOnly ? ' media-only' : ''}${isEmojiOnlyText ? ' emoji-only' : ''}`}
+             onClick={() => isMe && setShowStatus((prev) => !prev)}
+-            style={isSenderDisabled ? { border: '1px solid var(--error)', opacity: 0.8 } : undefined}
++            style={isSenderDisabled ? { opacity: 0.8 } : undefined}
+         >
+           {showActions && !message.isDeleted && !isSenderDisabled && (
+             <div ref={actionsRef} className={`msg-actions${isMe ? ' me' : ' other'}`} onClick={(e) => e.stopPropagation()}>
+diff --git a/src/components/MessageReactionsModal.tsx b/src/components/MessageReactionsModal.tsx
+index 32faf2a..f3c1814 100644
+--- a/src/components/MessageReactionsModal.tsx
++++ b/src/components/MessageReactionsModal.tsx
+@@ -22,7 +22,7 @@ export default function MessageReactionsModal({
+ 
+   const renderUserReaction = (reaction: { userId: string; type: string }) => {
+     const user = conversation.users.find((u) => u._id === reaction.userId);
+-    const displayName = user?.name || user?.email || 'Ng╞░ß╗¥i d├╣ng';
++    const displayName = user?.name || 'Ng╞░ß╗¥i d├╣ng';
+     const avatar = typeof user?.avatar === 'object' && user.avatar?.url
+       ? user.avatar.url
+       : typeof user?.avatar === 'string' ? user.avatar : null;
+diff --git a/src/components/MessageReadersModal.tsx b/src/components/MessageReadersModal.tsx
+index feb56b6..273385c 100644
+--- a/src/components/MessageReadersModal.tsx
++++ b/src/components/MessageReadersModal.tsx
+@@ -28,7 +28,7 @@ export default function MessageReadersModal({
+     const avatar = typeof user.avatar === 'object' && user.avatar?.url
+       ? user.avatar.url
+       : typeof user.avatar === 'string' ? user.avatar : null;
+-    const displayName = user.name || user.email || 'Ng╞░ß╗¥i d├╣ng';
++    const displayName = user.name || 'Ng╞░ß╗¥i d├╣ng';
+ 
+     return (
+       <div key={user._id} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 0' }}>
+diff --git a/src/components/NavigationSidebar.tsx b/src/components/NavigationSidebar.tsx
+index 667a1ee..9190515 100644
+--- a/src/components/NavigationSidebar.tsx
++++ b/src/components/NavigationSidebar.tsx
+@@ -43,7 +43,7 @@ export default function NavigationSidebar({ isOpen, setIsOpen }: NavigationSideb
+   const isAdminRoute = location.pathname.startsWith('/admin');
+ 
+   const getInitials = () => {
+-    const n = user?.name || user?.email || 'U';
++    const n = user?.name || 'U';
+     const parts = n.trim().split(' ');
+     if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+     return n.slice(0, 2).toUpperCase();
+@@ -193,7 +193,7 @@ export default function NavigationSidebar({ isOpen, setIsOpen }: NavigationSideb
+               {!user?.avatar?.url && getInitials()}
+             </div>
+             <span className="text-[15px] font-medium block md:hidden truncate flex-1 text-left">
+-              {user?.name || user?.email || 'Hß╗ô s╞í c├í nh├ón'}
++              {user?.name || 'Hß╗ô s╞í c├í nh├ón'}
+             </span>
+           </button>
+ 
+diff --git a/src/components/Sidebar.tsx b/src/components/Sidebar.tsx
+index ed2d671..12b4e4e 100644
+--- a/src/components/Sidebar.tsx
++++ b/src/components/Sidebar.tsx
+@@ -65,7 +65,7 @@ export default function Sidebar() {
+     const q = search.toLowerCase();
+     const name = c.isGroup
+       ? (c.name || '').toLowerCase()
+-      : c.users.map((u) => (u.name || u.email || '').toLowerCase()).join(' ');
++      : c.users.map((u) => (u.name || '').toLowerCase()).join(' ');
+     return name.includes(q);
+   }), [conversations, search, isRequestContext, currentUserId]);
+ 
+diff --git a/src/components/SocketManager.tsx b/src/components/SocketManager.tsx
+index 6368674..b431863 100644
+--- a/src/components/SocketManager.tsx
++++ b/src/components/SocketManager.tsx
+@@ -225,6 +225,20 @@ export default function SocketManager() {
+         void useChatStore.getState().refetchConversations({ silent: true });
+       };
+ 
++      const onUserBanned = (data: { userId: string; banUntil?: string | Date }) => {
++        const userId = normalizeId(data.userId);
++        if (!userId) return;
++
++        if (userId === currentUserId) {
++          useAuthStore.getState().localLogout();
++          toast.warning('T├ái khoß║ún cß╗ºa bß║ín ─æ├ú bß╗ï kh├│a.');
++          navigate('/login');
++          return;
++        }
++
++        void useChatStore.getState().refetchConversations({ silent: true });
++      };
++
+       const onUserMuted = (data: { muteUntil: string | Date }) => {
+         const muteUntil = data.muteUntil ? new Date(data.muteUntil).toISOString() : undefined;
+         useAuthStore.getState().updateUser({ muteUntil });
+@@ -275,6 +289,7 @@ export default function SocketManager() {
+       sock.on('chat:message-deleted', onMessageDeleted);
+       sock.on('user:mark-read', onMarkRead);
+       sock.on('user:disabled', onUserDisabled);
++      sock.on('user:banned', onUserBanned);
+       sock.on('user:muted', onUserMuted);
+       sock.on('user:unmuted', onUserUnmuted);
+       sock.on('relationship:created', onRelationshipCreated);
+diff --git a/src/components/UserProfileModal.tsx b/src/components/UserProfileModal.tsx
+index 8c551ad..ab3b790 100644
+--- a/src/components/UserProfileModal.tsx
++++ b/src/components/UserProfileModal.tsx
+@@ -61,7 +61,7 @@ export default function UserProfileModal({ isOpen, onClose, user }: Props) {
+ 
+   const handleUnfriend = async () => {
+     if (!user.relationshipId) return;
+-    if (!window.confirm(`Bß║ín c├│ chß║»c chß║»n muß╗æn hß╗ºy kß║┐t bß║ín vß╗¢i ${user.name || user.email}?`)) return;
++    if (!window.confirm(`Bß║ín c├│ chß║»c chß║»n muß╗æn hß╗ºy kß║┐t bß║ín vß╗¢i ${user.name}?`)) return;
+     
+     setIsLoading(true);
+     try {
+@@ -76,7 +76,7 @@ export default function UserProfileModal({ isOpen, onClose, user }: Props) {
+   };
+ 
+   const handleBlock = async () => {
+-    if (!window.confirm(`Bß║ín c├│ chß║»c chß║»n muß╗æn chß║╖n ${user.name || user.email}?`)) return;
++    if (!window.confirm(`Bß║ín c├│ chß║»c chß║»n muß╗æn chß║╖n ${user.name}?`)) return;
+     
+     setIsLoading(true);
+     try {
+diff --git a/src/components/admin/ResolveReportModal.tsx b/src/components/admin/ResolveReportModal.tsx
+index 10e43bd..1c80d1c 100644
+--- a/src/components/admin/ResolveReportModal.tsx
++++ b/src/components/admin/ResolveReportModal.tsx
+@@ -1,32 +1,95 @@
+ import { useState, useEffect } from 'react';
+ import { X, ShieldAlert, AlertTriangle, UserX } from 'lucide-react';
+ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+-import { adminApi, ReportStatusEnum, type ReportPenaltySuggestion } from '../../services/admin';
++import { adminApi, ReportStatusEnum, type ReportPenaltySuggestion, type UserAdminData } from '../../services/admin';
+ import { parseError } from '../../services/api';
++import { formatDateVN } from '../../utils/date';
+ import { useToast } from '../../context/ToastContext';
++import { BAN_DURATION_1_DAY, BAN_DURATION_7_DAYS, BAN_DURATION_30_DAYS, PERMANENT_BAN_DAYS } from '../../constants/penalty';
+ 
+ interface ResolveReportModalProps {
+   isOpen: boolean;
+   onClose: () => void;
+   reportId: string;
++  targetUserId?: string;
+   reportStatus: typeof ReportStatusEnum[keyof typeof ReportStatusEnum];
+   isTargetSuperAdmin?: boolean;
++  currentMuteUntil?: string | Date;
++  currentBanUntil?: string | Date;
+ }
+ 
+-export default function ResolveReportModal({ isOpen, onClose, reportId, reportStatus, isTargetSuperAdmin }: ResolveReportModalProps) {
++export default function ResolveReportModal({
++  isOpen,
++  onClose,
++  reportId,
++  targetUserId,
++  reportStatus,
++  isTargetSuperAdmin,
++  currentMuteUntil,
++  currentBanUntil,
++}: ResolveReportModalProps) {
+   const superAdminDismissNote = 'Bß╗Å qua b├ío c├ío SUPER_ADMIN';
+   const [status, setStatus] = useState<typeof ReportStatusEnum.RESOLVED | typeof ReportStatusEnum.DISMISSED>(isTargetSuperAdmin ? ReportStatusEnum.DISMISSED : ReportStatusEnum.RESOLVED);
+   const [adminNote, setAdminNote] = useState(isTargetSuperAdmin ? superAdminDismissNote : '');
+   
+   const [useOverride, setUseOverride] = useState(false);
+   const [penaltyAction, setPenaltyAction] = useState<string>('WARNING');
+-  const [durationDays, setDurationDays] = useState<number>(7);
++  const [durationDays, setDurationDays] = useState<number>(BAN_DURATION_7_DAYS);
+   const [resetAvatar, setResetAvatar] = useState(false);
+   const [resetName, setResetName] = useState(false);
+   const [resetBio, setResetBio] = useState(false);
+   
+   const toast = useToast();
+   const queryClient = useQueryClient();
++  const dayMs = 24 * 60 * 60 * 1000;
++  const { data: targetUserDetail } = useQuery<UserAdminData>({
++    queryKey: ['admin_user_detail_for_report', targetUserId],
++    queryFn: () => adminApi.getUserDetail(targetUserId as string),
++    enabled: isOpen && reportStatus === ReportStatusEnum.PENDING && !!targetUserId,
++    staleTime: 0,
++    gcTime: 0,
++  });
++  const currentMuteUntilDate = targetUserDetail?.muteUntil
++    ? new Date(targetUserDetail.muteUntil)
++    : currentMuteUntil
++      ? new Date(currentMuteUntil)
++      : null;
++  const currentBanUntilDate = targetUserDetail?.banUntil
++    ? new Date(targetUserDetail.banUntil)
++    : currentBanUntil
++      ? new Date(currentBanUntil)
++      : null;
++
++  const getCurrentPenaltyUntil = () => {
++    const now = new Date();
++
++    if (penaltyAction === 'MUTE' && currentMuteUntilDate && currentMuteUntilDate > now) {
++      return currentMuteUntilDate;
++    }
++
++    if (penaltyAction === 'BAN' && currentBanUntilDate && currentBanUntilDate > now) {
++      return currentBanUntilDate;
++    }
++
++    return null;
++  };
++
++  const isDurationDisabled = (days: number) => {
++    const currentPenaltyUntil = getCurrentPenaltyUntil();
++    if (!currentPenaltyUntil) return false;
++
++    const proposedUntil = new Date(Date.now() + days * dayMs);
++    return proposedUntil < currentPenaltyUntil;
++  };
++
++  const currentPenaltyLines = [
++    currentBanUntilDate && currentBanUntilDate > new Date()
++      ? `Kh├│a t├ái khoß║ún ─æß║┐n ${formatDateVN(currentBanUntilDate)}`
++      : null,
++    currentMuteUntilDate && currentMuteUntilDate > new Date()
++      ? `Cß║Ñm chat ─æß║┐n ${formatDateVN(currentMuteUntilDate)}`
++      : null,
++  ].filter(Boolean) as string[];
+ 
+   // Fetch penalty recommendation
+   const { data: penaltySuggestion, isLoading: isLoadingSuggestion } = useQuery<ReportPenaltySuggestion>({
+@@ -54,6 +117,22 @@ export default function ResolveReportModal({ isOpen, onClose, reportId, reportSt
+     setAdminNote(isTargetSuperAdmin ? superAdminDismissNote : '');
+   }, [isOpen, isTargetSuperAdmin]);
+ 
++  useEffect(() => {
++    if (status !== ReportStatusEnum.RESOLVED) return;
++    if (penaltyAction !== 'MUTE' && penaltyAction !== 'BAN') return;
++    if (!isDurationDisabled(durationDays)) return;
++
++    const durations =
++      penaltyAction === 'BAN'
++        ? [BAN_DURATION_1_DAY, BAN_DURATION_7_DAYS, BAN_DURATION_30_DAYS, PERMANENT_BAN_DAYS]
++        : [BAN_DURATION_1_DAY, BAN_DURATION_7_DAYS, BAN_DURATION_30_DAYS];
++
++    const nextAllowed = durations.find((days) => !isDurationDisabled(days));
++    if (nextAllowed && nextAllowed !== durationDays) {
++      setDurationDays(nextAllowed);
++    }
++  }, [status, penaltyAction, durationDays, currentMuteUntilDate, currentBanUntilDate]);
++
+   const resolveMutation = useMutation({
+     mutationFn: (data: any) => adminApi.resolveReport(reportId, data),
+     onSuccess: () => {
+@@ -155,9 +234,20 @@ export default function ResolveReportModal({ isOpen, onClose, reportId, reportSt
+                 <span>C├íc b├ío c├ío kh├íc ─æang chß╗¥ xß╗¡ l├╜ c├│ c├╣ng l├╜ do cß╗ºa ng╞░ß╗¥i d├╣ng n├áy sß║╜ tß╗▒ ─æß╗Öng ─æ╞░ß╗úc gß╗Öp chung.</span>
+               </div>
+ 
++              {currentPenaltyLines.length > 0 && (
++                <div style={{ padding: '10px 14px', background: 'rgba(239, 68, 68, 0.08)', border: '1px solid rgba(239, 68, 68, 0.25)', borderRadius: '8px', color: '#b91c1c', fontSize: '13px' }}>
++                  <div style={{ fontWeight: 600, marginBottom: '6px' }}>H├¼nh phß║ít ─æang ├íp dß╗Ñng</div>
++                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
++                    {currentPenaltyLines.map((line) => (
++                      <div key={line}>{line}</div>
++                    ))}
++                  </div>
++                </div>
++              )}
++
+               {/* ─Éß╗ü xuß║Ñt tß╗½ hß╗ç thß╗æng */}
+               <div style={{ background: 'rgba(245, 158, 11, 0.05)', padding: '16px', borderRadius: '8px', border: '1px solid rgba(245, 158, 11, 0.2)' }}>
+-                <p style={{ margin: '0 0 12px 0', fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)' }}>H├¼nh phß║ít ├íp dß╗Ñng</p>
++                <p style={{ margin: '0 0 12px 0', fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)' }}>H├¼nh thß╗⌐c xß╗¡ l├¡</p>
+                 
+                 {isLoadingSuggestion ? (
+                   <p style={{ fontSize: '14px', color: 'var(--text-muted)', margin: 0 }}>─Éang t├¡nh to├ín ─æß╗ü xuß║Ñt...</p>
+@@ -177,9 +267,9 @@ export default function ResolveReportModal({ isOpen, onClose, reportId, reportSt
+                           <span style={{ fontSize: '13px', color: '#d97706', marginTop: '4px' }}>
+                             {penaltySuggestion.action === 'WARNING' ? 'Cß║únh c├ío' : 
+                              penaltySuggestion.action === 'MUTE' ? `Cß║Ñm chat ${penaltySuggestion.durationDays} ng├áy` :
+-                             penaltySuggestion.action === 'BAN' ? `Kh├│a t├ái khoß║ún ${penaltySuggestion.durationDays === -1 ? 'v─⌐nh viß╗àn' : penaltySuggestion.durationDays + ' ng├áy'}` :
++                            penaltySuggestion.action === 'BAN' ? `Kh├│a t├ái khoß║ún ${penaltySuggestion.durationDays >= PERMANENT_BAN_DAYS ? 'v─⌐nh viß╗àn' : penaltySuggestion.durationDays + ' ng├áy'}` :
+                              penaltySuggestion.action === 'RESET_AND_WARNING' ? 'Gß╗í dß╗» liß╗çu & Cß║únh c├ío' :
+-                             penaltySuggestion.action === 'RESET_AND_BAN' ? `Gß╗í dß╗» liß╗çu & Kh├│a t├ái khoß║ún ${penaltySuggestion.durationDays === -1 ? 'v─⌐nh viß╗àn' : penaltySuggestion.durationDays + ' ng├áy'}` : ''
++                             penaltySuggestion.action === 'RESET_AND_BAN' ? `Gß╗í dß╗» liß╗çu & Kh├│a t├ái khoß║ún ${penaltySuggestion.durationDays >= PERMANENT_BAN_DAYS ? 'v─⌐nh viß╗àn' : penaltySuggestion.durationDays + ' ng├áy'}` : ''
+                             } 
+                             {' '} (Vi phß║ím lß║ºn {penaltySuggestion.strike})
+                           </span>
+@@ -190,12 +280,12 @@ export default function ResolveReportModal({ isOpen, onClose, reportId, reportSt
+                     </label>
+ 
+                     <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}>
+-                      <input 
+-                        type="radio" 
+-                        checked={useOverride} 
+-                        onChange={() => setUseOverride(true)} 
+-                        style={{ cursor: 'pointer', accentColor: '#f59e0b' }} 
+-                      />
++                        <input 
++                          type="radio" 
++                          checked={useOverride} 
++                          onChange={() => setUseOverride(true)} 
++                          style={{ cursor: 'pointer', accentColor: '#f59e0b' }} 
++                        />
+                       <span style={{ fontSize: '14px', fontWeight: 500, color: 'var(--text-primary)' }}>Kh├íc (Tuß╗│ chß╗ënh)</span>
+                     </label>
+                   </div>
+@@ -213,11 +303,11 @@ export default function ResolveReportModal({ isOpen, onClose, reportId, reportSt
+                         Cß║únh c├ío (Warning)
+                       </label>
+                       <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '14px', color: 'var(--text-primary)' }}>
+-                        <input type="radio" name="penaltyAction" checked={penaltyAction === 'MUTE'} onChange={() => { setPenaltyAction('MUTE'); if (durationDays === -1) setDurationDays(30); }} style={{ cursor: 'pointer', accentColor: '#f59e0b' }} />
++                        <input type="radio" name="penaltyAction" checked={penaltyAction === 'MUTE'} onChange={() => { setPenaltyAction('MUTE'); if (durationDays >= PERMANENT_BAN_DAYS) setDurationDays(BAN_DURATION_30_DAYS); }} style={{ cursor: 'pointer', accentColor: '#f59e0b' }} />
+                         Cß║Ñm chat (Mute)
+                       </label>
+                       <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '14px', color: 'var(--text-primary)' }}>
+-                        <input type="radio" name="penaltyAction" checked={penaltyAction === 'BAN'} onChange={() => setPenaltyAction('BAN')} style={{ cursor: 'pointer', accentColor: '#f59e0b' }} />
++                        <input type="radio" name="penaltyAction" checked={penaltyAction === 'BAN'} onChange={() => { setPenaltyAction('BAN'); if (durationDays <= 0 || durationDays === BAN_DURATION_30_DAYS) setDurationDays(PERMANENT_BAN_DAYS); }} style={{ cursor: 'pointer', accentColor: '#f59e0b' }} />
+                         Kh├│a t├ái khoß║ún (Ban)
+                       </label>
+                     </div>
+@@ -228,24 +318,26 @@ export default function ResolveReportModal({ isOpen, onClose, reportId, reportSt
+                     <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                       <label style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)' }}>Thß╗¥i gian phß║ít</label>
+                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+-                        {[1, 7, 30, penaltyAction === 'BAN' ? -1 : null].filter(d => d !== null).map((days) => (
++                        {[BAN_DURATION_1_DAY, BAN_DURATION_7_DAYS, BAN_DURATION_30_DAYS, penaltyAction === 'BAN' ? PERMANENT_BAN_DAYS : null].filter(d => d !== null).map((days) => (
+                           <button
+                             key={days}
+                             type="button"
+                             onClick={() => setDurationDays(days)}
++                            disabled={isDurationDisabled(days)}
+                             style={{
+                               padding: '6px 12px',
+                               fontSize: '13px',
+                               fontWeight: 500,
+                               borderRadius: '6px',
+-                              cursor: 'pointer',
+                               transition: 'all 0.2s',
+                               border: durationDays === days ? '1px solid #f59e0b' : '1px solid var(--border)',
+                               background: durationDays === days ? 'rgba(245, 158, 11, 0.1)' : 'transparent',
+-                              color: durationDays === days ? '#d97706' : 'var(--text-primary)'
++                              color: isDurationDisabled(days) ? 'var(--text-muted)' : durationDays === days ? '#d97706' : 'var(--text-primary)',
++                              opacity: isDurationDisabled(days) ? 0.45 : 1,
++                              cursor: isDurationDisabled(days) ? 'not-allowed' : 'pointer'
+                             }}
+                           >
+-                            {days === -1 ? 'V─⌐nh viß╗àn' : `${days} ng├áy`}
++                            {days === PERMANENT_BAN_DAYS ? 'V─⌐nh viß╗àn' : `${days} ng├áy`}
+                           </button>
+                         ))}
+                       </div>
+diff --git a/src/pages/ChatPage.tsx b/src/pages/ChatPage.tsx
+index 1945976..1b1b07d 100644
+--- a/src/pages/ChatPage.tsx
++++ b/src/pages/ChatPage.tsx
+@@ -46,7 +46,9 @@ import ReportUserModal from '../components/ReportUserModal';
+ import MessageReactionsModal from '../components/MessageReactionsModal';
+ import { normalizeId } from '../utils/chat';
+ import { CHAT_DEFAULTS, MESSAGE_PREVIEWS, MIME_TYPES, TIMING } from '../constants/chat';
++import { PERMANENT_BAN_DAYS } from '../constants/penalty';
+ import { UI_MESSAGES } from '../constants/messages';
++import { formatDateVN } from '../utils/date';
+ 
+ /**
+  * Formats a given number of seconds into an mm:ss string.
+@@ -60,6 +62,32 @@ function formatDuration(seconds: number): string {
+   return `${m}:${s.toString().padStart(2, '0')}`;
+ }
+ 
++function getBanStatusText(banUntil?: string): string {
++  if (!banUntil) return 'T├ái khoß║ún n├áy ─æ├ú bß╗ï kh├│a.';
++
++  const diffMs = new Date(banUntil).getTime() - Date.now();
++  if (diffMs <= 0) return 'T├ái khoß║ún n├áy ─æ├ú bß╗ï kh├│a.';
++
++  const totalDays = Math.ceil(diffMs / 86400000);
++  if (totalDays >= PERMANENT_BAN_DAYS) return 'T├ái khoß║ún n├áy ─æ├ú bß╗ï kh├│a.';
++
++  const totalMinutes = Math.ceil(diffMs / 60000);
++  const days = Math.floor(totalMinutes / 1440);
++  const hours = Math.floor((totalMinutes % 1440) / 60);
++  const minutes = totalMinutes % 60;
++
++  let remaining = '';
++  if (days > 0) {
++    remaining = `${days} ng├áy${hours > 0 ? ` ${hours} giß╗¥` : ''}${minutes > 0 ? ` ${minutes} ph├║t` : ''}`;
++  } else if (hours > 0) {
++    remaining = `${hours} giß╗¥${minutes > 0 ? ` ${minutes} ph├║t` : ''}`;
++  } else {
++    remaining = `${Math.max(minutes, 1)} ph├║t`;
++  }
++
++  return `T├ái khoß║ún n├áy ─æ├ú bß╗ï kh├│a. C├▓n ${remaining}.`;
++}
++
+ type LocalMessage = Message & {
+   _error?: boolean;
+ };
+@@ -76,7 +104,7 @@ type LocalMessage = Message & {
+ function getConversationName(conv: Conversation, currentUserId: string): string {
+   if (conv.isGroup) return conv.name || CHAT_DEFAULTS.GROUP_NAME;
+   const other = conv.users.find((u) => u._id !== currentUserId);
+-  return other?.name || other?.email || CHAT_DEFAULTS.USER_NAME;
++  return other?.name || CHAT_DEFAULTS.USER_NAME;
+ }
+ 
+ /**
+@@ -193,7 +221,7 @@ export default function ChatPage() {
+ 
+   const isTempConversation = activeConversationId.startsWith('temp_');
+   const isMuted = !!user?.muteUntil && new Date(user.muteUntil) > new Date();
+-  const muteUntilLabel = user?.muteUntil ? new Date(user.muteUntil).toLocaleString('vi-VN') : '';
++  const muteUntilLabel = user?.muteUntil ? formatDateVN(user.muteUntil) : '';
+ 
+   useEffect(() => {
+     const handleClickOutside = (event: MouseEvent) => {
+@@ -252,7 +280,7 @@ export default function ChatPage() {
+   const [isLoadingUserDetail, setIsLoadingUserDetail] = useState(false);
+ 
+   const handleShowUserProfile = async (userObj: any) => {
+-    if (!userObj || !userObj._id) return;
++    if (!userObj || !userObj._id || userObj.isDisabled) return;
+     setSelectedUserForInfo(userObj);
+     setIsLoadingUserDetail(true);
+     try {
+@@ -308,7 +336,7 @@ export default function ChatPage() {
+   const typingUsers = activeConversationId ? (typing[activeConversationId] ?? []) : [];
+   const typingNames = typingUsers
+     .filter((id) => id !== currentUserId)
+-    .map((id) => conv?.users.find((u) => u._id === id)?.name || conv?.users.find((u) => u._id === id)?.email || 'ai ─æ├│');
++    .map((id) => conv?.users.find((u) => u._id === id)?.name || 'ai ─æ├│');
+ 
+   const visibleMessages = useMemo(() => (
+     loadedMessagesConversationId === activeConversationId
+@@ -319,6 +347,8 @@ export default function ChatPage() {
+   const otherUser = conv && !conv.isGroup
+     ? conv.users.find((u) => u._id !== currentUserId)
+     : null;
++  const isTargetUserDisabled = !!otherUser?.isDisabled;
++  const isTargetUserBanned = !!otherUser?.banUntil && new Date(otherUser.banUntil).getTime() > Date.now();
+   const isOtherOnline = otherUser ? online[otherUser._id] === true : false;
+   const convName = conv ? getConversationName(conv, currentUserId) : '...';
+   const { block, unblock, rawRelationships, friends, sentRequests, sendRequest, isSendingRequest, isLoading: isLoadingRelationships } = useRelationships();
+@@ -374,7 +404,7 @@ export default function ChatPage() {
+     if (!otherUser || !conv) return;
+     setConfirmAction({
+       title: 'Chß║╖n ng╞░ß╗¥i d├╣ng',
+-      message: UI_MESSAGES.chat.blockConfirm(otherUser.name || otherUser.email || ''),
++      message: UI_MESSAGES.chat.blockConfirm(otherUser.name || ''),
+       isDanger: true,
+       confirmText: 'Chß║╖n',
+       action: async () => {
+@@ -392,7 +422,7 @@ export default function ChatPage() {
+     if (!otherUser) return;
+     setConfirmAction({
+       title: 'Bß╗Å chß║╖n ng╞░ß╗¥i d├╣ng',
+-      message: UI_MESSAGES.chat.unblockConfirm(otherUser.name || otherUser.email || ''),
++      message: UI_MESSAGES.chat.unblockConfirm(otherUser.name || ''),
+       isDanger: false,
+       confirmText: 'Bß╗Å chß║╖n',
+       action: async () => {
+@@ -453,7 +483,7 @@ export default function ChatPage() {
+   };
+ 
+   // Tick counter to refresh relative time display every minute
+-  const [, setTick] = useState(0);
++  const [timeTick, setTick] = useState(0);
+   useEffect(() => {
+     if (conv?.isGroup || isOtherOnline) return;
+     const interval = setInterval(() => setTick((t) => t + 1), TIMING.RELATIVE_TIME_REFRESH_MS);
+@@ -462,6 +492,8 @@ export default function ChatPage() {
+ 
+   const memberSummary = useMemo(() => {
+     if (!conv) return '';
++    if (isTargetUserDisabled) return '';
++    if (isTargetUserBanned) return '';
+     if (isBlocked) return ''; // Hide status if blocked
+     if (!conv.isGroup) {
+       if (isOtherOnline) return '─Éang hoß║ít ─æß╗Öng';
+@@ -485,7 +517,7 @@ export default function ChatPage() {
+     const onlineCount = conv.users.filter((u) => u._id === currentUserId || online[u._id] === true).length;
+     return `Online ${onlineCount}/${conv.users.length}`;
+     // eslint-disable-next-line react-hooks/exhaustive-deps
+-  }, [conv, isOtherOnline, otherUser, online, currentUserId, isBlocked]);
++  }, [conv, isOtherOnline, otherUser, online, currentUserId, isBlocked, isTargetUserDisabled, isTargetUserBanned, timeTick]);
+ 
+   const stopVoiceStream = useCallback(() => {
+     mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
+@@ -629,10 +661,10 @@ export default function ChatPage() {
+   }, [activeConversationId, conv, hasLoadedConversations, isLoadingConv, navigate, toast]);
+ 
+   useEffect(() => {
+-    if (!isMuted) return;
++    if (!isMuted && !isTargetUserBanned) return;
+     setReplyTarget(null);
+     setEditingMessageId(null);
+-  }, [isMuted]);
++  }, [isMuted, isTargetUserBanned]);
+ 
+   useEffect(() => {
+     if (!activeConversationId || !isSocketConnected || isTempConversation) return;
+@@ -1599,13 +1631,11 @@ export default function ChatPage() {
+     }
+   }, [messages, hasMore, nextCursor, activeConversationId, loadedMessagesConversationId]);
+ 
+-  const isTargetUserDisabled = conv && !conv.isGroup && conv.users.some((u: any) => u._id !== currentUserId && u.isDisabled);
+-
+   return (
+     <div className="chat-page-layout">
+       <div className="chat-page">
+       <div className="chat-header">
+-        <div className="chat-header-info">
++          <div className="chat-header-info">
+           <button 
+             className="icon-btn mobile-back-btn" 
+             onClick={() => navigate('/')}
+@@ -1626,22 +1656,27 @@ export default function ChatPage() {
+           </div>
+           <div>
+             <div className="chat-header-name">{convName}</div>
+-            <div 
+-              className="chat-header-sub"
+-              style={{ cursor: 'pointer', userSelect: 'none' }}
+-              onClick={() => {
+-                if (conv?.isGroup) setShowOnlineModal(true);
+-              }}
+-              title={conv?.isGroup ? "Nhß║Ñp ─æß╗â xem ai ─æang online" : ""}
+-            >
+-              {isLoadingConv ? '...' : memberSummary}
+-            </div>
++            {(isLoadingConv || memberSummary) && (
++              <div 
++                className="chat-header-sub"
++                style={{
++                  cursor: conv?.isGroup ? 'pointer' : 'default',
++                  userSelect: 'none',
++                }}
++                onClick={() => {
++                  if (conv?.isGroup) setShowOnlineModal(true);
++                }}
++                title={conv?.isGroup ? "Nhß║Ñp ─æß╗â xem ai ─æang online" : ""}
++              >
++                {isLoadingConv ? '...' : memberSummary}
++              </div>
++            )}
+           </div>
+         </div>
+ 
+         {!isMessageRequest && (
+           <div className="chat-header-actions">
+-            {!isBlocked && (
++            {!isBlocked && !isTargetUserBanned && (
+               <>
+                 <button className="icon-btn" title="Gß╗ìi thoß║íi">
+                   <Phone size={18} />
+@@ -1692,7 +1727,7 @@ export default function ChatPage() {
+                 isGroup={conv?.isGroup}
+                 senderAvatarUrl={typeof message.sender === 'object' ? message.sender?.avatar?.url : undefined}
+                 onAvatarClick={() => {
+-                  if (getSenderId(message) !== currentUserId && typeof message.sender === 'object') {
++                  if (getSenderId(message) !== currentUserId && typeof message.sender === 'object' && !message.sender.isDisabled && !isTargetUserBanned) {
+                     setSelectedUserForInfo(message.sender as any);
+                   }
+                 }}
+@@ -1707,7 +1742,7 @@ export default function ChatPage() {
+                   setReactionsModalData({ isOpen: true, message });
+                 } : undefined}
+                 onReply={() => {
+-                  if (isMuted) return;
++                  if (isMuted || isTargetUserBanned) return;
+                   setReplyTarget(message);
+                   setEditingMessageId(null);
+                 }}
+@@ -1719,7 +1754,7 @@ export default function ChatPage() {
+                   setLightboxIndex(0);
+                 }}
+                 disableActions={isMessageRequest || isBlocked}
+-                disableReply={isMuted}
++                disableReply={isMuted || isTargetUserBanned}
+               />
+             );
+           })
+@@ -1781,6 +1816,10 @@ export default function ChatPage() {
+         <div style={{ padding: '16px', background: 'var(--bg-primary)', textAlign: 'center', color: 'var(--text-secondary)', borderTop: '1px solid var(--border)', fontSize: '13px' }}>
+           Ng╞░ß╗¥i n├áy hiß╗çn kh├┤ng c├│ mß║╖t tr├¬n HaloChat. 
+         </div>
++      ) : isTargetUserBanned ? (
++        <div className="composer" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '16px', background: 'var(--bg-secondary)', color: 'var(--text-muted)' }}>
++          <span style={{color:'red'}}>{getBanStatusText(otherUser?.banUntil)}</span>
++        </div>
+       ) : isMessageRequest ? (
+         <div style={{ padding: '16px', background: 'var(--bg-primary)', textAlign: 'center', borderTop: '1px solid var(--border)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
+           <span style={{ fontSize: '14px', color: 'var(--text-primary)' }}>
+@@ -2156,9 +2195,10 @@ export default function ChatPage() {
+               )
+             ) : (
+               <div 
+-                className="info-sidebar-name clickable" 
+-                onClick={() => handleShowUserProfile(otherUser || (conv && conv.users.find((u) => u._id === currentUserId)))}
+-                title="Xem th├┤ng tin"
++                className={isTargetUserDisabled ? 'info-sidebar-name' : 'info-sidebar-name clickable'} 
++                onClick={isTargetUserDisabled ? undefined : () => handleShowUserProfile(otherUser || (conv && conv.users.find((u) => u._id === currentUserId)))}
++                title={isTargetUserDisabled ? undefined : 'Xem th├┤ng tin'}
++                style={{ cursor: isTargetUserDisabled ? 'default' : 'pointer' }}
+               >
+                 {convName}
+               </div>
+@@ -2211,13 +2251,13 @@ export default function ChatPage() {
+                   <div className="info-sidebar-members">
+                   {conv.users.filter(member => {
+                     if (!memberSearchQuery) return true;
+-                    const name = (member.name || member.email || '').toLowerCase();
++                    const name = (member.name || '').toLowerCase();
+                     return name.includes(memberSearchQuery.toLowerCase());
+                   }).map((member) => {
+                   const avatar = typeof member.avatar === 'object' && member.avatar?.url
+                     ? member.avatar.url
+                     : typeof member.avatar === 'string' ? member.avatar : null;
+-                  const displayName = member.name || member.email || 'Ng╞░ß╗¥i d├╣ng';
++                  const displayName = member.name || 'Ng╞░ß╗¥i d├╣ng';
+                   const isMemberAdmin = conv.adminGroupId === member._id;
+                   return (
+                     <div key={member._id} className="info-sidebar-member">
+@@ -2228,9 +2268,10 @@ export default function ChatPage() {
+                       </div>
+                       <div className="info-sidebar-member-info">
+                         <div 
+-                          className="info-sidebar-member-name clickable"
+-                          onClick={() => handleShowUserProfile(member)}
+-                          title="Xem th├┤ng tin"
++                          className={member.isDisabled ? 'info-sidebar-member-name' : 'info-sidebar-member-name clickable'}
++                          onClick={member.isDisabled ? undefined : () => handleShowUserProfile(member)}
++                          title={member.isDisabled ? undefined : 'Xem th├┤ng tin'}
++                          style={{ cursor: member.isDisabled ? 'default' : 'pointer' }}
+                         >
+                           {displayName}
+                           {member._id === currentUserId && <span className="info-badge-me">Bß║ín</span>}
+@@ -2679,7 +2720,7 @@ export default function ChatPage() {
+                 position: 'relative'
+               }}
+             >
+-              {!selectedUserForInfo.avatar?.url && (selectedUserForInfo.name || selectedUserForInfo.email || 'U').charAt(0).toUpperCase()}
++              {!selectedUserForInfo.avatar?.url && (selectedUserForInfo.name || 'U').charAt(0).toUpperCase()}
+               {isLoadingUserDetail && (
+                 <div style={{
+                   position: 'absolute',
+@@ -2697,7 +2738,7 @@ export default function ChatPage() {
+             
+             {/* Name */}
+             <h3 style={{ fontSize: '24px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '8px' }}>
+-              {selectedUserForInfo.name || selectedUserForInfo.email}
++              {selectedUserForInfo.name || 'Ng╞░ß╗¥i d├╣ng'}
+             </h3>
+             
+             {/* Bio */}
+@@ -2773,16 +2814,16 @@ export default function ChatPage() {
+             </div>
+             {conv.users.filter(u => online[u._id] === true || u._id === user?._id).map(u => (
+               <div key={u._id} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '8px 20px' }}>
+-                <div style={{ position: 'relative', width: 36, height: 36, borderRadius: '50%', background: 'linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 600 }}>
++              <div style={{ position: 'relative', width: 36, height: 36, borderRadius: '50%', background: 'linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 600 }}>
+                   {u.avatar && typeof u.avatar === 'object' && u.avatar.url ? (
+-                    <img src={u.avatar.url} alt={u.name || u.email} style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
++                    <img src={u.avatar.url} alt={u.name || 'Ng╞░ß╗¥i d├╣ng'} style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
+                   ) : (
+-                    (u.name || u.email || '?').slice(0, 1).toUpperCase()
++                    (u.name || '?').slice(0, 1).toUpperCase()
+                   )}
+                   <span className="online-dot" style={{ position: 'absolute', bottom: 0, right: 0, width: 10, height: 10, border: '2px solid var(--bg-card)' }} />
+                 </div>
+                 <div>
+-                  <div style={{ fontSize: '14px', fontWeight: 500, color: 'var(--text-primary)' }}>{u.name || u.email} {u._id === user?._id && '(Bß║ín)'}</div>
++                  <div style={{ fontSize: '14px', fontWeight: 500, color: 'var(--text-primary)' }}>{u.name || 'Ng╞░ß╗¥i d├╣ng'} {u._id === user?._id && '(Bß║ín)'}</div>
+                 </div>
+               </div>
+             ))}
+@@ -2794,13 +2835,13 @@ export default function ChatPage() {
+               <div key={u._id} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '8px 20px', opacity: 0.7 }}>
+                 <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 600 }}>
+                   {u.avatar && typeof u.avatar === 'object' && u.avatar.url ? (
+-                    <img src={u.avatar.url} alt={u.name || u.email} style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
++                    <img src={u.avatar.url} alt={u.name || 'Ng╞░ß╗¥i d├╣ng'} style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
+                   ) : (
+-                    (u.name || u.email || '?').slice(0, 1).toUpperCase()
++                    (u.name || '?').slice(0, 1).toUpperCase()
+                   )}
+                 </div>
+                 <div>
+-                  <div style={{ fontSize: '14px', fontWeight: 500, color: 'var(--text-primary)' }}>{u.name || u.email}</div>
++                  <div style={{ fontSize: '14px', fontWeight: 500, color: 'var(--text-primary)' }}>{u.name || 'Ng╞░ß╗¥i d├╣ng'}</div>
+                 </div>
+               </div>
+             ))}
+@@ -2831,7 +2872,7 @@ export default function ChatPage() {
+           isOpen={showReportModal}
+           onClose={() => setShowReportModal(false)}
+           targetUserId={selectedUserForInfo._id}
+-          targetUserName={selectedUserForInfo.name || selectedUserForInfo.email}
++          targetUserName={selectedUserForInfo.name}
+         />
+       )}
+     </div>
+diff --git a/src/pages/Dashboard.tsx b/src/pages/Dashboard.tsx
+index eb0c05d..3f6bdb9 100644
+--- a/src/pages/Dashboard.tsx
++++ b/src/pages/Dashboard.tsx
+@@ -34,7 +34,6 @@ export default function Dashboard() {
+ 
+   const getInitials = () => {
+     if (user?.name) return user.name.slice(0, 2).toUpperCase();
+-    if (user?.email) return user.email.slice(0, 2).toUpperCase();
+     return 'U';
+   };
+ 
+@@ -170,7 +169,7 @@ export default function Dashboard() {
+       <div className="welcome-banner">
+         <div className="welcome-avatar">{getInitials()}</div>
+         <div className="welcome-text">
+-          <h1>Xin ch├áo, {user?.name || user?.email?.split('@')[0] || 'bß║ín'} ≡ƒæï</h1>
++          <h1>Xin ch├áo, {user?.name || 'bß║ín'} ≡ƒæï</h1>
+           <p>Quß║ún l├╜ th├┤ng tin v├á bß║úo mß║¡t t├ái khoß║ún cß╗ºa bß║ín</p>
+         </div>
+         <div className="welcome-badge">
+diff --git a/src/pages/FriendsPage.tsx b/src/pages/FriendsPage.tsx
+index aebb242..285ec41 100644
+--- a/src/pages/FriendsPage.tsx
++++ b/src/pages/FriendsPage.tsx
+@@ -55,20 +55,20 @@ export default function FriendsPage() {
+ 
+     if (searchQuery.trim()) {
+       const q = searchQuery.toLowerCase();
+-      filteredFriends = filteredFriends.filter(f => (f.name || f.email || '').toLowerCase().includes(q));
++      filteredFriends = filteredFriends.filter(f => (f.name || '').toLowerCase().includes(q));
+     }
+     
+     // Sort alphabetically by name
+     filteredFriends.sort((a, b) => {
+-      const nameA = (a.name || a.email || '').toLowerCase();
+-      const nameB = (b.name || b.email || '').toLowerCase();
++      const nameA = (a.name || '').toLowerCase();
++      const nameB = (b.name || '').toLowerCase();
+       return sortOrder === 'asc' ? nameA.localeCompare(nameB) : nameB.localeCompare(nameA);
+     });
+ 
+     // Group by first letter
+     const grouped: Record<string, any[]> = {};
+     filteredFriends.forEach(f => {
+-      const name = f.name || f.email || '';
++      const name = f.name || '';
+       let firstLetter = name.charAt(0).toUpperCase();
+       // Handle non-alphabetic characters
+       if (!/[A-Z]/.test(firstLetter)) {
+@@ -85,7 +85,7 @@ export default function FriendsPage() {
+ 
+   const handleAction = async (action: string, friend: any, e: React.MouseEvent) => {
+     e.stopPropagation();
+-    const friendName = friend.name || friend.email;
++    const friendName = friend.name;
+ 
+     if (action === 'info') {
+       let tempId: string | null = null;
+@@ -395,7 +395,7 @@ export default function FriendsPage() {
+                             color: '#fff', fontWeight: 600, fontSize: '18px'
+                           }}
+                         >
+-                          {!friend.avatar?.url && (friend.name || friend.email || 'U').charAt(0).toUpperCase()}
++                          {!friend.avatar?.url && (friend.name || 'U').charAt(0).toUpperCase()}
+                         </div>
+                         
+                         {/* Name */}
+@@ -406,7 +406,7 @@ export default function FriendsPage() {
+                           color: friend.isDisabled ? 'var(--error)' : 'var(--text-primary)',
+                           fontStyle: friend.isDisabled ? 'italic' : 'normal'
+                         }}>
+-                          {friend.name || friend.email}
++                          {friend.name || 'Ng╞░ß╗¥i d├╣ng'}
+                         </div>
+ 
+                         {/* Actions per tab */}
+@@ -486,12 +486,12 @@ export default function FriendsPage() {
+                 boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+               }}
+             >
+-              {!selectedUserForInfo.avatar?.url && (selectedUserForInfo.name || selectedUserForInfo.email || 'U').charAt(0).toUpperCase()}
++              {!selectedUserForInfo.avatar?.url && (selectedUserForInfo.name || 'U').charAt(0).toUpperCase()}
+             </div>
+             
+             {/* Name */}
+             <h3 style={{ fontSize: '24px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '8px' }}>
+-              {selectedUserForInfo.name || selectedUserForInfo.email}
++              {selectedUserForInfo.name || 'Ng╞░ß╗¥i d├╣ng'}
+             </h3>
+             
+             {/* Bio */}
+@@ -667,7 +667,7 @@ export default function FriendsPage() {
+           isOpen={showReportModal}
+           onClose={() => setShowReportModal(false)}
+           targetUserId={selectedUserForInfo._id}
+-          targetUserName={selectedUserForInfo.name || selectedUserForInfo.email}
++          targetUserName={selectedUserForInfo.name}
+         />
+       )}
+     </div>
+diff --git a/src/pages/ProfilePage.tsx b/src/pages/ProfilePage.tsx
+index f75717a..4242301 100644
+--- a/src/pages/ProfilePage.tsx
++++ b/src/pages/ProfilePage.tsx
+@@ -206,7 +206,7 @@ export function ProfilePageContent() {
+     isDanger?: boolean;
+     confirmText?: string;
+     countdown?: number;
+-    action: () => void | Promise<void>;
++    action: () => void | boolean | Promise<void | boolean>;
+   } | null>(null);
+   const [isUpdateEmailModalOpen, setIsUpdateEmailModalOpen] = useState(false);
+   const [selectedMedia, setSelectedMedia] = useState<{ url: string; type: 'image' | 'video' } | null>(null);
+@@ -404,6 +404,7 @@ export function ProfilePageContent() {
+       countdown: 5,
+       action: () => {
+         handleDisableSelfStep3();
++        return false;
+       }
+     });
+   };
+@@ -448,6 +449,7 @@ export function ProfilePageContent() {
+       confirmText: UI_MESSAGES.profile.disableStep1Confirm,
+       action: () => {
+         handleDisableSelfStep2();
++        return false;
+       }
+     });
+   };
+diff --git a/src/pages/admin/AuditLogsTab.tsx b/src/pages/admin/AuditLogsTab.tsx
+index ed2a168..bfa29b0 100644
+--- a/src/pages/admin/AuditLogsTab.tsx
++++ b/src/pages/admin/AuditLogsTab.tsx
+@@ -8,6 +8,7 @@ import { MuiSelect } from '../../components/admin/MuiSelect';
+ import MediaLightbox from '../../components/MediaLightbox';
+ import { UI_LIMITS } from '../../constants/limits';
+ import { formatDateVN } from '../../utils/date';
++import { PERMANENT_BAN_DAYS } from '../../constants/penalty';
+ 
+ interface InfoItemProps {
+   icon: React.ReactNode;
+@@ -736,14 +737,14 @@ export default function AuditLogsTab() {
+                                if (matchBan) {
+                                  const days = matchBan[2];
+                                  const hasReset = matchBan[1].toLowerCase().includes('reset');
+-                                 if (days === '36500') {
++                                 if (Number(days) >= PERMANENT_BAN_DAYS) {
+                                    displayValue = `Kh├│a t├ái khoß║ún v─⌐nh viß╗àn${hasReset ? ' (k├¿m x├│a th├┤ng tin)' : ''}`;
+                                  } else {
+                                    displayValue = `Kh├│a t├ái khoß║ún ${days} ng├áy${hasReset ? ' (k├¿m x├│a th├┤ng tin)' : ''}`;
+                                  }
+                                } else if (matchMute) {
+                                  const days = matchMute[1];
+-                                 if (days === '36500') {
++                                 if (Number(days) >= PERMANENT_BAN_DAYS) {
+                                    displayValue = `Cß║Ñm chat v─⌐nh viß╗àn`;
+                                  } else {
+                                    displayValue = `Cß║Ñm chat ${days} ng├áy`;
+@@ -792,9 +793,13 @@ export default function AuditLogsTab() {
+                           </h4>
+                           <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8">
+                             <InfoItem icon={<Image size={16} />} label="ß║ónh ─æß║íi diß╗çn">
+-                              {selectedLog.metadata.oldAvatar ? (
++                              {selectedLog.metadata.oldAvatar && typeof selectedLog.metadata.oldAvatar === 'object' && selectedLog.metadata.oldAvatar.url ? (
+                                 <button onClick={() => setLightboxData({ medias: [selectedLog.metadata.oldAvatar], initialIndex: 0 })} className="shrink-0 hover:opacity-80 transition-opacity cursor-pointer border-none bg-transparent p-0 mt-1">
+-                                  <img src={typeof selectedLog.metadata.oldAvatar === 'object' ? selectedLog.metadata.oldAvatar.url : selectedLog.metadata.oldAvatar} className="w-12 h-12 rounded-full object-cover border border-[var(--border)] shadow-sm" alt="Avatar" />
++                                  <img src={selectedLog.metadata.oldAvatar.url} className="w-12 h-12 rounded-full object-cover border border-[var(--border)] shadow-sm" alt="Avatar" />
++                                </button>
++                              ) : selectedLog.metadata.oldAvatar && typeof selectedLog.metadata.oldAvatar === 'string' ? (
++                                <button onClick={() => setLightboxData({ medias: [{ url: selectedLog.metadata.oldAvatar }], initialIndex: 0 })} className="shrink-0 hover:opacity-80 transition-opacity cursor-pointer border-none bg-transparent p-0 mt-1">
++                                  <img src={selectedLog.metadata.oldAvatar} className="w-12 h-12 rounded-full object-cover border border-[var(--border)] shadow-sm" alt="Avatar" />
+                                 </button>
+                               ) : (
+                                 <img src={'https://ui-avatars.com/api/?name=' + encodeURIComponent(selectedLog.metadata.oldName || 'User') + '&background=random'} className="w-12 h-12 rounded-full object-cover shrink-0 border border-[var(--border)] shadow-sm mt-1" alt="Avatar" />
+@@ -895,14 +900,14 @@ export default function AuditLogsTab() {
+                              if (matchBan) {
+                                const days = matchBan[2];
+                                const hasReset = matchBan[1].toLowerCase().includes('reset');
+-                               if (days === '36500') {
++                               if (Number(days) >= PERMANENT_BAN_DAYS) {
+                                  displayValue = `Kh├│a t├ái khoß║ún v─⌐nh viß╗àn${hasReset ? ' (k├¿m x├│a th├┤ng tin)' : ''}`;
+                                } else {
+                                  displayValue = `Kh├│a t├ái khoß║ún ${days} ng├áy${hasReset ? ' (k├¿m x├│a th├┤ng tin)' : ''}`;
+                                }
+                              } else if (matchMute) {
+                                const days = matchMute[1];
+-                               if (days === '36500') {
++                               if (Number(days) >= PERMANENT_BAN_DAYS) {
+                                  displayValue = `Cß║Ñm chat v─⌐nh viß╗àn`;
+                                } else {
+                                  displayValue = `Cß║Ñm chat ${days} ng├áy`;
+diff --git a/src/pages/admin/ReportsTab.tsx b/src/pages/admin/ReportsTab.tsx
+index 919576c..6b6edb5 100644
+--- a/src/pages/admin/ReportsTab.tsx
++++ b/src/pages/admin/ReportsTab.tsx
+@@ -9,6 +9,7 @@ import MediaLightbox from '../../components/MediaLightbox';
+ import ResolveReportModal from '../../components/admin/ResolveReportModal';
+ import { UI_LIMITS } from '../../constants/limits';
+ import { formatDateVN } from '../../utils/date';
++import { PERMANENT_BAN_DAYS } from '../../constants/penalty';
+ 
+ function useDebounce<T>(value: T, delay: number): T {
+   const [debouncedValue, setDebouncedValue] = useState<T>(value);
+@@ -262,7 +263,7 @@ export default function ReportsTab() {
+     const daysMatch = p.match(/for (\d+) days/i);
+     if (daysMatch) {
+       const dDays = parseInt(daysMatch[1]);
+-      if (dDays >= 3650) {
++      if (dDays >= PERMANENT_BAN_DAYS) {
+         isPermanent = true;
+         duration = 'v─⌐nh viß╗àn';
+       } else {
+@@ -743,8 +744,11 @@ export default function ReportsTab() {
+           isOpen={isResolveModalOpen} 
+           onClose={() => setIsResolveModalOpen(false)} 
+           reportId={selectedReport._id}
++          targetUserId={(selectedReport.targetUserId as any)?._id || selectedReport.targetUserId}
+           reportStatus={selectedReport.status}
+           isTargetSuperAdmin={(selectedReport.targetUserId as any)?.role === 'SUPER_ADMIN' || selectedReport.snapshot?.role === 'SUPER_ADMIN'} 
++          currentMuteUntil={(selectedReport.targetUserId as any)?.muteUntil}
++          currentBanUntil={(selectedReport.targetUserId as any)?.banUntil}
+         />
+       )}
+     </div>
+diff --git a/src/pages/admin/UsersTab.tsx b/src/pages/admin/UsersTab.tsx
+index 82e3b18..4197859 100644
+--- a/src/pages/admin/UsersTab.tsx
++++ b/src/pages/admin/UsersTab.tsx
+@@ -10,6 +10,22 @@ import { UI_LIMITS } from '../../constants/limits';
+ 
+ import { AdminMobileFilter } from '../../components/admin/AdminMobileFilter';
+ import { formatDateOnlyVN, formatDateVN } from '../../utils/date';
++import { BAN_DURATION_1_DAY, BAN_DURATION_7_DAYS, BAN_DURATION_30_DAYS, PERMANENT_BAN_DAYS } from '../../constants/penalty';
++
++const DAY_IN_MS = 24 * 60 * 60 * 1000;
++
++function getBanStatusLabel(banUntil?: string) {
++  if (!banUntil) return null;
++  const banDate = new Date(banUntil);
++  if (Number.isNaN(banDate.getTime()) || banDate <= new Date()) return null;
++
++  const diffDays = Math.ceil((banDate.getTime() - Date.now()) / DAY_IN_MS);
++  if (diffDays >= PERMANENT_BAN_DAYS) {
++    return 'Kh├│a v─⌐nh viß╗àn';
++  }
++
++  return `Kh├│a ${diffDays} ng├áy`;
++}
+ 
+ function useDebounce<T>(value: T, delay: number): T {
+   const [debouncedValue, setDebouncedValue] = useState<T>(value);
+@@ -141,8 +157,8 @@ function MuiSelect({ label, value, onChange, options, minWidth = 140, labelBgCol
+ const UserStatusBadges = ({ user, variant = 'table' }: { user: UserAdminData, variant?: 'table' | 'detail' }) => {
+   const badges = [];
+   const now = new Date();
+-  
+-  const isBanned = user.banUntil && new Date(user.banUntil) > now;
++  const banStatusLabel = getBanStatusLabel(user.banUntil);
++  const isBanned = !!banStatusLabel;
+   const isMuted = user.muteUntil && new Date(user.muteUntil) > now;
+ 
+   const renderBadge = (key: string, text: string, colorClass: string, detailColor: string) => {
+@@ -161,15 +177,7 @@ const UserStatusBadges = ({ user, variant = 'table' }: { user: UserAdminData, va
+   };
+ 
+   if (isBanned) {
+-    const banDate = new Date(user.banUntil!);
+-    const diffYears = banDate.getFullYear() - now.getFullYear();
+-    if (diffYears > 10) {
+-      badges.push(renderBadge('ban', 'Kh├│a v─⌐nh viß╗àn', 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400', 'bg-[#e74c3c]'));
+-    } else {
+-      const diffTime = Math.abs(banDate.getTime() - now.getTime());
+-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+-      badges.push(renderBadge('ban', `Kh├│a ${diffDays} ng├áy`, 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400', 'bg-[#e74c3c]'));
+-    }
++    badges.push(renderBadge('ban', banStatusLabel!, 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400', 'bg-[#e74c3c]'));
+   } else if (user.isDisabled) {
+     badges.push(renderBadge('disabled', 'V├┤ hiß╗çu h├│a', 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400', 'bg-[#e74c3c]'));
+   } else {
+@@ -275,9 +283,10 @@ export default function UsersTab() {
+       setShowStatusModal(false);
+       setShowQuickPenaltyModal(false);
+       setStatusPassword('');
+-      setQuickPenaltyData({ reason: 'other', adminNote: '', resetAvatar: false, resetBio: false, resetName: false, password: '', manualDurationDays: 1 });
+-      setSelectedUser(prev => prev ? { ...prev, isDisabled: true } : null);
+-      updateUserInList(variables.id, { isDisabled: true });
++      setQuickPenaltyData({ reason: 'other', adminNote: '', resetAvatar: false, resetBio: false, resetName: false, password: '', manualDurationDays: BAN_DURATION_1_DAY });
++      const banUntil = new Date(Date.now() + variables.durationDays * DAY_IN_MS).toISOString();
++      setSelectedUser(prev => prev ? { ...prev, banUntil } : null);
++      updateUserInList(variables.id, { banUntil });
+     },
+     onError: (err: any) => toast.error(err.response?.data?.message || 'Lß╗ùi khi kh├│a t├ái khoß║ún')
+   });
+@@ -360,7 +369,7 @@ export default function UsersTab() {
+         return updated;
+       });
+       setShowQuickPenaltyModal(false);
+-      setQuickPenaltyData({ reason: 'other', adminNote: '', resetAvatar: false, resetBio: false, resetName: false, password: '', manualDurationDays: 1 });
++      setQuickPenaltyData({ reason: 'other', adminNote: '', resetAvatar: false, resetBio: false, resetName: false, password: '', manualDurationDays: BAN_DURATION_1_DAY });
+     },
+     onError: (err: any) => toast.error(err.response?.data?.message || 'Lß╗ùi khi xß╗¡ l├╜ vi phß║ím')
+   });
+@@ -389,7 +398,7 @@ export default function UsersTab() {
+     resetBio: false,
+     resetName: false,
+     password: '',
+-    manualDurationDays: 1
++    manualDurationDays: BAN_DURATION_1_DAY
+   });
+   
+   const [showActionsDropdown, setShowActionsDropdown] = useState(false);
+@@ -635,9 +644,7 @@ export default function UsersTab() {
+     }
+   }, [data?.items, selectedUser?._id]);
+ 
+-  const isPermanentlyBanned = selectedUser?.banUntil 
+-    ? new Date(selectedUser.banUntil).getFullYear() - new Date().getFullYear() > 10 
+-    : false;
++  const isPermanentlyBanned = !!getBanStatusLabel(selectedUser?.banUntil || undefined);
+ 
+   return (
+     <>
+@@ -1181,13 +1188,13 @@ export default function UsersTab() {
+                     type="number" 
+                     value={statusDuration}
+                     onChange={(e) => setStatusDuration(Number(e.target.value))}
+-                    min="1"
+-                    placeholder="V├¡ dß╗Ñ: 7 (nhß║¡p sß╗æ ng├áy, tß╗æi ─æa 3650)"
++                    min={BAN_DURATION_1_DAY}
++                    placeholder={`V├¡ dß╗Ñ: ${BAN_DURATION_7_DAYS} (nhß║¡p sß╗æ ng├áy, tß╗æi ─æa ${PERMANENT_BAN_DAYS})`}
+                     style={{ width: '100%', padding: '10px 12px', background: 'transparent', border: '1px solid var(--border)', borderRadius: '6px', color: 'var(--text-primary)', fontSize: '14px', outline: 'none', transition: 'border-color 0.2s' }}
+                     onFocus={e => e.target.style.borderColor = '#ef4444'}
+                     onBlur={e => e.target.style.borderColor = 'var(--border)'}
+                   />
+-                  <span className="text-xs text-[var(--text-muted)] mt-1">Sß╗¡ dß╗Ñng 3650 (10 n─âm) cho kh├│a v─⌐nh viß╗àn.</span>
++                    <span className="text-xs text-[var(--text-muted)] mt-1">Sß╗¡ dß╗Ñng {PERMANENT_BAN_DAYS} ng├áy cho kh├│a v─⌐nh viß╗àn.</span>
+                 </div>
+               ) : (
+                 <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+@@ -1242,7 +1249,7 @@ export default function UsersTab() {
+           onMouseDown={(e) => {
+             if (e.target === e.currentTarget) {
+               setShowQuickPenaltyModal(false);
+-              setQuickPenaltyData({ reason: 'other', adminNote: '', resetAvatar: false, resetBio: false, resetName: false, password: '', manualDurationDays: 1 });
++              setQuickPenaltyData({ reason: 'other', adminNote: '', resetAvatar: false, resetBio: false, resetName: false, password: '', manualDurationDays: BAN_DURATION_1_DAY });
+             }
+           }}
+         >
+@@ -1263,7 +1270,7 @@ export default function UsersTab() {
+               <button 
+                 onClick={() => {
+                   setShowQuickPenaltyModal(false);
+-                  setQuickPenaltyData({ reason: 'other', adminNote: '', resetAvatar: false, resetBio: false, resetName: false, password: '', manualDurationDays: 1 });
++              setQuickPenaltyData({ reason: 'other', adminNote: '', resetAvatar: false, resetBio: false, resetName: false, password: '', manualDurationDays: BAN_DURATION_1_DAY });
+                 }}
+                 style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '4px', borderRadius: '50%' }}
+                 onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-primary)')}
+@@ -1341,15 +1348,15 @@ export default function UsersTab() {
+ 
+               {quickPenaltyData.reason === 'other' && (
+                 <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '10px' }}>
+-                  <label style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)' }}>Kh├│a t├ái khoß║ún</label>
+-                  <MuiSelect
+-                    value={String(quickPenaltyData.manualDurationDays)}
+-                    onChange={(value) => setQuickPenaltyData(prev => ({ ...prev, manualDurationDays: Number(value) }))}
+-                    options={[
+-                      { value: '1', label: '1 ng├áy' },
+-                      { value: '7', label: '7 ng├áy' },
+-                      { value: '30', label: '30 ng├áy' },
+-                      { value: '36500', label: 'V─⌐nh viß╗àn' },
++                <MuiSelect
++                  label="Thß╗¥i hß║ín phß║ít"
++                  value={String(quickPenaltyData.manualDurationDays)}
++                  onChange={(value) => setQuickPenaltyData(prev => ({ ...prev, manualDurationDays: Number(value) }))}
++                  options={[
++                      { value: String(BAN_DURATION_1_DAY), label: `${BAN_DURATION_1_DAY} ng├áy` },
++                      { value: String(BAN_DURATION_7_DAYS), label: `${BAN_DURATION_7_DAYS} ng├áy` },
++                      { value: String(BAN_DURATION_30_DAYS), label: `${BAN_DURATION_30_DAYS} ng├áy` },
++                      { value: String(PERMANENT_BAN_DAYS), label: 'V─⌐nh viß╗àn' },
+                     ]}
+                     minWidth={140}
+                     labelBgColor="var(--bg-card)"
+@@ -1387,7 +1394,7 @@ export default function UsersTab() {
+               <button 
+                 onClick={() => {
+                   setShowQuickPenaltyModal(false);
+-                  setQuickPenaltyData({ reason: 'other', adminNote: '', resetAvatar: false, resetBio: false, resetName: false, password: '', manualDurationDays: 1 });
++              setQuickPenaltyData({ reason: 'other', adminNote: '', resetAvatar: false, resetBio: false, resetName: false, password: '', manualDurationDays: BAN_DURATION_1_DAY });
+                 }}
+                 style={{ padding: '8px 20px', fontSize: '14px', fontWeight: 500, color: 'var(--text-primary)', background: 'transparent', border: '1px solid var(--border)', borderRadius: '6px', cursor: 'pointer', transition: 'background 0.2s' }}
+                 onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-primary)')}
+diff --git a/src/services/admin.ts b/src/services/admin.ts
+index 5ef7ddd..3363e32 100644
+--- a/src/services/admin.ts
++++ b/src/services/admin.ts
+@@ -226,7 +226,7 @@ export const adminApi = {
+ 
+   // === TAB 2: USERS ===
+   getUsers: (params?: { page?: number; limit?: number; search?: string; status?: string; role?: string; sort?: string }) => 
+-    api.get('/users', { params: { current: params?.page || 1, pageSize: params?.limit || 20, query: params?.search, status: params?.status, role: params?.role, sort: params?.sort } }).then(res => {
++    api.get('/users/admin', { params: { current: params?.page || 1, pageSize: params?.limit || 20, query: params?.search, status: params?.status, role: params?.role, sort: params?.sort } }).then(res => {
+       const p = res.data?.data || res.data;
+       return {
+         items: p.users || [],
+@@ -234,7 +234,7 @@ export const adminApi = {
+       };
+     }),
+ 
+-  getUserDetail: (id: string) => api.get(`/users/${id}`).then(res => (res.data?.data || res.data) as UserAdminData),
++  getUserDetail: (id: string) => api.get(`/users/admin/${id}`).then(res => (res.data?.data || res.data) as UserAdminData),
+   
+   createUser: (data: any) => api.post('/users', data).then(res => res.data?.data || res.data),
+   
+diff --git a/src/services/conversations.ts b/src/services/conversations.ts
+index c08dcdf..63bdc72 100644
+--- a/src/services/conversations.ts
++++ b/src/services/conversations.ts
+@@ -12,6 +12,8 @@ export interface ConversationUser {
+   };
+   lastOnlineAt?: string;
+   isDisabled?: boolean;
++  banUntil?: string;
++  disabledAt?: string;
+ }
+ 
+ export interface Conversation {
+@@ -38,6 +40,8 @@ function normalizeConversationUser(raw: any): ConversationUser {
+     avatar: raw?.avatar,
+     lastOnlineAt: raw?.lastOnlineAt,
+     isDisabled: Boolean(raw?.isDisabled),
++    banUntil: raw?.banUntil,
++    disabledAt: raw?.disabledAt,
+   };
+ }
+ 
+diff --git a/src/services/messages.ts b/src/services/messages.ts
+index 1239050..5cf71d1 100644
+--- a/src/services/messages.ts
++++ b/src/services/messages.ts
+@@ -7,6 +7,7 @@ export interface MessageUser {
+   _id: string;
+   name?: string;
+   email?: string;
++  isDisabled?: boolean;
+   avatar?: {
+     _id?: string;
+     url?: string;

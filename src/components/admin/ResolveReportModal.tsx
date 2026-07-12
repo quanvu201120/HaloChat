@@ -1,32 +1,95 @@
 import { useState, useEffect } from 'react';
 import { X, ShieldAlert, AlertTriangle, UserX } from 'lucide-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { adminApi, ReportStatusEnum, type ReportPenaltySuggestion } from '../../services/admin';
+import { adminApi, ReportStatusEnum, type ReportPenaltySuggestion, type UserAdminData } from '../../services/admin';
 import { parseError } from '../../services/api';
+import { formatDateVN } from '../../utils/date';
 import { useToast } from '../../context/ToastContext';
+import { BAN_DURATION_1_DAY, BAN_DURATION_7_DAYS, BAN_DURATION_30_DAYS, PERMANENT_BAN_DAYS } from '../../constants/penalty';
 
 interface ResolveReportModalProps {
   isOpen: boolean;
   onClose: () => void;
   reportId: string;
+  targetUserId?: string;
   reportStatus: typeof ReportStatusEnum[keyof typeof ReportStatusEnum];
   isTargetSuperAdmin?: boolean;
+  currentMuteUntil?: string | Date;
+  currentBanUntil?: string | Date;
 }
 
-export default function ResolveReportModal({ isOpen, onClose, reportId, reportStatus, isTargetSuperAdmin }: ResolveReportModalProps) {
+export default function ResolveReportModal({
+  isOpen,
+  onClose,
+  reportId,
+  targetUserId,
+  reportStatus,
+  isTargetSuperAdmin,
+  currentMuteUntil,
+  currentBanUntil,
+}: ResolveReportModalProps) {
   const superAdminDismissNote = 'Bỏ qua báo cáo SUPER_ADMIN';
   const [status, setStatus] = useState<typeof ReportStatusEnum.RESOLVED | typeof ReportStatusEnum.DISMISSED>(isTargetSuperAdmin ? ReportStatusEnum.DISMISSED : ReportStatusEnum.RESOLVED);
   const [adminNote, setAdminNote] = useState(isTargetSuperAdmin ? superAdminDismissNote : '');
   
   const [useOverride, setUseOverride] = useState(false);
   const [penaltyAction, setPenaltyAction] = useState<string>('WARNING');
-  const [durationDays, setDurationDays] = useState<number>(7);
+  const [durationDays, setDurationDays] = useState<number>(BAN_DURATION_7_DAYS);
   const [resetAvatar, setResetAvatar] = useState(false);
   const [resetName, setResetName] = useState(false);
   const [resetBio, setResetBio] = useState(false);
   
   const toast = useToast();
   const queryClient = useQueryClient();
+  const dayMs = 24 * 60 * 60 * 1000;
+  const { data: targetUserDetail } = useQuery<UserAdminData>({
+    queryKey: ['admin_user_detail_for_report', targetUserId],
+    queryFn: () => adminApi.getUserDetail(targetUserId as string),
+    enabled: isOpen && reportStatus === ReportStatusEnum.PENDING && !!targetUserId,
+    staleTime: 0,
+    gcTime: 0,
+  });
+  const currentMuteUntilDate = targetUserDetail?.muteUntil
+    ? new Date(targetUserDetail.muteUntil)
+    : currentMuteUntil
+      ? new Date(currentMuteUntil)
+      : null;
+  const currentBanUntilDate = targetUserDetail?.banUntil
+    ? new Date(targetUserDetail.banUntil)
+    : currentBanUntil
+      ? new Date(currentBanUntil)
+      : null;
+
+  const getCurrentPenaltyUntil = () => {
+    const now = new Date();
+
+    if (penaltyAction === 'MUTE' && currentMuteUntilDate && currentMuteUntilDate > now) {
+      return currentMuteUntilDate;
+    }
+
+    if (penaltyAction === 'BAN' && currentBanUntilDate && currentBanUntilDate > now) {
+      return currentBanUntilDate;
+    }
+
+    return null;
+  };
+
+  const isDurationDisabled = (days: number) => {
+    const currentPenaltyUntil = getCurrentPenaltyUntil();
+    if (!currentPenaltyUntil) return false;
+
+    const proposedUntil = new Date(Date.now() + days * dayMs);
+    return proposedUntil < currentPenaltyUntil;
+  };
+
+  const currentPenaltyLines = [
+    currentBanUntilDate && currentBanUntilDate > new Date()
+      ? `Khóa tài khoản đến ${formatDateVN(currentBanUntilDate)}`
+      : null,
+    currentMuteUntilDate && currentMuteUntilDate > new Date()
+      ? `Cấm chat đến ${formatDateVN(currentMuteUntilDate)}`
+      : null,
+  ].filter(Boolean) as string[];
 
   // Fetch penalty recommendation
   const { data: penaltySuggestion, isLoading: isLoadingSuggestion } = useQuery<ReportPenaltySuggestion>({
@@ -53,6 +116,22 @@ export default function ResolveReportModal({ isOpen, onClose, reportId, reportSt
     setStatus(isTargetSuperAdmin ? ReportStatusEnum.DISMISSED : ReportStatusEnum.RESOLVED);
     setAdminNote(isTargetSuperAdmin ? superAdminDismissNote : '');
   }, [isOpen, isTargetSuperAdmin]);
+
+  useEffect(() => {
+    if (status !== ReportStatusEnum.RESOLVED) return;
+    if (penaltyAction !== 'MUTE' && penaltyAction !== 'BAN') return;
+    if (!isDurationDisabled(durationDays)) return;
+
+    const durations =
+      penaltyAction === 'BAN'
+        ? [BAN_DURATION_1_DAY, BAN_DURATION_7_DAYS, BAN_DURATION_30_DAYS, PERMANENT_BAN_DAYS]
+        : [BAN_DURATION_1_DAY, BAN_DURATION_7_DAYS, BAN_DURATION_30_DAYS];
+
+    const nextAllowed = durations.find((days) => !isDurationDisabled(days));
+    if (nextAllowed && nextAllowed !== durationDays) {
+      setDurationDays(nextAllowed);
+    }
+  }, [status, penaltyAction, durationDays, currentMuteUntilDate, currentBanUntilDate]);
 
   const resolveMutation = useMutation({
     mutationFn: (data: any) => adminApi.resolveReport(reportId, data),
@@ -155,9 +234,20 @@ export default function ResolveReportModal({ isOpen, onClose, reportId, reportSt
                 <span>Các báo cáo khác đang chờ xử lý có cùng lý do của người dùng này sẽ tự động được gộp chung.</span>
               </div>
 
+              {currentPenaltyLines.length > 0 && (
+                <div style={{ padding: '10px 14px', background: 'rgba(239, 68, 68, 0.08)', border: '1px solid rgba(239, 68, 68, 0.25)', borderRadius: '8px', color: '#b91c1c', fontSize: '13px' }}>
+                  <div style={{ fontWeight: 600, marginBottom: '6px' }}>Hình phạt đang áp dụng</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    {currentPenaltyLines.map((line) => (
+                      <div key={line}>{line}</div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {/* Đề xuất từ hệ thống */}
               <div style={{ background: 'rgba(245, 158, 11, 0.05)', padding: '16px', borderRadius: '8px', border: '1px solid rgba(245, 158, 11, 0.2)' }}>
-                <p style={{ margin: '0 0 12px 0', fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)' }}>Hình phạt áp dụng</p>
+                <p style={{ margin: '0 0 12px 0', fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)' }}>Hình thức xử lí</p>
                 
                 {isLoadingSuggestion ? (
                   <p style={{ fontSize: '14px', color: 'var(--text-muted)', margin: 0 }}>Đang tính toán đề xuất...</p>
@@ -177,9 +267,9 @@ export default function ResolveReportModal({ isOpen, onClose, reportId, reportSt
                           <span style={{ fontSize: '13px', color: '#d97706', marginTop: '4px' }}>
                             {penaltySuggestion.action === 'WARNING' ? 'Cảnh cáo' : 
                              penaltySuggestion.action === 'MUTE' ? `Cấm chat ${penaltySuggestion.durationDays} ngày` :
-                             penaltySuggestion.action === 'BAN' ? `Khóa tài khoản ${penaltySuggestion.durationDays === -1 ? 'vĩnh viễn' : penaltySuggestion.durationDays + ' ngày'}` :
+                            penaltySuggestion.action === 'BAN' ? `Khóa tài khoản ${penaltySuggestion.durationDays >= PERMANENT_BAN_DAYS ? 'vĩnh viễn' : penaltySuggestion.durationDays + ' ngày'}` :
                              penaltySuggestion.action === 'RESET_AND_WARNING' ? 'Gỡ dữ liệu & Cảnh cáo' :
-                             penaltySuggestion.action === 'RESET_AND_BAN' ? `Gỡ dữ liệu & Khóa tài khoản ${penaltySuggestion.durationDays === -1 ? 'vĩnh viễn' : penaltySuggestion.durationDays + ' ngày'}` : ''
+                             penaltySuggestion.action === 'RESET_AND_BAN' ? `Gỡ dữ liệu & Khóa tài khoản ${penaltySuggestion.durationDays >= PERMANENT_BAN_DAYS ? 'vĩnh viễn' : penaltySuggestion.durationDays + ' ngày'}` : ''
                             } 
                             {' '} (Vi phạm lần {penaltySuggestion.strike})
                           </span>
@@ -190,12 +280,12 @@ export default function ResolveReportModal({ isOpen, onClose, reportId, reportSt
                     </label>
 
                     <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}>
-                      <input 
-                        type="radio" 
-                        checked={useOverride} 
-                        onChange={() => setUseOverride(true)} 
-                        style={{ cursor: 'pointer', accentColor: '#f59e0b' }} 
-                      />
+                        <input 
+                          type="radio" 
+                          checked={useOverride} 
+                          onChange={() => setUseOverride(true)} 
+                          style={{ cursor: 'pointer', accentColor: '#f59e0b' }} 
+                        />
                       <span style={{ fontSize: '14px', fontWeight: 500, color: 'var(--text-primary)' }}>Khác (Tuỳ chỉnh)</span>
                     </label>
                   </div>
@@ -213,11 +303,11 @@ export default function ResolveReportModal({ isOpen, onClose, reportId, reportSt
                         Cảnh cáo (Warning)
                       </label>
                       <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '14px', color: 'var(--text-primary)' }}>
-                        <input type="radio" name="penaltyAction" checked={penaltyAction === 'MUTE'} onChange={() => { setPenaltyAction('MUTE'); if (durationDays === -1) setDurationDays(30); }} style={{ cursor: 'pointer', accentColor: '#f59e0b' }} />
+                        <input type="radio" name="penaltyAction" checked={penaltyAction === 'MUTE'} onChange={() => { setPenaltyAction('MUTE'); if (durationDays >= PERMANENT_BAN_DAYS) setDurationDays(BAN_DURATION_30_DAYS); }} style={{ cursor: 'pointer', accentColor: '#f59e0b' }} />
                         Cấm chat (Mute)
                       </label>
                       <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '14px', color: 'var(--text-primary)' }}>
-                        <input type="radio" name="penaltyAction" checked={penaltyAction === 'BAN'} onChange={() => setPenaltyAction('BAN')} style={{ cursor: 'pointer', accentColor: '#f59e0b' }} />
+                        <input type="radio" name="penaltyAction" checked={penaltyAction === 'BAN'} onChange={() => { setPenaltyAction('BAN'); if (durationDays <= 0 || durationDays === BAN_DURATION_30_DAYS) setDurationDays(PERMANENT_BAN_DAYS); }} style={{ cursor: 'pointer', accentColor: '#f59e0b' }} />
                         Khóa tài khoản (Ban)
                       </label>
                     </div>
@@ -228,24 +318,26 @@ export default function ResolveReportModal({ isOpen, onClose, reportId, reportSt
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                       <label style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)' }}>Thời gian phạt</label>
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-                        {[1, 7, 30, penaltyAction === 'BAN' ? -1 : null].filter(d => d !== null).map((days) => (
+                        {[BAN_DURATION_1_DAY, BAN_DURATION_7_DAYS, BAN_DURATION_30_DAYS, penaltyAction === 'BAN' ? PERMANENT_BAN_DAYS : null].filter(d => d !== null).map((days) => (
                           <button
                             key={days}
                             type="button"
                             onClick={() => setDurationDays(days)}
+                            disabled={isDurationDisabled(days)}
                             style={{
                               padding: '6px 12px',
                               fontSize: '13px',
                               fontWeight: 500,
                               borderRadius: '6px',
-                              cursor: 'pointer',
                               transition: 'all 0.2s',
                               border: durationDays === days ? '1px solid #f59e0b' : '1px solid var(--border)',
                               background: durationDays === days ? 'rgba(245, 158, 11, 0.1)' : 'transparent',
-                              color: durationDays === days ? '#d97706' : 'var(--text-primary)'
+                              color: isDurationDisabled(days) ? 'var(--text-muted)' : durationDays === days ? '#d97706' : 'var(--text-primary)',
+                              opacity: isDurationDisabled(days) ? 0.45 : 1,
+                              cursor: isDurationDisabled(days) ? 'not-allowed' : 'pointer'
                             }}
                           >
-                            {days === -1 ? 'Vĩnh viễn' : `${days} ngày`}
+                            {days === PERMANENT_BAN_DAYS ? 'Vĩnh viễn' : `${days} ngày`}
                           </button>
                         ))}
                       </div>

@@ -62,18 +62,30 @@ export default function AddFriendModal({ isOpen, onClose }: Props) {
     }
   }, [isOpen]);
 
-  const isValidSearch = (query: string) => {
+  const isContactQuery = (query: string) => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     const phoneRegex = /^\+?[0-9]{9,15}$/;
     return emailRegex.test(query) || phoneRegex.test(query);
   };
 
   const performSearch = async (query: string) => {
-    const checkLocal = (users: any[]) => users.find(u => u.email === query || u.phone === query);
-    
-    let localFound = checkLocal(friends) || checkLocal(sentRequests) || checkLocal(receivedRequests) || checkLocal(blockedUsers);
-    if (localFound) {
-      setResult(localFound);
+    const localFound = [friends, sentRequests, receivedRequests, blockedUsers]
+      .flat()
+      .find((u: any) => (u.name || '').toLowerCase().includes(query.toLowerCase()));
+
+    if (!isContactQuery(query)) {
+      if (localFound) {
+        setResult({
+          ...localFound,
+          avatar: typeof localFound.avatar === 'string'
+            ? localFound.avatar
+            : localFound.avatar?.url
+              ? { url: localFound.avatar.url }
+              : undefined,
+        });
+      } else {
+        setResult(null);
+      }
       return;
     }
 
@@ -96,11 +108,6 @@ export default function AddFriendModal({ isOpen, onClose }: Props) {
       return;
     }
 
-    if (!isValidSearch(trimmed)) {
-      setResult(null);
-      return;
-    }
-
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
       performSearch(trimmed);
@@ -115,11 +122,6 @@ export default function AddFriendModal({ isOpen, onClose }: Props) {
     e.preventDefault();
     const trimmed = search.trim();
     if (!trimmed) return;
-    
-    if (!isValidSearch(trimmed)) {
-      toast.error(UI_MESSAGES.friends.invalidSearch);
-      return;
-    }
 
     if (debounceRef.current) clearTimeout(debounceRef.current);
     performSearch(trimmed);
@@ -321,7 +323,7 @@ export default function AddFriendModal({ isOpen, onClose }: Props) {
                       {getAvatarUrl(result) ? (
                         <img src={getAvatarUrl(result)!} alt={result.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                       ) : (
-                        (result.name || result.email || 'U').slice(0, 2).toUpperCase()
+                        (result.name || 'U').slice(0, 2).toUpperCase()
                       )}
                     </div>
                     <div>
@@ -334,7 +336,7 @@ export default function AddFriendModal({ isOpen, onClose }: Props) {
                 </div>
               ) : search && !isSearching && (
                  <div style={{ textAlign: 'center', padding: '20px', color: 'var(--text-muted)' }}>
-                   {!isValidSearch(search.trim()) ? UI_MESSAGES.friends.invalidSearchResult : UI_MESSAGES.friends.notFoundBySearch}
+                   {UI_MESSAGES.friends.notFoundBySearch}
                  </div>
               )}
             </div>
@@ -358,7 +360,7 @@ export default function AddFriendModal({ isOpen, onClose }: Props) {
         }
       }}
       title={UI_MESSAGES.friends.unblockTitle}
-      message={`Bạn có chắc chắn muốn bỏ chặn ${userToUnblock?.name || userToUnblock?.email || 'người dùng này'} không? Họ sẽ có thể tìm thấy và nhắn tin cho bạn.`}
+      message={`Bạn có chắc chắn muốn bỏ chặn ${userToUnblock?.name || 'người dùng này'} không? Họ sẽ có thể tìm thấy và nhắn tin cho bạn.`}
       confirmText={UI_MESSAGES.friends.unblockConfirmLabel}
       cancelText={UI_MESSAGES.friends.cancel}
       isDanger={true}

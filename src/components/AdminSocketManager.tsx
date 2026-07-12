@@ -6,7 +6,7 @@ import { useToast } from '../context/ToastContext';
 import { useNavigate } from 'react-router-dom';
 /**
  * Lightweight socket manager dành riêng cho trang Admin.
- * Chỉ kết nối socket để lắng nghe sự kiện bị vô hiệu hóa tài khoản (user:disabled).
+ * Chỉ kết nối socket để lắng nghe sự kiện bị vô hiệu hóa hoặc bị khóa tài khoản.
  * Không fetch conversations, không fetch users-online.
  */
 export default function AdminSocketManager() {
@@ -24,9 +24,18 @@ export default function AdminSocketManager() {
       toast.warning('Tài khoản của bạn đã bị vô hiệu hóa.');
       navigate('/login');
     };
+    const onUserBanned = (data: { userId: string; banUntil?: string | Date }) => {
+      const userId = normalizeId(data.userId);
+      if (!userId || userId !== currentUserId) return;
+      useAuthStore.getState().localLogout();
+      toast.warning('Tài khoản của bạn đã bị khóa.');
+      navigate('/login');
+    };
     sock.on('user:disabled', onUserDisabled);
+    sock.on('user:banned', onUserBanned);
     return () => {
       sock.off('user:disabled', onUserDisabled);
+      sock.off('user:banned', onUserBanned);
       disconnectSocket();
     };
   }, []);

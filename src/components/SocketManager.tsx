@@ -225,6 +225,20 @@ export default function SocketManager() {
         void useChatStore.getState().refetchConversations({ silent: true });
       };
 
+      const onUserBanned = (data: { userId: string; banUntil?: string | Date }) => {
+        const userId = normalizeId(data.userId);
+        if (!userId) return;
+
+        if (userId === currentUserId) {
+          useAuthStore.getState().localLogout();
+          toast.warning('Tài khoản của bạn đã bị khóa.');
+          navigate('/login');
+          return;
+        }
+
+        void useChatStore.getState().refetchConversations({ silent: true });
+      };
+
       const onUserMuted = (data: { muteUntil: string | Date }) => {
         const muteUntil = data.muteUntil ? new Date(data.muteUntil).toISOString() : undefined;
         useAuthStore.getState().updateUser({ muteUntil });
@@ -275,6 +289,7 @@ export default function SocketManager() {
       sock.on('chat:message-deleted', onMessageDeleted);
       sock.on('user:mark-read', onMarkRead);
       sock.on('user:disabled', onUserDisabled);
+      sock.on('user:banned', onUserBanned);
       sock.on('user:muted', onUserMuted);
       sock.on('user:unmuted', onUserUnmuted);
       sock.on('relationship:created', onRelationshipCreated);

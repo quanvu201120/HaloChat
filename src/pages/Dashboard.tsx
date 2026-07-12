@@ -34,7 +34,6 @@ export default function Dashboard() {
 
   const getInitials = () => {
     if (user?.name) return user.name.slice(0, 2).toUpperCase();
-    if (user?.email) return user.email.slice(0, 2).toUpperCase();
     return 'U';
   };
 
@@ -170,7 +169,7 @@ export default function Dashboard() {
       <div className="welcome-banner">
         <div className="welcome-avatar">{getInitials()}</div>
         <div className="welcome-text">
-          <h1>Xin chào, {user?.name || user?.email?.split('@')[0] || 'bạn'} 👋</h1>
+          <h1>Xin chào, {user?.name || 'bạn'} 👋</h1>
           <p>Quản lý thông tin và bảo mật tài khoản của bạn</p>
         </div>
         <div className="welcome-badge">

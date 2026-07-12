@@ -226,7 +226,7 @@ export const adminApi = {
 
   // === TAB 2: USERS ===
   getUsers: (params?: { page?: number; limit?: number; search?: string; status?: string; role?: string; sort?: string }) => 
-    api.get('/users', { params: { current: params?.page || 1, pageSize: params?.limit || 20, query: params?.search, status: params?.status, role: params?.role, sort: params?.sort } }).then(res => {
+    api.get('/users/admin', { params: { current: params?.page || 1, pageSize: params?.limit || 20, query: params?.search, status: params?.status, role: params?.role, sort: params?.sort } }).then(res => {
       const p = res.data?.data || res.data;
       return {
         items: p.users || [],
@@ -234,7 +234,7 @@ export const adminApi = {
       };
     }),
 
-  getUserDetail: (id: string) => api.get(`/users/${id}`).then(res => (res.data?.data || res.data) as UserAdminData),
+  getUserDetail: (id: string) => api.get(`/users/admin/${id}`).then(res => (res.data?.data || res.data) as UserAdminData),
   
   createUser: (data: any) => api.post('/users', data).then(res => res.data?.data || res.data),
   
