@@ -479,13 +479,9 @@ export default function AuditLogsTab() {
         {selectedLog && (
           <div className="flex flex-col h-full animate-in fade-in slide-in-from-right-4 duration-300">
             
-
-            {/* Content */}
-            <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar">
-             
-              {/* Header */}
+{/* Header */}
                 <div 
-                  style={{padding:'5px', marginBottom:'20px'}}
+                  style={{padding:'5px'}}
                   className="relative flex items-center bg-[var(--bg-card)] rounded-sm border border-[var(--border)] shadow-sm mb-4 mt-2 px-2 sm:px-5 py-1.5"
                 >
                   <button
@@ -502,6 +498,10 @@ export default function AuditLogsTab() {
                     </h2>
                   </div>
                 </div>
+            {/* Content */}
+            <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar">
+             
+              
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 pb-10 w-full">
                  
                     

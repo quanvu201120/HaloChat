@@ -20,7 +20,7 @@ function getBanStatusLabel(banUntil?: string) {
   if (Number.isNaN(banDate.getTime()) || banDate <= new Date()) return null;
 
   const diffDays = Math.ceil((banDate.getTime() - Date.now()) / DAY_IN_MS);
-  if (diffDays >= PERMANENT_BAN_DAYS) {
+  if (diffDays >= PERMANENT_BAN_DAYS - 1) {
     return 'Khóa vĩnh viễn';
   }
 
@@ -214,7 +214,7 @@ function InfoItem({ icon, label, value, placeholder = 'Chưa xác định', valu
       </div>
       <div className="flex-1 min-w-0">
         <span className="block text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider">{label}</span>
-        <span className={`block text-sm font-semibold mt-0.5 break-words whitespace-normal ${value ? 'text-[var(--text-primary)]' : 'text-[var(--text-muted)] italic'} ${valueClass}`}>
+        <span className={`block text-sm font-semibold mt-0.5 break-all whitespace-normal ${value ? 'text-[var(--text-primary)]' : 'text-[var(--text-muted)] italic'} ${valueClass}`}>
           {value || placeholder}
         </span>
       </div>
@@ -674,7 +674,7 @@ export default function UsersTab() {
             <thead>
               <tr className="bg-[var(--bg-secondary)] border-b border-[var(--border)] text-[var(--text-secondary)] text-sm">
                 <th className="px-6 py-4 font-medium w-[60px] text-center">STT</th>
-                <th className="px-6 py-4 font-medium w-[300px]">Người dùng</th>
+                <th className="px-6 py-4 font-medium max-w-[150px] sm:max-w-[200px] lg:max-w-[250px]">Người dùng</th>
                 <th className="px-6 py-4 font-medium">Vai trò</th>
                 <th className="px-6 py-4 font-medium">Trạng thái</th>
                 <th className="px-6 py-4 font-medium">Ngày tham gia</th>
@@ -705,8 +705,8 @@ export default function UsersTab() {
                     <td className="px-6 py-4 text-center text-[var(--text-secondary)] font-medium">
                       {(page - 1) * LIMIT + index + 1}
                     </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-3">
+                    <td className="px-6 py-4 max-w-[150px] sm:max-w-[200px] lg:max-w-[250px]">
+                      <div className="flex items-center gap-3 min-w-0">
                         {(() => {
                           const avatarUrl = typeof u.avatar === 'string' ? u.avatar : (u.avatar as any)?.url;
                           const DefaultAvatar = () => (
@@ -735,9 +735,9 @@ export default function UsersTab() {
                                <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd"></path>
                              </svg>
                            </div>
-                        <div>
-                          <div className="font-semibold text-[var(--text-primary)]">{u.name}</div>
-                          <div className="text-sm text-[var(--text-muted)]">{u.email}</div>
+                        <div className="min-w-0 flex-1">
+                          <div className="font-semibold text-[var(--text-primary)] truncate">{u.name}</div>
+                          <div className="text-sm text-[var(--text-muted)] truncate">{u.email}</div>
                         </div>
                       </div>
                     </td>
@@ -826,12 +826,7 @@ export default function UsersTab() {
       {/* User Detail View */}
       {selectedUser && (
         <div className="flex flex-col h-full animate-in fade-in slide-in-from-right-8 duration-300">
-          
-
-          {/* Grid Layout cho các phần thông tin */}
-          <div className="flex flex-col gap-5 overflow-y-auto flex-1 pb-4 pr-1">
-          
-          {/* Header bar */}
+           {/* Header bar */}
           <div 
             style={{padding:'5px'}}
             className="relative flex items-center bg-[var(--bg-card)] rounded-sm border border-[var(--border)] shadow-sm mb-4 mt-2 px-2 sm:px-5 py-1.5">
@@ -848,6 +843,11 @@ export default function UsersTab() {
               </h2>
             </div>
           </div>
+
+          {/* Grid Layout cho các phần thông tin */}
+          <div className="flex flex-col gap-5 overflow-y-auto flex-1 pb-4 pr-1">
+          
+         
             {/* ── KHỐI 1: Avatar | Tên | Nút hành động ── */}
             <div className="bg-[var(--bg-card)] rounded-sm border border-[var(--border)] shadow-sm">
               <div style={{ padding: '10px' }} className="flex flex-col sm:flex-row items-center justify-between gap-6 text-center sm:text-left">
@@ -869,8 +869,8 @@ export default function UsersTab() {
                   </div>
 
                   {/* Tên + Email & Role + Badges */}
-                  <div className="flex-1 min-w-0">
-                    <h3 className="text-xl font-bold text-[var(--text-primary)] truncate">{selectedUser.name}</h3>
+                  <div className="flex-1 min-w-0 w-full">
+                    <h3 className="text-xl font-bold text-[var(--text-primary)] break-all whitespace-normal leading-tight">{selectedUser.name}</h3>
                     
                     <div className="flex flex-wrap items-center gap-2 justify-center sm:justify-start mt-2">
                       <UserStatusBadges user={selectedUser} variant="detail" />
@@ -1189,12 +1189,12 @@ export default function UsersTab() {
                     value={statusDuration}
                     onChange={(e) => setStatusDuration(Number(e.target.value))}
                     min={BAN_DURATION_1_DAY}
-                    placeholder={`Ví dụ: ${BAN_DURATION_7_DAYS} (nhập số ngày, tối đa ${PERMANENT_BAN_DAYS})`}
+                    placeholder={`Ví dụ: ${BAN_DURATION_7_DAYS} (nhập số ngày, chọn giá trị rất lớn nếu muốn khóa vĩnh viễn)`}
                     style={{ width: '100%', padding: '10px 12px', background: 'transparent', border: '1px solid var(--border)', borderRadius: '6px', color: 'var(--text-primary)', fontSize: '14px', outline: 'none', transition: 'border-color 0.2s' }}
                     onFocus={e => e.target.style.borderColor = '#ef4444'}
                     onBlur={e => e.target.style.borderColor = 'var(--border)'}
                   />
-                    <span className="text-xs text-[var(--text-muted)] mt-1">Sử dụng {PERMANENT_BAN_DAYS} ngày cho khóa vĩnh viễn.</span>
+                    <span className="text-xs text-[var(--text-muted)] mt-1">Giá trị rất lớn sẽ được hiển thị là khóa vĩnh viễn.</span>
                 </div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
@@ -1297,7 +1297,7 @@ export default function UsersTab() {
                   {[
                     { value: 'spam_harassment', label: 'Spam / Lừa đảo / Quấy rối' },
                     { value: 'impersonation', label: 'Tài khoản giả mạo' },
-                    { value: 'inappropriate_content', label: 'Nội dung không phù hợp (Ảnh đại diện/Tên/Tiểu sử/Nội dung tin nhắn)' },
+                    { value: 'inappropriate_content', label: 'Vi phạm Tiêu chuẩn Cộng đồng' },
                     { value: 'other', label: 'Lý do khác' }
                   ].map(option => (
                     <label key={option.value} style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '14px', color: 'var(--text-primary)' }}>

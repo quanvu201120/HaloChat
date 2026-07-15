@@ -430,8 +430,7 @@ export default function MaintenanceTab() {
           const isExecutingDetail = runJobMutation.isPending && runJobMutation.variables === selectedJob._id;
           return (
             <div className="flex flex-col h-full animate-in fade-in slide-in-from-right-8 duration-300">
-              <div className={`flex flex-col gap-5 overflow-y-auto flex-1 pb-4 pr-1 transition-all duration-300 ${isExecutingDetail ? 'animate-pulse opacity-70 pointer-events-none' : ''}`}>
-                {/* Header bar */}
+              {/* Header bar */}
               <div 
                 style={{padding:'5px'}}
                 className="relative flex items-center bg-[var(--bg-card)] rounded-sm border border-[var(--border)] shadow-sm mb-4 mt-2 px-2 sm:px-5 py-1.5"
@@ -449,6 +448,9 @@ export default function MaintenanceTab() {
                   </h2>
                 </div>
               </div>
+              
+              <div className={`flex flex-col gap-5 overflow-y-auto flex-1 pb-4 pr-1 transition-all duration-300 ${isExecutingDetail ? 'animate-pulse opacity-70 pointer-events-none' : ''}`}>
+              
               
               {/* Info block */}
               <div className="bg-[var(--bg-card)] rounded-sm border border-[var(--border)] shadow-sm">

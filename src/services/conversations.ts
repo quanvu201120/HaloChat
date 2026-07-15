@@ -23,6 +23,7 @@ export interface Conversation {
   users: ConversationUser[];
   adminGroupId?: string;
   lastMessage?: Message;
+  pinMessage?: Message;
   avatar?: { url: string };
   readReceipts?: Record<string, string>;
   acceptedBy?: string[];
@@ -53,6 +54,7 @@ export function normalizeConversation(raw: any): Conversation {
     users: Array.isArray(raw?.users) ? raw.users.map(normalizeConversationUser) : [],
     adminGroupId: raw?.adminGroupId ? normalizeId(raw.adminGroupId) : undefined,
     lastMessage: raw?.lastMessage ? normalizeMessage(raw.lastMessage) : raw?.lastMessageId ? normalizeMessage(raw.lastMessageId) : undefined,
+    pinMessage: raw?.pinMessage ? normalizeMessage(raw.pinMessage) : raw?.pinMessageId ? normalizeMessage(raw.pinMessageId) : undefined,
     avatar: raw?.avatar,
     updatedAt: raw?.updatedAt ?? new Date().toISOString(),
     readReceipts: normalizeReadReceipts(raw?.readReceipts),
@@ -111,6 +113,12 @@ export const conversationsApi = {
 
   changeAdmin: (id: string, newAdminId: string) =>
     api.patch(`/conversations/${id}/change-admin`, { newAdminId }),
+
+  pinMessage: (conversationId: string, messageId: string) =>
+    api.post(`/conversations/${conversationId}/messages/${messageId}/pin`),
+
+  unpinMessage: (conversationId: string, messageId: string) =>
+    api.delete(`/conversations/${conversationId}/messages/${messageId}/pin`),
 
   accept: (id: string) => api.patch<void>(`/conversations/${id}/accept`),
 

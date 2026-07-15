@@ -56,7 +56,7 @@ export default function AppLayout() {
         {/* Center: chat content or page content */}
         <main className="chat-main">
           <div className={isChatRoute ? "chat-fluid" : ``} 
-          style={{  padding:'5px', flex: 1, display: 'flex', flexDirection: 'column', width: '100%', height: '100%', overflow: 'hidden'}}
+          style={{  flex: 1, display: 'flex', flexDirection: 'column', width: '100%', height: '100%', overflow: 'hidden'}}
           >
             {isContactRoute && <ContactSidebar />}
             

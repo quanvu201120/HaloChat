@@ -1,6 +1,5 @@
-import { useRef, useState, type ChangeEvent } from 'react';
-import { X, AlertTriangle, Upload, Trash2 } from 'lucide-react';
-import { useMutation } from '@tanstack/react-query';
+import { useEffect, useRef, useState, type ChangeEvent } from 'react';
+import { X, AlertTriangle, Upload } from 'lucide-react';
 import { reportsApi, parseError } from '../services/api';
 import type { CreateReportPayload } from '../services/api';
 import { useToast } from '../context/ToastContext';
@@ -19,20 +18,20 @@ export default function ReportUserModal({ isOpen, onClose, targetUserId, targetU
   const [reason, setReason] = useState<CreateReportPayload['reason']>('spam_harassment');
   const [description, setDescription] = useState('');
   const [optionalDescription, setOptionalDescription] = useState('');
-  const [evidenceFiles, setEvidenceFiles] = useState<File[]>([]);
+  const [evidenceFiles, setEvidenceFiles] = useState<Array<{ file: File; previewUrl: string }>>([]);
+  const evidenceFilesRef = useRef<Array<{ file: File; previewUrl: string }>>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const toast = useToast();
 
-  const reportMutation = useMutation({
-    mutationFn: (data: CreateReportPayload) => reportsApi.create(data),
-    onSuccess: () => {
-      toast.success('Báo cáo người dùng thành công. Chúng tôi sẽ xem xét sớm nhất.');
-      onClose();
-    },
-    onError: (error: unknown) => {
-      toast.error(parseError(error));
-    },
-  });
+  useEffect(() => {
+    evidenceFilesRef.current = evidenceFiles;
+  }, [evidenceFiles]);
+
+  useEffect(() => {
+    return () => {
+      evidenceFilesRef.current.forEach(({ previewUrl }) => URL.revokeObjectURL(previewUrl));
+    };
+  }, []);
 
   const handleEvidenceChange = (event: ChangeEvent<HTMLInputElement>) => {
     const pickedFiles = Array.from(event.target.files || []);
@@ -61,16 +60,45 @@ export default function ReportUserModal({ isOpen, onClose, targetUserId, targetU
       return;
     }
 
-    const nextFiles = [...evidenceFiles, ...validFiles].slice(0, MAX_EVIDENCE_FILES);
-    if (nextFiles.length < evidenceFiles.length + validFiles.length) {
+    const nextItems = validFiles.map((file) => ({ file, previewUrl: URL.createObjectURL(file) }));
+    const acceptedItems = nextItems.slice(0, remainingSlots);
+
+    if (acceptedItems.length < nextItems.length) {
       toast.error(`Tối đa ${MAX_EVIDENCE_FILES} ảnh chứng cứ.`);
     }
 
-    setEvidenceFiles(nextFiles);
+    nextItems.slice(acceptedItems.length).forEach(({ previewUrl }) => URL.revokeObjectURL(previewUrl));
+    setEvidenceFiles((prev) => [...prev, ...acceptedItems]);
   };
 
   const removeEvidenceFile = (index: number) => {
-    setEvidenceFiles((prev) => prev.filter((_, fileIndex) => fileIndex !== index));
+    setEvidenceFiles((prev) => {
+      const next = prev.filter((_, fileIndex) => fileIndex !== index);
+      if (prev[index]?.previewUrl) {
+        URL.revokeObjectURL(prev[index].previewUrl);
+      }
+      return next;
+    });
+  };
+
+  const handleSubmit = async () => {
+    const payload: CreateReportPayload = {
+      targetUserId,
+      reason,
+      evidenceFiles: evidenceFiles.map((item) => item.file),
+    };
+
+    if (reason === 'other') {
+      payload.description = description.trim();
+    } else if (optionalDescription.trim()) {
+      payload.optionalDescription = optionalDescription.trim();
+    }
+
+    onClose();
+    toast.success('Báo cáo đã được ghi nhận');
+    void reportsApi.create(payload).catch((error) => {
+      toast.error(parseError(error));
+    });
   };
 
   if (!isOpen) return null;
@@ -126,7 +154,7 @@ export default function ReportUserModal({ isOpen, onClose, targetUserId, targetU
               {[
                 { value: 'spam_harassment', label: 'Spam / Lừa đảo / Quấy rối' },
                 { value: 'impersonation', label: 'Tài khoản giả mạo' },
-                { value: 'inappropriate_content', label: 'Nội dung không phù hợp' },
+                { value: 'inappropriate_content', label: 'Vi phạm Tiêu chuẩn Cộng đồng' },
                 { value: 'other', label: 'Lý do khác' },
               ].map((option) => (
                 <label
@@ -207,24 +235,31 @@ export default function ReportUserModal({ isOpen, onClose, targetUserId, targetU
             />
 
             {evidenceFiles.length > 0 ? (
-              <div className="flex flex-col gap-2">
-                {evidenceFiles.map((file, index) => (
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                {evidenceFiles.map((item, index) => (
                   <div
-                    key={`${file.name}-${file.lastModified}-${index}`}
-                    className="flex items-center justify-between gap-3 rounded border border-[var(--border)] px-3 py-2 bg-[var(--bg-primary)]"
+                    key={`${item.file.name}-${item.file.lastModified}-${index}`}
+                    className="overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--bg-primary)]"
                   >
-                    <div className="min-w-0">
-                      <div className="text-sm font-medium text-[var(--text-primary)] truncate">{file.name}</div>
-                      <div className="text-[12px] text-[var(--text-muted)]">{(file.size / (1024 * 1024)).toFixed(2)} MB</div>
+                    <div className="relative aspect-square bg-black/5">
+                      <img
+                        src={item.previewUrl}
+                        alt={item.file.name}
+                        className="h-full w-full object-cover"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => removeEvidenceFile(index)}
+                        className="absolute right-2 top-2 inline-flex h-7 w-7 items-center justify-center rounded-full bg-black/60 text-white transition hover:bg-black/80"
+                        aria-label={`Xóa ảnh ${item.file.name}`}
+                      >
+                        <X size={16} />
+                      </button>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => removeEvidenceFile(index)}
-                      className="inline-flex items-center gap-1 px-2 py-1 rounded text-sm text-red-500 hover:bg-red-500/10 transition-colors shrink-0"
-                    >
-                      <Trash2 size={14} />
-                      Xóa
-                    </button>
+                    <div className="space-y-1 px-2 py-2">
+                      <div className="truncate text-sm font-medium text-[var(--text-primary)]">{item.file.name}</div>
+                      <div className="text-[12px] text-[var(--text-muted)]">{(item.file.size / (1024 * 1024)).toFixed(2)} MB</div>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -246,19 +281,9 @@ export default function ReportUserModal({ isOpen, onClose, targetUserId, targetU
             Hủy
           </button>
           <button
-            disabled={reportMutation.isPending || (reason === 'other' && !description.trim())}
+            disabled={reason === 'other' && !description.trim()}
             onClick={() => {
-              const payload: CreateReportPayload = {
-                targetUserId,
-                reason,
-                evidenceFiles,
-              };
-              if (reason === 'other') {
-                payload.description = description.trim();
-              } else if (optionalDescription.trim()) {
-                payload.optionalDescription = optionalDescription.trim();
-              }
-              reportMutation.mutate(payload);
+              void handleSubmit();
             }}
             style={{
               padding: '8px 20px',
@@ -269,13 +294,13 @@ export default function ReportUserModal({ isOpen, onClose, targetUserId, targetU
               border: 'none',
               borderRadius: '6px',
               cursor: 'pointer',
-              opacity: (reportMutation.isPending || (reason === 'other' && !description.trim())) ? 0.6 : 1,
+              opacity: (reason === 'other' && !description.trim()) ? 0.6 : 1,
               transition: 'background 0.2s',
             }}
-            onMouseEnter={(e) => { if (!(reportMutation.isPending || (reason === 'other' && !description.trim()))) e.currentTarget.style.background = '#dc2626'; }}
+            onMouseEnter={(e) => { if (!(reason === 'other' && !description.trim())) e.currentTarget.style.background = '#dc2626'; }}
             onMouseLeave={(e) => { e.currentTarget.style.background = '#ef4444'; }}
           >
-            {reportMutation.isPending ? 'Đang gửi...' : 'Gửi báo cáo'}
+            Gửi báo cáo
           </button>
         </div>
       </div>

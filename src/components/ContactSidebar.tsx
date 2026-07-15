@@ -22,7 +22,7 @@ export default function ContactSidebar() {
   ];
 
   return (
-    <div className="relative flex items-center justify-center w-full px-2 md:px-0 mb-5 shrink-0">
+    <div  className="relative flex items-center justify-center w-full px-2 md:px-0 mb-5 shrink-0">
       {/* The global menu button from AppLayout handles the mobile menu toggle. We just need the tabs centered here. */}
 
       <div className="flex w-[260px] md:w-full justify-center md:justify-start bg-[var(--bg-secondary)] rounded-xl border border-[var(--border)] p-1">

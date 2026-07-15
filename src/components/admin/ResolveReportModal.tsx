@@ -28,8 +28,14 @@ export default function ResolveReportModal({
   currentMuteUntil,
   currentBanUntil,
 }: ResolveReportModalProps) {
+  const isAppealReview = reportStatus === ReportStatusEnum.APPEAL_PENDING;
   const superAdminDismissNote = 'Bỏ qua báo cáo SUPER_ADMIN';
-  const [status, setStatus] = useState<typeof ReportStatusEnum.RESOLVED | typeof ReportStatusEnum.DISMISSED>(isTargetSuperAdmin ? ReportStatusEnum.DISMISSED : ReportStatusEnum.RESOLVED);
+  const [status, setStatus] = useState<
+    | typeof ReportStatusEnum.RESOLVED
+    | typeof ReportStatusEnum.DISMISSED
+    | typeof ReportStatusEnum.APPEAL_REJECTED
+    | typeof ReportStatusEnum.APPEAL_SUCCESS
+  >(isAppealReview ? ReportStatusEnum.APPEAL_REJECTED : isTargetSuperAdmin ? ReportStatusEnum.DISMISSED : ReportStatusEnum.RESOLVED);
   const [adminNote, setAdminNote] = useState(isTargetSuperAdmin ? superAdminDismissNote : '');
   
   const [useOverride, setUseOverride] = useState(false);
@@ -113,9 +119,15 @@ export default function ResolveReportModal({
   useEffect(() => {
     if (!isOpen) return;
 
-    setStatus(isTargetSuperAdmin ? ReportStatusEnum.DISMISSED : ReportStatusEnum.RESOLVED);
+    setStatus(
+      isAppealReview
+        ? ReportStatusEnum.APPEAL_REJECTED
+        : isTargetSuperAdmin
+          ? ReportStatusEnum.DISMISSED
+          : ReportStatusEnum.RESOLVED,
+    );
     setAdminNote(isTargetSuperAdmin ? superAdminDismissNote : '');
-  }, [isOpen, isTargetSuperAdmin]);
+  }, [isOpen, isTargetSuperAdmin, isAppealReview]);
 
   useEffect(() => {
     if (status !== ReportStatusEnum.RESOLVED) return;
@@ -188,7 +200,8 @@ export default function ResolveReportModal({
         
         {/* Body */}
         <div style={{ padding: '0 28px 24px', display: 'flex', flexDirection: 'column', gap: '20px', maxHeight: '70vh', overflowY: 'auto' }}>
-          {reportStatus !== ReportStatusEnum.PENDING && (
+          {reportStatus !== ReportStatusEnum.PENDING &&
+            reportStatus !== ReportStatusEnum.APPEAL_PENDING && (
             <div style={{ padding: '10px 14px', background: 'rgba(59, 130, 246, 0.08)', border: '1px solid rgba(59, 130, 246, 0.2)', borderRadius: '8px', color: '#2563eb', fontSize: '13px' }}>
               Báo cáo này không còn ở trạng thái chờ xử lý, vui lòng tải lại danh sách trước khi tiếp tục.
             </div>
@@ -196,32 +209,32 @@ export default function ResolveReportModal({
           
           {/* Hướng xử lý */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            <label style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)' }}>Hướng xử lý</label>
+            <label style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)' }}>{isAppealReview ? 'Hướng xử lý kháng cáo' : 'Hướng xử lý'}</label>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
               <label 
                 style={{
                   display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', padding: '12px', borderRadius: '8px', border: '2px solid', cursor: isTargetSuperAdmin ? 'not-allowed' : 'pointer', transition: 'all 0.2s',
-                  borderColor: status === ReportStatusEnum.RESOLVED ? '#f59e0b' : 'var(--border)',
-                  background: status === ReportStatusEnum.RESOLVED ? 'rgba(245, 158, 11, 0.1)' : 'transparent',
-                  color: status === ReportStatusEnum.RESOLVED ? '#d97706' : 'var(--text-primary)',
-                  fontWeight: status === ReportStatusEnum.RESOLVED ? 600 : 400,
+                  borderColor: status === (isAppealReview ? ReportStatusEnum.APPEAL_SUCCESS : ReportStatusEnum.RESOLVED) ? '#f59e0b' : 'var(--border)',
+                  background: status === (isAppealReview ? ReportStatusEnum.APPEAL_SUCCESS : ReportStatusEnum.RESOLVED) ? 'rgba(245, 158, 11, 0.1)' : 'transparent',
+                  color: status === (isAppealReview ? ReportStatusEnum.APPEAL_SUCCESS : ReportStatusEnum.RESOLVED) ? '#d97706' : 'var(--text-primary)',
+                  fontWeight: status === (isAppealReview ? ReportStatusEnum.APPEAL_SUCCESS : ReportStatusEnum.RESOLVED) ? 600 : 400,
                   opacity: isTargetSuperAdmin ? 0.5 : 1
                 }}
               >
-                <input type="radio" name="resolveStatus" checked={status === ReportStatusEnum.RESOLVED} onChange={() => !isTargetSuperAdmin && setStatus(ReportStatusEnum.RESOLVED)} style={{ display: 'none' }} disabled={isTargetSuperAdmin} />
-                <AlertTriangle size={18} /> Ghi nhận vi phạm
+                <input type="radio" name="resolveStatus" checked={status === (isAppealReview ? ReportStatusEnum.APPEAL_SUCCESS : ReportStatusEnum.RESOLVED)} onChange={() => !isTargetSuperAdmin && setStatus(isAppealReview ? ReportStatusEnum.APPEAL_SUCCESS : ReportStatusEnum.RESOLVED)} style={{ display: 'none' }} disabled={isTargetSuperAdmin} />
+                <AlertTriangle size={18} /> {isAppealReview ? 'Chấp nhận kháng cáo' : 'Chấp nhận'}
               </label>
               <label 
                 style={{
                   display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', padding: '12px', borderRadius: '8px', border: '2px solid', cursor: 'pointer', transition: 'all 0.2s',
-                  borderColor: status === ReportStatusEnum.DISMISSED ? '#6b7280' : 'var(--border)',
-                  background: status === ReportStatusEnum.DISMISSED ? 'rgba(107, 114, 128, 0.1)' : 'transparent',
-                  color: status === ReportStatusEnum.DISMISSED ? 'var(--text-primary)' : 'var(--text-primary)',
-                  fontWeight: status === ReportStatusEnum.DISMISSED ? 600 : 400
+                  borderColor: status === (isAppealReview ? ReportStatusEnum.APPEAL_REJECTED : ReportStatusEnum.DISMISSED) ? '#6b7280' : 'var(--border)',
+                  background: status === (isAppealReview ? ReportStatusEnum.APPEAL_REJECTED : ReportStatusEnum.DISMISSED) ? 'rgba(107, 114, 128, 0.1)' : 'transparent',
+                  color: status === (isAppealReview ? ReportStatusEnum.APPEAL_REJECTED : ReportStatusEnum.DISMISSED) ? 'var(--text-primary)' : 'var(--text-primary)',
+                  fontWeight: status === (isAppealReview ? ReportStatusEnum.APPEAL_REJECTED : ReportStatusEnum.DISMISSED) ? 600 : 400
                 }}
               >
-                <input type="radio" name="resolveStatus" checked={status === ReportStatusEnum.DISMISSED} onChange={() => setStatus(ReportStatusEnum.DISMISSED)} style={{ display: 'none' }} />
-                <UserX size={18} /> Bỏ qua báo cáo
+                <input type="radio" name="resolveStatus" checked={status === (isAppealReview ? ReportStatusEnum.APPEAL_REJECTED : ReportStatusEnum.DISMISSED)} onChange={() => setStatus(isAppealReview ? ReportStatusEnum.APPEAL_REJECTED : ReportStatusEnum.DISMISSED)} style={{ display: 'none' }} />
+                <UserX size={18} /> {isAppealReview ? 'Từ chối kháng cáo' : 'Từ chối'}
               </label>
             </div>
           </div>
@@ -401,9 +414,9 @@ export default function ResolveReportModal({
           </button>
           <button 
             disabled={
-              reportStatus !== ReportStatusEnum.PENDING ||
+              (reportStatus !== ReportStatusEnum.PENDING && reportStatus !== ReportStatusEnum.APPEAL_PENDING) ||
               resolveMutation.isPending ||
-              (status === ReportStatusEnum.DISMISSED &&
+              ((status === ReportStatusEnum.DISMISSED || status === ReportStatusEnum.APPEAL_REJECTED) &&
                 !(isTargetSuperAdmin ? superAdminDismissNote : adminNote).trim())
             }
             onClick={() => {
@@ -431,19 +444,19 @@ export default function ResolveReportModal({
               fontSize: '14px', 
               fontWeight: 600, 
               color: 'white', 
-              background: status === ReportStatusEnum.RESOLVED ? '#f59e0b' : '#6b7280', 
+              background: status === ReportStatusEnum.RESOLVED || status === ReportStatusEnum.APPEAL_SUCCESS ? '#f59e0b' : '#6b7280', 
               border: 'none', 
               borderRadius: '6px', 
               cursor: (
-                reportStatus !== ReportStatusEnum.PENDING ||
+                (reportStatus !== ReportStatusEnum.PENDING && reportStatus !== ReportStatusEnum.APPEAL_PENDING) ||
                 resolveMutation.isPending ||
-                (status === ReportStatusEnum.DISMISSED &&
+                ((status === ReportStatusEnum.DISMISSED || status === ReportStatusEnum.APPEAL_REJECTED) &&
                   !(isTargetSuperAdmin ? superAdminDismissNote : adminNote).trim())
               ) ? 'not-allowed' : 'pointer', 
               opacity: (
-                reportStatus !== ReportStatusEnum.PENDING ||
+                (reportStatus !== ReportStatusEnum.PENDING && reportStatus !== ReportStatusEnum.APPEAL_PENDING) ||
                 resolveMutation.isPending ||
-                (status === ReportStatusEnum.DISMISSED &&
+                ((status === ReportStatusEnum.DISMISSED || status === ReportStatusEnum.APPEAL_REJECTED) &&
                   !(isTargetSuperAdmin ? superAdminDismissNote : adminNote).trim())
               ) ? 0.6 : 1,
               transition: 'background 0.2s'

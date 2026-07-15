@@ -1,5 +1,7 @@
 import { create } from 'zustand';
 import {
+  type AppealContext,
+  type LoginPayload,
   authApi,
   clearStoredAuth,
   notifyStoredUserChanged,
@@ -31,15 +33,17 @@ export interface User {
 interface AuthState {
   user: User | null;
   accessToken: string | null;
+  bannedAppeal: (AppealContext & { banUntil?: string }) | null;
   isLoading: boolean;
   isAdminVerified: boolean;
-  login: (identifier: string, password: string) => Promise<void>;
+  login: (identifier: string, password: string) => Promise<LoginPayload>;
   logout: () => Promise<void>;
   logoutAll: () => Promise<void>;
   localLogout: () => void;
   updateUser: (data: Partial<User>) => void;
   setAdminVerified: (status: boolean) => void;
-  init: () => () => void; // call this on app mount to subscribe to storage
+  setBannedAppeal: (data: (AppealContext & { banUntil?: string }) | null) => void;
+  init: () => () => void;
 }
 
 const normalizeStoredUser = (user: User | null) => {
@@ -65,18 +69,30 @@ const readStoredUser = () => {
 export const useAuthStore = create<AuthState>((set, get) => ({
   user: readStoredUser(),
   accessToken: localStorage.getItem('accessToken'),
+  bannedAppeal: null,
   isLoading: false,
   isAdminVerified: false,
 
   setAdminVerified: (status: boolean) => set({ isAdminVerified: status }),
+  setBannedAppeal: (data) => set({ bannedAppeal: data }),
 
   login: async (identifier: string, password: string) => {
     set({ isLoading: true });
     try {
       const res = await authApi.login(identifier, password);
-      const payload = res.data?.data || res.data;
-      const { accessToken, user } = payload;
-      
+      const payload = (res.data?.data || res.data) as LoginPayload;
+      const { accessToken, user, isBanned, banUntil, appeal } = payload;
+
+      if (isBanned) {
+        clearStoredAuth();
+        set({
+          user: null,
+          accessToken: null,
+          bannedAppeal: appeal ? { ...appeal, banUntil } : null,
+        });
+        return payload;
+      }
+
       if (!accessToken || !user) {
         throw new Error('Đăng nhập thất bại: Không nhận được token từ server');
       }
@@ -84,9 +100,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       persistAccessToken(accessToken);
       localStorage.setItem('user', JSON.stringify(user));
       notifyStoredUserChanged();
-      set({ user, accessToken });
+      set({ user, accessToken, bannedAppeal: null });
+      return payload;
     } catch (error) {
       clearStoredAuth();
+      set({ bannedAppeal: null });
       throw error;
     } finally {
       set({ isLoading: false });
@@ -100,18 +118,18 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       // ignore
     }
     clearStoredAuth();
-    set({ user: null, accessToken: null });
+    set({ user: null, accessToken: null, bannedAppeal: null });
   },
 
   localLogout: () => {
     clearStoredAuth();
-    set({ user: null, accessToken: null });
+    set({ user: null, accessToken: null, bannedAppeal: null });
   },
 
   logoutAll: async () => {
     await authApi.logoutAll();
     clearStoredAuth();
-    set({ user: null, accessToken: null });
+    set({ user: null, accessToken: null, bannedAppeal: null });
   },
 
   updateUser: (data: Partial<User>) => {
@@ -128,6 +146,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       set({
         accessToken: localStorage.getItem('accessToken'),
         user: readStoredUser(),
+        bannedAppeal: get().bannedAppeal,
       });
     });
   }

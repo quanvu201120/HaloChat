@@ -2,13 +2,13 @@
 /* eslint-disable react-hooks/purity */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import {
-  useState, useEffect, useRef, useCallback, useMemo,
+  useState, useEffect, useRef, useCallback, useMemo, type ChangeEvent,
 } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   Send, Phone, Video, Info, Smile, Paperclip, Image, Mic, Square, X,
   Camera, Trash2, LogOut, ShieldOff, Check, Pencil, UserPlus, UserMinus, Crown, History, ChevronDown, ChevronRight, ChevronLeft, FileText, Search, Plus, Download, Edit2, UserX, UserCheck,
-  MapPin, Calendar, User as UserIcon, AlertTriangle
+  MapPin, Calendar, User as UserIcon, MessageSquare, AlertTriangle, Pin
 } from 'lucide-react';
 import { useAuthStore as useAuth } from '../store/authStore';
 import { useChatStore as useChat } from '../store/chatStore';
@@ -88,6 +88,27 @@ function getBanStatusText(banUntil?: string): string {
   return `Tài khoản này đã bị khóa. Còn ${remaining}.`;
 }
 
+function getUserRestrictionState(user?: { isDisabled?: boolean; banUntil?: string } | null) {
+  if (!user) {
+    return { kind: null as null, badgeLabel: null as null | 'BAN' | 'DISABLE' };
+  }
+
+  const hasActiveBan = !!user.banUntil && new Date(user.banUntil).getTime() > Date.now();
+  const isPermanentBan = hasActiveBan
+    ? Math.ceil((new Date(user.banUntil!).getTime() - Date.now()) / 86400000) >= PERMANENT_BAN_DAYS - 1
+    : false;
+
+  if (hasActiveBan && (!user.isDisabled || isPermanentBan)) {
+    return { kind: 'ban' as const, badgeLabel: 'BAN' as const };
+  }
+
+  if (hasActiveBan || user.isDisabled) {
+    return { kind: 'disable' as const, badgeLabel: 'DISABLE' as const };
+  }
+
+  return { kind: null as null, badgeLabel: null as null | 'BAN' | 'DISABLE' };
+}
+
 type LocalMessage = Message & {
   _error?: boolean;
 };
@@ -133,6 +154,28 @@ function getReplyTargetPreview(replyTarget: Message | null) {
   if (replyTarget.type === 'voice') return MESSAGE_PREVIEWS.VOICE;
   if (replyTarget.type === 'file') return MESSAGE_PREVIEWS.FILE;
   return CHAT_DEFAULTS.MESSAGE_FALLBACK;
+}
+
+function getPinnedMessageLabel(message: Message) {
+  if (message.type === 'image') return 'Hình ảnh';
+  if (message.type === 'video') return 'Video';
+  if (message.type === 'voice') return 'Voice';
+  if (message.type === 'file') return 'Tệp đính kèm';
+  return 'Tin nhắn đã ghim';
+}
+
+function getPinnedMessageSummary(message: Message) {
+  if (message.isDeleted) return 'Tin nhắn đã thu hồi';
+  if (message.type === 'text') {
+    const text = (message.content || '').replace(/@\[\[(.*?)\]\]/gs, '$1').replace(/\s+/g, ' ').trim();
+    if (!text) return 'Tin nhắn văn bản';
+    return text.length > 120 ? `${text.slice(0, 120).trimEnd()}...` : text;
+  }
+  if (message.type === 'image') return 'Đã ghim một hình ảnh';
+  if (message.type === 'video') return 'Đã ghim một video';
+  if (message.type === 'voice') return 'Đã ghim một đoạn voice';
+  if (message.type === 'file') return 'Đã ghim một tệp đính kèm';
+  return MESSAGE_PREVIEWS.TEXT;
 }
 
 /**
@@ -214,9 +257,12 @@ export default function ChatPage() {
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [text, setText] = useState('');
   const [replyTarget, setReplyTarget] = useState<Message | null>(null);
+  const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
+  const [pendingHighlightMessageId, setPendingHighlightMessageId] = useState<string | null>(null);
   
   const [isGroupAvatarMenuOpen, setIsGroupAvatarMenuOpen] = useState(false);
   const [selectedGroupMedia, setSelectedGroupMedia] = useState<{ url: string; type: 'image' | 'video' } | null>(null);
+  const [selectedPinnedMessage, setSelectedPinnedMessage] = useState<Message | null>(null);
   const groupAvatarMenuRef = useRef<HTMLDivElement>(null);
 
   const isTempConversation = activeConversationId.startsWith('temp_');
@@ -259,6 +305,8 @@ export default function ChatPage() {
   const [showAddMemberModal, setShowAddMemberModal] = useState(false);
   const [showOnlineModal, setShowOnlineModal] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [showHighlightMenu, setShowHighlightMenu] = useState(false);
+  const [suppressHighlightTriggerIndex, setSuppressHighlightTriggerIndex] = useState<number | null>(null);
   const [showMediaMenu, setShowMediaMenu] = useState(false);
   const [readersModalData, setReadersModalData] = useState<{ isOpen: boolean; readers: string[] }>({ isOpen: false, readers: [] });
   const [reactionsModalData, setReactionsModalData] = useState<{ isOpen: boolean; message: Message | null }>({ isOpen: false, message: null });
@@ -279,8 +327,109 @@ export default function ChatPage() {
   const [showReportModal, setShowReportModal] = useState(false);
   const [isLoadingUserDetail, setIsLoadingUserDetail] = useState(false);
 
+  const renderPinnedMessagePreview = useCallback((message: Message) => {
+    const media = typeof message.media === 'object' ? message.media : null;
+    if (message.type === 'image' && media?.url) {
+      return (
+        <img
+          src={media.url}
+          alt={message.content || 'Hình ảnh ghim'}
+          style={{ width: '100%', maxHeight: 420, objectFit: 'contain', borderRadius: 12, background: '#f8fafc' }}
+        />
+      );
+    }
+
+    if (message.type === 'video' && media?.url) {
+      return (
+        <video
+          src={media.url}
+          controls
+          style={{ width: '100%', maxHeight: 420, borderRadius: 12, background: '#000' }}
+        />
+      );
+    }
+
+    if (message.type === 'voice' && media?.url) {
+      return (
+        <div style={{ display: 'grid', gap: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, color: 'var(--text-secondary)', fontSize: 13 }}>
+            <Mic size={16} />
+            <span>{media.fileName || 'Voice message'}</span>
+          </div>
+          <AudioPlayer src={media.url} isMe={false} />
+        </div>
+      );
+    }
+
+    if (message.type === 'file' && media?.url) {
+      return (
+        <a
+          href={media.url}
+          target="_blank"
+          rel="noreferrer"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 12,
+            padding: 16,
+            borderRadius: 12,
+            border: '1px solid var(--border)',
+            color: 'var(--text-primary)',
+            textDecoration: 'none',
+          }}
+        >
+          <div style={{
+            width: 40,
+            height: 40,
+            borderRadius: 10,
+            background: 'rgba(99,102,241,0.12)',
+            color: 'var(--accent-primary)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexShrink: 0,
+          }}>
+            <FileText size={18} />
+          </div>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontWeight: 700, marginBottom: 4 }}>{media.fileName || 'File đính kèm'}</div>
+            <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Nhấn để mở tệp</div>
+          </div>
+        </a>
+      );
+    }
+
+    const renderHighlightedContent = (text: string) => {
+      const segments: React.ReactNode[] = [];
+      const pattern = /@\[\[(.*?)\]\]/gs;
+      let lastIndex = 0;
+      let match: RegExpExecArray | null;
+      while ((match = pattern.exec(text)) !== null) {
+        if (match.index > lastIndex) {
+          segments.push(text.slice(lastIndex, match.index));
+        }
+        segments.push(
+          <span key={`${match.index}-${match[1]}`} className="msg-highlight">
+            {match[1]}
+          </span>,
+        );
+        lastIndex = pattern.lastIndex;
+      }
+      if (lastIndex < text.length) {
+        segments.push(text.slice(lastIndex));
+      }
+      return segments;
+    };
+
+    return (
+      <div style={{ whiteSpace: 'pre-wrap', lineHeight: 1.65, fontSize: 15, color: 'var(--text-primary)' }}>
+        {message.content ? renderHighlightedContent(message.content) : 'Tin nhắn trống'}
+      </div>
+    );
+  }, []);
+
   const handleShowUserProfile = async (userObj: any) => {
-    if (!userObj || !userObj._id || userObj.isDisabled) return;
+    if (!userObj || !userObj._id || getUserRestrictionState(userObj).kind === 'disable') return;
     setSelectedUserForInfo(userObj);
     setIsLoadingUserDetail(true);
     try {
@@ -296,9 +445,37 @@ export default function ChatPage() {
     }
   };
 
+  const handleStartDirectChat = async (userId: string) => {
+    if (userId === currentUserId) return;
+    
+    const existingConv = conversations.find((c) => 
+      !c.isGroup && c.users.some((u) => u._id === userId)
+    );
+
+    if (existingConv) {
+      setSelectedUserForInfo(null);
+      navigate(`/chat/${existingConv._id}`);
+      return;
+    }
+
+    try {
+      const res = await conversationsApi.create({ users: [userId] });
+      const newConv = res.data?.data ?? res.data;
+      if (newConv?._id) {
+        mergeConversation(newConv);
+        setSelectedUserForInfo(null);
+        navigate(`/chat/${newConv._id}`);
+      }
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || 'Không thể mở cuộc trò chuyện');
+    }
+  };
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const messageRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const highlightTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -347,11 +524,13 @@ export default function ChatPage() {
   const otherUser = conv && !conv.isGroup
     ? conv.users.find((u) => u._id !== currentUserId)
     : null;
-  const isTargetUserDisabled = !!otherUser?.isDisabled;
-  const isTargetUserBanned = !!otherUser?.banUntil && new Date(otherUser.banUntil).getTime() > Date.now();
+  const otherUserRestriction = getUserRestrictionState(otherUser);
+  const isTargetUserDisabled = otherUserRestriction.kind === 'disable';
+  const isTargetUserBanned = otherUserRestriction.kind === 'ban';
   const isOtherOnline = otherUser ? online[otherUser._id] === true : false;
   const convName = conv ? getConversationName(conv, currentUserId) : '...';
-  const { block, unblock, rawRelationships, friends, sentRequests, sendRequest, isSendingRequest, isLoading: isLoadingRelationships } = useRelationships();
+  const pinnedMessage = conv?.pinMessage ?? null;
+  const { block, unblock, rawRelationships, friends, sentRequests, blockedUsers, sendRequest, isSendingRequest, isLoading: isLoadingRelationships } = useRelationships();
 
   const currentRelationship = useMemo(() => {
     if (!otherUser || !rawRelationships) return null;
@@ -363,6 +542,22 @@ export default function ChatPage() {
 
   const isBlocked = currentRelationship?.status === 'BLOCKED';
   const iBlockedThem = isBlocked && currentRelationship?.blockedBy === currentUserId;
+  const blockedUserIds = useMemo(() => {
+    const ids = new Set(blockedUsers.map((blockedUser) => blockedUser._id));
+
+    rawRelationships
+      .filter((rel: any) => rel.status === 'BLOCKED')
+      .forEach((rel: any) => {
+        if (rel.requester?._id === currentUserId && rel.recipient?._id) {
+          ids.add(rel.recipient._id);
+        }
+        if (rel.recipient?._id === currentUserId && rel.requester?._id) {
+          ids.add(rel.requester._id);
+        }
+      });
+
+    return ids;
+  }, [blockedUsers, rawRelationships, currentUserId]);
 
   const headerAvatarUrl = conv?.isGroup 
     ? (conv.avatar?.url || '') 
@@ -402,6 +597,8 @@ export default function ChatPage() {
 
   const handleBlockRequest = () => {
     if (!otherUser || !conv) return;
+    const conversationId = conv._id;
+    const targetUserId = otherUser._id;
     setConfirmAction({
       title: 'Chặn người dùng',
       message: UI_MESSAGES.chat.blockConfirm(otherUser.name || ''),
@@ -409,7 +606,9 @@ export default function ChatPage() {
       confirmText: 'Chặn',
       action: async () => {
         try {
-          await block({ targetUserId: otherUser._id });
+          await block({ targetUserId });
+          await reloadMessages(conversationId, true);
+          refreshSidebarMedia();
           toast.success(UI_MESSAGES.chat.blockSuccess);
         } catch {
           toast.error(UI_MESSAGES.chat.blockFailed);
@@ -420,6 +619,8 @@ export default function ChatPage() {
 
   const handleUnblockRequest = () => {
     if (!otherUser) return;
+    const conversationId = conv?._id || '';
+    const targetUserId = otherUser._id;
     setConfirmAction({
       title: 'Bỏ chặn người dùng',
       message: UI_MESSAGES.chat.unblockConfirm(otherUser.name || ''),
@@ -427,7 +628,11 @@ export default function ChatPage() {
       confirmText: 'Bỏ chặn',
       action: async () => {
         try {
-          await unblock({ targetUserId: otherUser._id });
+          await unblock({ targetUserId });
+          if (conversationId) {
+            await reloadMessages(conversationId, true);
+            refreshSidebarMedia();
+          }
           toast.success(UI_MESSAGES.chat.unblockSuccess);
         } catch {
           toast.error(UI_MESSAGES.chat.unblockFailed);
@@ -555,14 +760,45 @@ export default function ChatPage() {
   }, [isRecordingVoice]);
 
   const markConversationRead = useCallback((latestMessage?: Message | null) => {
-    if (!activeConversationId || !latestMessage || !conv) return;
+    if (!activeConversationId || !latestMessage) return;
     if (getSenderId(latestMessage) === currentUserId) return;
-    if (!conv.acceptedBy?.includes(currentUserId)) return;
 
     markReadSocket(activeConversationId, latestMessage._id, () => {
       clearUnread(activeConversationId);
     });
   }, [activeConversationId, currentUserId, clearUnread]);
+
+  const reloadMessages = useCallback(async (conversationId: string, silent = false) => {
+    if (!conversationId) return;
+    const requestId = ++messagesRequestIdRef.current;
+
+    if (!silent) {
+      setIsLoadingMsgs(true);
+    }
+
+    try {
+      const res = await messagesApi.getList(conversationId);
+      if (messagesRequestIdRef.current !== requestId) return;
+      const responseData = (res.data as any)?.data ?? res.data;
+      const listRaw = responseData?.messages ?? responseData;
+      const cursor = responseData?.nextCursor ?? null;
+
+      const list = normalizeMessages(listRaw);
+      const ordered = [...list].reverse();
+      setMessages(ordered);
+      setLoadedMessagesConversationId(conversationId);
+      setHasMore(cursor !== null ? !!cursor : list.length === 20);
+      setNextCursor(cursor);
+      markConversationRead(ordered[ordered.length - 1]);
+    } catch {
+      if (!silent) {
+        toast.error(UI_MESSAGES.chat.loadMessagesFailed);
+      }
+    } finally {
+      if (messagesRequestIdRef.current !== requestId) return;
+      setIsLoadingMsgs(false);
+    }
+  }, [markConversationRead, toast]);
 
   const updateConversationReadReceipt = useCallback((userId: string, messageId: string) => {
     setConv((prev) => {
@@ -689,8 +925,6 @@ export default function ChatPage() {
       isPrependingRef.current = false;
       return;
     }
-    const requestId = ++messagesRequestIdRef.current;
-    
     prevVisibleLengthRef.current = 0;
     isPrependingRef.current = false;
 
@@ -722,32 +956,11 @@ export default function ChatPage() {
       return;
     }
 
-    messagesApi.getList(activeConversationId)
-      .then((res) => {
-        if (messagesRequestIdRef.current !== requestId) return;
-        const responseData = (res.data as any)?.data ?? res.data;
-        const listRaw = responseData?.messages ?? responseData;
-        const cursor = responseData?.nextCursor ?? null;
-
-        const list = normalizeMessages(listRaw);
-        const ordered = [...list].reverse();
-        setMessages(ordered);
-        setLoadedMessagesConversationId(activeConversationId);
-        setHasMore(cursor !== null ? !!cursor : list.length === 20);
-        setNextCursor(cursor);
-        markConversationRead(ordered[ordered.length - 1]);
-      })
-      .catch(() => {
-        if (!cached) toast.error(UI_MESSAGES.chat.loadMessagesFailed);
-      })
-      .finally(() => {
-        if (messagesRequestIdRef.current !== requestId) return;
-        setIsLoadingMsgs(false);
-      });
+    reloadMessages(activeConversationId).catch(() => {});
 
     clearUnread(activeConversationId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeConversationId]);
+  }, [activeConversationId, reloadMessages]);
 
   // --- SIDEBAR MEDIA LOGIC ---
   useEffect(() => {
@@ -783,11 +996,11 @@ export default function ChatPage() {
     }
   }, [activeConversationId]);
 
-  const fetchSidebarMedia = useCallback(async (type: MediaResourceTypeEnum, isLoadMore = false) => {
+  const fetchSidebarMedia = useCallback(async (type: MediaResourceTypeEnum, isLoadMore = false, forceRefetch = false) => {
     if (!activeConversationId || isTempConversation) return;
     if (isLoadingSidebarMedia[type]) return;
     if (isLoadMore && !sidebarMediaHasMore[type]) return;
-    if (!isLoadMore && hasFetchedSidebarMedia[type]) return;
+    if (!isLoadMore && !forceRefetch && hasFetchedSidebarMedia[type]) return;
 
     setIsLoadingSidebarMedia((prev) => ({ ...prev, [type]: true }));
     const cursor = isLoadMore ? sidebarMediaCursor[type] : null;
@@ -879,6 +1092,19 @@ export default function ChatPage() {
     });
   }, []);
 
+  const refreshSidebarMedia = useCallback(() => {
+    if (!activeConversationId) return;
+    delete globalMediaCache[activeConversationId];
+    setSidebarMedia({});
+    setSidebarMediaCursor({});
+    setSidebarMediaHasMore({});
+    setHasFetchedSidebarMedia({});
+    
+    if (isImagesExpanded) fetchSidebarMedia(MediaResourceTypeEnum.IMAGE, false, true);
+    if (isVideosExpanded) fetchSidebarMedia(MediaResourceTypeEnum.VIDEO, false, true);
+    if (isFilesExpanded) fetchSidebarMedia(MediaResourceTypeEnum.FILE, false, true);
+  }, [activeConversationId, isImagesExpanded, isVideosExpanded, isFilesExpanded, fetchSidebarMedia]);
+
   useEffect(() => {
     if (isImagesExpanded) fetchSidebarMedia(MediaResourceTypeEnum.IMAGE);
   }, [isImagesExpanded, fetchSidebarMedia]);
@@ -920,7 +1146,9 @@ export default function ChatPage() {
       appendSidebarMedia(message);
 
       if (getSenderId(message) !== currentUserId) {
-        markConversationRead(message);
+        if (document.hasFocus()) {
+          markConversationRead(message);
+        }
       }
     };
 
@@ -1023,6 +1251,38 @@ export default function ChatPage() {
       refetchConversations();
     };
 
+    const onMessagePinned = (data: { conversationId: string; messageId: string }) => {
+      const convId = normalizeId(data.conversationId);
+      if (convId !== activeConversationId) return;
+
+      setMessages((prev) => {
+        const msg = prev.find((m) => m._id === data.messageId);
+        if (msg) {
+          setConv((c) => (c ? { ...c, pinMessage: msg } : c));
+          patchConversation(convId, (c) => ({ ...c, pinMessage: msg }));
+        } else {
+          conversationsApi.getOne(convId).then((res) => {
+            const updatedConv = normalizeConversation(res.data?.data ?? res.data);
+            setConv(updatedConv);
+            patchConversation(convId, () => updatedConv);
+          }).catch(() => {});
+        }
+        return prev;
+      });
+    };
+
+    const onMessageUnpinned = (data: { conversationId: string; messageId: string }) => {
+      const convId = normalizeId(data.conversationId);
+      if (convId !== activeConversationId) return;
+      
+      setConv((c) => (c ? { ...c, pinMessage: undefined } : c));
+      patchConversation(convId, (c) => ({ ...c, pinMessage: undefined }));
+    };
+
+    const onRelationshipChanged = () => {
+      refreshSidebarMedia();
+    };
+
     socket.on('chat:new-message', onNewMessage);
     socket.on('message:updated', onMessageUpdated);
     socket.on('chat:message-deleted', onMessageDeleted);
@@ -1032,6 +1292,10 @@ export default function ChatPage() {
     socket.on('conversation:member-removed', onMemberRemoved);
     socket.on('conversation:disbanded', onConversationDisbanded);
     socket.on('conversation:admin-changed', onAdminChanged);
+    socket.on('message:pinned', onMessagePinned);
+    socket.on('message:unpinned', onMessageUnpinned);
+    socket.on('relationship:blocked', onRelationshipChanged);
+    socket.on('relationship:unblocked', onRelationshipChanged);
 
     return () => {
       socket.off('chat:new-message', onNewMessage);
@@ -1043,6 +1307,10 @@ export default function ChatPage() {
       socket.off('conversation:member-removed', onMemberRemoved);
       socket.off('conversation:disbanded', onConversationDisbanded);
       socket.off('conversation:admin-changed', onAdminChanged);
+      socket.off('message:pinned', onMessagePinned);
+      socket.off('message:unpinned', onMessageUnpinned);
+      socket.off('relationship:blocked', onRelationshipChanged);
+      socket.off('relationship:unblocked', onRelationshipChanged);
     };
   }, [
     activeConversationId,
@@ -1056,7 +1324,22 @@ export default function ChatPage() {
     updateConversationReadReceipt,
     appendSidebarMedia,
     removeSidebarMedia,
+    refreshSidebarMedia,
   ]);
+
+  // Handle window focus to mark conversation as read
+  useEffect(() => {
+    const handleFocus = () => {
+      if (!activeConversationId || visibleMessages.length === 0) return;
+      const latestMsg = visibleMessages[visibleMessages.length - 1];
+      if (getSenderId(latestMsg) !== currentUserId) {
+        markConversationRead(latestMsg);
+      }
+    };
+
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
+  }, [activeConversationId, visibleMessages, currentUserId, markConversationRead]);
 
   // Scroll to bottom only on first load of a conversation or new messages sent/received.
   // NOT when prepending older messages (handled separately below).
@@ -1144,6 +1427,43 @@ export default function ChatPage() {
     }
   };
 
+  const handleComposerChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const value = event.target.value;
+    const cursor = event.target.selectionStart ?? value.length;
+    const beforeCursor = value.slice(0, cursor);
+    const triggerIndex = beforeCursor.lastIndexOf('@');
+    const query = triggerIndex >= 0 ? beforeCursor.slice(triggerIndex + 1) : '';
+    const isActive = triggerIndex >= 0 && !/[\s\[\]@]/.test(query) && triggerIndex !== suppressHighlightTriggerIndex;
+
+    if (triggerIndex === -1 || triggerIndex !== suppressHighlightTriggerIndex) {
+      setSuppressHighlightTriggerIndex(null);
+    }
+
+    setShowHighlightMenu(isActive);
+    handleTextChange(value);
+  };
+
+  const insertHighlightToken = () => {
+    const input = inputRef.current;
+    if (!input || isMuted || isTempConversation) return;
+
+    const start = input.selectionStart ?? text.length;
+    const end = input.selectionEnd ?? text.length;
+    const token = '@[[  ]]';
+    const atIndex = text.lastIndexOf('@', start - 1);
+    const replaceStart = atIndex >= 0 ? atIndex : start;
+    const nextValue = `${text.slice(0, replaceStart)}${token}${text.slice(end)}`;
+    const cursorPos = replaceStart + 4;
+
+    setText(nextValue);
+    setShowHighlightMenu(false);
+    setSuppressHighlightTriggerIndex(null);
+    requestAnimationFrame(() => {
+      input.focus();
+      input.setSelectionRange(cursorPos, cursorPos);
+    });
+  };
+
   const replaceOptimisticMessage = useCallback((optimisticId: string, nextMessage: Message) => {
     setMessages((prev) => prev.map((item) => (
       item._id === optimisticId ? { ...nextMessage, _error: false } : item
@@ -1163,10 +1483,68 @@ export default function ChatPage() {
     )));
   }, []);
 
+  const handleReplyReferenceClick = useCallback((message: Message) => {
+    const targetId = typeof message.replyTo === 'object'
+      ? message.replyTo?._id
+      : message.replyTo;
+    const normalizedTargetId = normalizeId(targetId);
+    if (!normalizedTargetId) return;
+
+    const target = messageRefs.current[normalizedTargetId];
+    if (!target) return;
+
+    if (highlightTimerRef.current) {
+      clearTimeout(highlightTimerRef.current);
+      highlightTimerRef.current = null;
+    }
+
+    setHighlightedMessageId(null);
+    setPendingHighlightMessageId(normalizedTargetId);
+    target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, []);
+
+  useEffect(() => () => {
+    if (highlightTimerRef.current) {
+      clearTimeout(highlightTimerRef.current);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!pendingHighlightMessageId) return;
+
+    const target = messageRefs.current[pendingHighlightMessageId];
+    const container = messagesContainerRef.current;
+    if (!target || !container) return;
+
+    const observer = new IntersectionObserver(([entry]) => {
+      if (!entry.isIntersecting) return;
+
+      setHighlightedMessageId(pendingHighlightMessageId);
+      setPendingHighlightMessageId(null);
+      observer.disconnect();
+
+      if (highlightTimerRef.current) {
+        clearTimeout(highlightTimerRef.current);
+      }
+      highlightTimerRef.current = setTimeout(() => {
+        setHighlightedMessageId((current) => (current === pendingHighlightMessageId ? null : current));
+        highlightTimerRef.current = null;
+      }, 1600);
+    }, {
+      root: container,
+      threshold: 0.7,
+    });
+
+    observer.observe(target);
+
+    return () => observer.disconnect();
+  }, [pendingHighlightMessageId]);
+
   const handleSend = async () => {
     if (isMuted) return;
     const content = text.trim();
     if (!content || !activeConversationId) return;
+    setShowHighlightMenu(false);
 
     if (editingMessageId) {
       replaceMessageLocally(editingMessageId, (message) => ({
@@ -1370,6 +1748,38 @@ export default function ChatPage() {
         });
       }
     });
+  };
+
+  const handlePinMessage = async (message: Message) => {
+    if (!activeConversationId) return;
+    const previousPin = conv?.pinMessage;
+    
+    setConv((prev) => prev ? { ...prev, pinMessage: message } : prev);
+    patchConversation(activeConversationId, (prev) => ({ ...prev, pinMessage: message }));
+    
+    try {
+      await conversationsApi.pinMessage(activeConversationId, message._id);
+    } catch (error: any) {
+      setConv((prev) => prev ? { ...prev, pinMessage: previousPin } : prev);
+      patchConversation(activeConversationId, (prev) => ({ ...prev, pinMessage: previousPin }));
+      toast.error(error?.response?.data?.message || 'Ghim tin nhắn thất bại');
+    }
+  };
+
+  const handleUnpinMessage = async (message: Message) => {
+    if (!activeConversationId) return;
+    const previousPin = conv?.pinMessage;
+    
+    setConv((prev) => prev ? { ...prev, pinMessage: undefined } : prev);
+    patchConversation(activeConversationId, (prev) => ({ ...prev, pinMessage: undefined }));
+    
+    try {
+      await conversationsApi.unpinMessage(activeConversationId, message._id);
+    } catch (error: any) {
+      setConv((prev) => prev ? { ...prev, pinMessage: previousPin } : prev);
+      patchConversation(activeConversationId, (prev) => ({ ...prev, pinMessage: previousPin }));
+      toast.error(error?.response?.data?.message || 'Bỏ ghim tin nhắn thất bại');
+    }
   };
 
   const startVoiceRecording = async () => {
@@ -1654,7 +2064,7 @@ export default function ChatPage() {
             )}
             {isOtherOnline && !isTargetUserDisabled && !isBlocked && <span className="online-dot" style={{ position: 'absolute', bottom: 1, right: 1 }} />}
           </div>
-          <div>
+          <div style={{ minWidth: 0, flex: 1 }}>
             <div className="chat-header-name">{convName}</div>
             {(isLoadingConv || memberSummary) && (
               <div 
@@ -1676,7 +2086,7 @@ export default function ChatPage() {
 
         {!isMessageRequest && (
           <div className="chat-header-actions">
-            {!isBlocked && !isTargetUserBanned && (
+            {!isBlocked && !isTargetUserBanned && !isTargetUserDisabled && (
               <>
                 <button className="icon-btn" title="Gọi thoại">
                   <Phone size={18} />
@@ -1692,6 +2102,83 @@ export default function ChatPage() {
           </div>
         )}
       </div>
+
+      {pinnedMessage && (
+        <div
+          className="pinned-message-banner"
+          style={{
+            width: '100%',
+            background: 'linear-gradient(135deg, rgba(99,102,241,0.12), rgba(168,85,247,0.12))',
+            borderBottom: '1px solid rgba(99,102,241,0.15)',
+            padding: '6px 16px',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
+            <button
+              type="button"
+              onClick={() => setSelectedPinnedMessage(pinnedMessage)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '10px',
+                minWidth: 0,
+                flex: 1,
+                border: 'none',
+                background: 'transparent',
+                padding: 0,
+                textAlign: 'left',
+                cursor: 'pointer',
+              }}
+            >
+              <div style={{
+                width: 32,
+                height: 32,
+                borderRadius: '50%',
+                background: 'rgba(99,102,241,0.16)',
+                color: 'var(--accent-primary)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+              }}>
+                <Pin size={16} />
+              </div>
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--accent-primary)', marginBottom: '2px' }}>
+                  Tin nhắn đã ghim
+                </div>
+                <div
+                  style={{
+                    fontSize: '13px',
+                    color: 'var(--text-secondary)',
+                    overflow: 'hidden',
+                    whiteSpace: 'nowrap',
+                    textOverflow: 'ellipsis',
+                  }}
+                >
+                  {getPinnedMessageSummary(pinnedMessage)}
+                </div>
+              </div>
+            </button>
+            {(!conv?.isGroup || isGroupAdmin) && (
+              <button
+                type="button"
+                onClick={() => handleUnpinMessage(pinnedMessage)}
+                className="icon-btn"
+                title="Bỏ ghim"
+                style={{
+                  width: 32,
+                  height: 32,
+                  flexShrink: 0,
+                  background: 'rgba(255,255,255,0.45)',
+                }}
+              >
+                <Pin size={15} style={{ transform: 'rotate(45deg)' }} />
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
       <div
         className="messages-container"
@@ -1717,16 +2204,24 @@ export default function ChatPage() {
         ) : (
           visibleMessages.map((message, index) => {
             if (normalizeId(message.conversationId) !== activeConversationId) return null;
+            const isPinnedMessage = normalizeId(conv?.pinMessage?._id) === message._id;
             return (
               <MessageBubble
                 key={message._id}
+                messageRef={(node) => {
+                  if (node) {
+                    messageRefs.current[message._id] = node;
+                  } else {
+                    delete messageRefs.current[message._id];
+                  }
+                }}
                 message={message}
                 isMe={getSenderId(message) === currentUserId}
                 prevMessage={index > 0 ? visibleMessages[index - 1] : undefined}
                 currentUserId={currentUserId}
                 isGroup={conv?.isGroup}
                 senderAvatarUrl={typeof message.sender === 'object' ? message.sender?.avatar?.url : undefined}
-                onAvatarClick={() => {
+                onAvatarClick={isBlocked ? undefined : () => {
                   if (getSenderId(message) !== currentUserId && typeof message.sender === 'object' && !message.sender.isDisabled && !isTargetUserBanned) {
                     setSelectedUserForInfo(message.sender as any);
                   }
@@ -1746,13 +2241,17 @@ export default function ChatPage() {
                   setReplyTarget(message);
                   setEditingMessageId(null);
                 }}
+                onReplyReferenceClick={() => handleReplyReferenceClick(message)}
                 onEdit={() => handleEditMessage(message)}
                 onDelete={() => handleDeleteMessage(message)}
+                onPin={!isPinnedMessage && (!conv?.isGroup || isGroupAdmin) ? () => handlePinMessage(message) : undefined}
+                onUnpin={isPinnedMessage && (!conv?.isGroup || isGroupAdmin) ? () => handleUnpinMessage(message) : undefined}
                 onToggleReaction={(reactionType: string) => handleToggleReaction(message, reactionType)}
                 onMediaClick={(media) => {
                   setLightboxMedias([media]);
                   setLightboxIndex(0);
                 }}
+                isHighlighted={highlightedMessageId === message._id}
                 disableActions={isMessageRequest || isBlocked}
                 disableReply={isMuted || isTargetUserBanned}
               />
@@ -1974,8 +2473,26 @@ export default function ChatPage() {
               className="composer-input"
               placeholder={isTempConversation ? 'Đang khởi tạo...' : editingMessageId ? 'Chỉnh sửa tin nhắn...' : 'Nhập tin nhắn...'}
               value={text}
-              onChange={(event) => handleTextChange(event.target.value)}
+              onChange={handleComposerChange}
               onKeyDown={(event) => {
+                if (event.key === '@' && !isMuted && !isTempConversation) {
+                  requestAnimationFrame(() => setShowHighlightMenu(true));
+                }
+                if (event.key === 'Escape' && showHighlightMenu) {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  const cursor = inputRef.current?.selectionStart ?? text.length;
+                  const beforeCursor = text.slice(0, cursor);
+                  const triggerIndex = beforeCursor.lastIndexOf('@');
+                  setSuppressHighlightTriggerIndex(triggerIndex >= 0 ? triggerIndex : null);
+                  setShowHighlightMenu(false);
+                  return;
+                }
+                if (event.key === 'Tab' && showHighlightMenu) {
+                  event.preventDefault();
+                  insertHighlightToken();
+                  return;
+                }
                 if (event.key === 'Enter' && !event.shiftKey) {
                   event.preventDefault();
                   handleSend();
@@ -1983,9 +2500,18 @@ export default function ChatPage() {
               }}
               onBlur={() => {
                 if (activeConversationId) stopTyping(activeConversationId);
+                setTimeout(() => setShowHighlightMenu(false), 120);
               }}
               disabled={isTempConversation}
             />
+            {showHighlightMenu && (
+              <div className="highlight-menu">
+                <button type="button" className="highlight-menu-item" onMouseDown={(e) => e.preventDefault()} onClick={insertHighlightToken}>
+                  <strong>@[[  ]]</strong>
+                  <span>Nổi bật đoạn này</span>
+                </button>
+              </div>
+            )}
             <div style={{ position: 'relative' }}>
               <button 
                 className={`icon-btn${showEmojiPicker ? ' active' : ''}`} 
@@ -2195,10 +2721,10 @@ export default function ChatPage() {
               )
             ) : (
               <div 
-                className={isTargetUserDisabled ? 'info-sidebar-name' : 'info-sidebar-name clickable'} 
-                onClick={isTargetUserDisabled ? undefined : () => handleShowUserProfile(otherUser || (conv && conv.users.find((u) => u._id === currentUserId)))}
-                title={isTargetUserDisabled ? undefined : 'Xem thông tin'}
-                style={{ cursor: isTargetUserDisabled ? 'default' : 'pointer' }}
+                className={isTargetUserDisabled || isBlocked ? 'info-sidebar-name' : 'info-sidebar-name clickable'} 
+                onClick={isTargetUserDisabled || isBlocked ? undefined : () => handleShowUserProfile(otherUser || (conv && conv.users.find((u) => u._id === currentUserId)))}
+                title={isTargetUserDisabled || isBlocked ? undefined : 'Xem thông tin'}
+                style={{ cursor: isTargetUserDisabled || isBlocked ? 'default' : 'pointer' }}
               >
                 {convName}
               </div>
@@ -2259,31 +2785,74 @@ export default function ChatPage() {
                     : typeof member.avatar === 'string' ? member.avatar : null;
                   const displayName = member.name || 'Người dùng';
                   const isMemberAdmin = conv.adminGroupId === member._id;
+                  const memberRestriction = getUserRestrictionState(member);
+                  const hasMemberBadges = Boolean(memberRestriction.badgeLabel || member._id === currentUserId || isMemberAdmin);
+                  const isMemberHidden = member.isDisabled || blockedUserIds.has(member._id);
+                  const canOpenMemberProfile = memberRestriction.kind !== 'disable' && !isMemberHidden;
+                  const canTransferAdmin = memberRestriction.kind === null && !isMemberHidden;
                   return (
-                    <div key={member._id} className="info-sidebar-member">
-                      <div className="info-sidebar-member-avatar">
-                        {avatar
-                          ? <img src={avatar} alt={displayName} />
-                          : <span>{displayName.slice(0, 1).toUpperCase()}</span>}
+                    <div key={member._id} className={`info-sidebar-member${canOpenMemberProfile ? '' : ' disabled'}`}>
+                      <div
+                        className="info-sidebar-member-avatar"
+                        style={memberRestriction.kind === 'disable' || isMemberHidden
+                          ? { background: 'var(--bg-secondary)', color: 'var(--text-muted)', border: '1px solid var(--border-light)' }
+                          : {}}
+                      >
+                        {memberRestriction.kind === 'disable' || isMemberHidden
+                          ? <UserX size={18} />
+                          : avatar
+                            ? <img src={avatar} alt={displayName} />
+                            : <span>{displayName.slice(0, 1).toUpperCase()}</span>}
                       </div>
                       <div className="info-sidebar-member-info">
+                        {hasMemberBadges && (
+                          <div className="info-sidebar-member-badges">
+                          {memberRestriction.badgeLabel && (
+                            <span
+                              className={`info-sidebar-member-mini-badge ${memberRestriction.kind === 'ban' ? 'badge-error' : ''}`}
+                              style={memberRestriction.kind === 'disable'
+                                ? { background: 'rgba(107,114,128,0.10)', color: 'var(--text-muted)', border: '1px solid rgba(107,114,128,0.20)' }
+                                : undefined}
+                            >
+                              {memberRestriction.badgeLabel}
+                            </span>
+                          )}
+                          {member._id === currentUserId && <span className="info-badge-me">Bạn</span>}
+                          {isMemberAdmin && <span className="info-sidebar-member-admin-badge" aria-label="Quản trị viên"><Crown size={12} /></span>}
+                          </div>
+                        )}
                         <div 
-                          className={member.isDisabled ? 'info-sidebar-member-name' : 'info-sidebar-member-name clickable'}
-                          onClick={member.isDisabled ? undefined : () => handleShowUserProfile(member)}
-                          title={member.isDisabled ? undefined : 'Xem thông tin'}
-                          style={{ cursor: member.isDisabled ? 'default' : 'pointer' }}
+                          className={canOpenMemberProfile ? 'info-sidebar-member-name clickable' : 'info-sidebar-member-name info-sidebar-member-name-disabled'}
+                          onClick={canOpenMemberProfile ? () => {
+                            setSelectedUserForInfo(member);
+                            setIsLoadingUserDetail(false);
+                          } : undefined}
+                          title={member.isDisabled ? undefined : displayName}
+                          style={{ cursor: canOpenMemberProfile ? 'pointer' : 'default' }}
                         >
-                          {displayName}
+                          <span className="info-sidebar-member-name-text">{displayName}</span>
+                          {memberRestriction.badgeLabel && (
+                            <span
+                              className={`info-sidebar-member-mini-badge ${memberRestriction.kind === 'ban' ? 'badge-error' : ''}`}
+                              style={memberRestriction.kind === 'disable'
+                                ? { background: 'rgba(107,114,128,0.10)', color: 'var(--text-muted)', border: '1px solid rgba(107,114,128,0.20)' }
+                                : undefined}
+                            >
+                              {memberRestriction.badgeLabel}
+                            </span>
+                          )}
                           {member._id === currentUserId && <span className="info-badge-me">Bạn</span>}
                           {isMemberAdmin && <Crown size={14} className="text-warning" style={{ color: 'var(--warning)', marginLeft: '4px' }} aria-label="Quản trị viên" />}
                         </div>
                       </div>
                       {isGroupAdmin && !isMemberAdmin && (
-                        <div style={{ display: 'flex', gap: '4px' }}>
+                        <div className="info-sidebar-member-actions">
                           <button
                             className="icon-btn info-member-more"
                             title="Chuyển quyền quản trị viên"
-                            onClick={() => handleChangeAdmin(member._id, displayName)}
+                            onClick={canTransferAdmin ? () => handleChangeAdmin(member._id, displayName) : undefined}
+                            disabled={!canTransferAdmin}
+                            style={{ opacity: canTransferAdmin ? 1 : 0.4, cursor: canTransferAdmin ? 'pointer' : 'not-allowed' }}
                           >
                             <Crown size={16} className="text-warning" style={{ color: 'var(--warning)' }} />
                           </button>
@@ -2613,6 +3182,21 @@ export default function ChatPage() {
         />
       )}
 
+      {/* Pinned Message Modal */}
+      {selectedPinnedMessage && (
+        <Modal
+          isOpen={!!selectedPinnedMessage}
+          onClose={() => setSelectedPinnedMessage(null)}
+          title="Tin nhắn đã ghim"
+        >
+          <div style={{ display: 'grid', gap: 14 }}>
+            <div style={{ padding: 16, borderRadius: 14, border: '1px solid var(--border)', background: 'var(--bg-secondary)' }}>
+              {renderPinnedMessagePreview(selectedPinnedMessage)}
+            </div>
+          </div>
+        </Modal>
+      )}
+
       {/* Confirm Modal */}
       {confirmAction && (
         <ConfirmModal
@@ -2637,7 +3221,7 @@ export default function ChatPage() {
         >
           <div style={{ position: 'relative', width: '100%', minHeight: '400px' }}>
             {/* Report Icon */}
-            {user?._id !== selectedUserForInfo._id && (
+            {user?._id !== selectedUserForInfo._id && getUserRestrictionState(selectedUserForInfo).kind === null && (
               <button
                 onClick={() => setShowReportModal(true)}
                 style={{
@@ -2662,7 +3246,7 @@ export default function ChatPage() {
             )}
 
             {/* Add Friend / Sent Request Icon */}
-            {user?._id !== selectedUserForInfo._id && (() => {
+            {user?._id !== selectedUserForInfo._id && getUserRestrictionState(selectedUserForInfo).kind === null && (() => {
               const isFriend = friends.some(f => f._id === selectedUserForInfo._id);
               const hasSent = sentRequests.some(f => f._id === selectedUserForInfo._id);
               if (isFriend) return null;
@@ -2737,10 +3321,22 @@ export default function ChatPage() {
             </div>
             
             {/* Name */}
-            <h3 style={{ fontSize: '24px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '8px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', flexWrap: 'wrap', marginBottom: '8px' }}>
+              <h3 style={{ fontSize: '24px', fontWeight: 600, color: 'var(--text-primary)', margin: 0, wordBreak: 'break-word', textAlign: 'center', maxWidth: '100%', padding: '0 16px' }}>
               {selectedUserForInfo.name || 'Người dùng'}
-            </h3>
-            
+              </h3>
+              {getUserRestrictionState(selectedUserForInfo).badgeLabel && (
+                <span
+                  className={`badge ${getUserRestrictionState(selectedUserForInfo).kind === 'ban' ? 'badge-error' : ''}`}
+                  style={getUserRestrictionState(selectedUserForInfo).kind === 'disable'
+                    ? { background: 'rgba(107,114,128,0.10)', color: 'var(--text-muted)', border: '1px solid rgba(107,114,128,0.20)' }
+                    : undefined}
+                >
+                  {getUserRestrictionState(selectedUserForInfo).badgeLabel}
+                </span>
+              )}
+            </div>
+
             {/* Bio */}
             <div style={{ 
               textAlign: 'center', color: 'var(--text-secondary)', fontSize: '15px', 
@@ -2754,6 +3350,20 @@ export default function ChatPage() {
                 selectedUserForInfo.bio || 'Chưa có tiểu sử.'
               )}
             </div>
+
+            {selectedUserForInfo._id !== currentUserId && getUserRestrictionState(selectedUserForInfo).kind === null && (
+              <div style={{ width: '100%', padding: '0 16px', marginBottom: '24px', display: 'flex', gap: '12px' }}>
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  style={{ flex: 1, padding: '10px 0', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', fontWeight: 600 }}
+                  onClick={() => handleStartDirectChat(selectedUserForInfo._id)}
+                >
+                  <MessageSquare size={18} />
+                  Nhắn tin
+                </button>
+              </div>
+            )}
             
             {/* Personal Info */}
             <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '16px', padding: '0 16px' }}>

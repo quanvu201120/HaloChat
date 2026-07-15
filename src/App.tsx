@@ -10,6 +10,7 @@ import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import ActiveAccountPage from './pages/ActiveAccountPage';
+import AppealPage from './pages/AppealPage';
 
 // Protected pages
 import EmptyStatePage from './pages/EmptyStatePage';
@@ -53,6 +54,9 @@ export default function App() {
                 <Route path="/forgot-password" element={<ForgotPasswordPage />} />
                 <Route path="/active-account" element={<ActiveAccountPage />} />
               </Route>
+
+              <Route path="/appeal" element={<AppealPage />} />
+              <Route path="/appeal/:reportId" element={<AppealPage />} />
 
               {/* Protected routes (wrapped in AppLayout + ChatProvider) */}
               <Route element={<AppLayout />}>

@@ -50,7 +50,7 @@ export default function MediaLightbox({ medias, initialIndex, onClose }: MediaLi
       URL.revokeObjectURL(blobUrl);
     } catch (err) {
       console.error('Download failed', err);
-      window.open(activeMedia.url, '_blank');
+      window.open(activeMedia.url, '_blank', 'noopener,noreferrer');
     }
   };
 

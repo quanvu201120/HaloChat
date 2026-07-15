@@ -162,6 +162,18 @@ export default function SocketManager() {
         });
       };
 
+      const onMessagePinned = (data: { conversationId: string }) => {
+        const conversationId = normalizeId(data.conversationId);
+        if (!conversationId) return;
+        void useChatStore.getState().fetchConversationById(conversationId);
+      };
+
+      const onMessageUnpinned = (data: { conversationId: string }) => {
+        const conversationId = normalizeId(data.conversationId);
+        if (!conversationId) return;
+        void useChatStore.getState().fetchConversationById(conversationId);
+      };
+
       const onMarkRead = (data: { conversationId: string; userId: string; messageId: string }) => {
         const conversationId = normalizeId(data.conversationId);
         const userId = normalizeId(data.userId);
@@ -270,6 +282,14 @@ export default function SocketManager() {
         void queryClient.invalidateQueries({ queryKey: ['relationships'] });
       };
 
+      const onNotificationCreated = (data: { userId?: string }) => {
+        const userId = normalizeId(data.userId);
+        if (userId && userId !== currentUserId) return;
+
+        void queryClient.invalidateQueries({ queryKey: ['notifications'] });
+        void queryClient.invalidateQueries({ queryKey: ['notifications-unread-count'] });
+      };
+
       sock.on('connect', onConnect);
       sock.on('disconnect', onDisconnect);
       sock.on('user:unseen-message', onUnseenMessage);
@@ -287,6 +307,8 @@ export default function SocketManager() {
       sock.on('chat:new-message', onNewMessage);
       sock.on('message:updated', onMessageUpdated);
       sock.on('chat:message-deleted', onMessageDeleted);
+      sock.on('message:pinned', onMessagePinned);
+      sock.on('message:unpinned', onMessageUnpinned);
       sock.on('user:mark-read', onMarkRead);
       sock.on('user:disabled', onUserDisabled);
       sock.on('user:banned', onUserBanned);
@@ -297,6 +319,8 @@ export default function SocketManager() {
       sock.on('relationship:deleted', onRelationshipDeleted);
       sock.on('relationship:blocked', onRelationshipBlocked);
       sock.on('relationship:unblocked', onRelationshipUnblocked);
+      sock.on('notification:created', onNotificationCreated);
+      sock.on('notification.created', onNotificationCreated);
 
       if (sock.connected) {
         chatStore.setIsSocketConnected(true);

@@ -68,7 +68,7 @@ export default function NavigationSidebar({ isOpen, setIsOpen }: NavigationSideb
   };
 
   const handleNavigate = (path: string, action?: () => void) => {
-    if (window.innerWidth < 768 && isOpen) {
+    if (window.innerWidth <= 767.98 && isOpen) {
       setIsOpen(false);
       setTimeout(() => {
         if (action) action();

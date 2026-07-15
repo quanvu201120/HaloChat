@@ -10,6 +10,7 @@ import CreateConversationModal from './CreateConversationModal';
 import AddFriendModal from './AddFriendModal';
 import ConfirmModal from './ConfirmModal';
 import { useRelationships } from '../hooks/useRelationships';
+import { NotificationsCenter } from './NotificationsCenter';
 
 export default function Sidebar() {
   const { user } = useAuth();
@@ -91,6 +92,7 @@ export default function Sidebar() {
           </div>
           {!isRequestContext && (
             <div style={{ display: 'flex', gap: '4px' }}>
+              <NotificationsCenter />
               <button
                 className="icon-btn"
                 title="Thêm bạn bè"

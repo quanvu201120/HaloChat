@@ -48,13 +48,20 @@ export default function LoginPage() {
 
   const onSubmit = async (data: LoginFormValues) => {
     try {
-      await login(data.identifier, data.password);
+      const payload = await login(data.identifier, data.password);
+      if (payload.isBanned) {
+        toast.warning('Tài khoản của bạn đang bị khóa.');
+        navigate(payload.appeal?.reportId ? `/appeal/${payload.appeal.reportId}` : '/appeal', {
+          replace: true,
+          state: { bannedAppeal: payload.appeal, banUntil: payload.banUntil },
+        });
+        return;
+      }
       toast.success('Đăng nhập thành công!');
       navigate('/', { replace: true });
     } catch (err: any) {
       const msg: string = parseError(err);
 
-      // LocalStrategy ném ForbiddenException 403 khi isActive === false
       const isInactive = err?.response?.status === 403;
 
       if (isInactive) {
@@ -68,15 +75,15 @@ export default function LoginPage() {
 
   return (
     <div className="login-page" style={{ position: 'relative' }}>
-      <button 
+      <button
         onClick={toggleTheme}
         title={theme === 'dark' ? 'Chế độ sáng' : 'Chế độ tối'}
-        style={{ 
-          position: 'absolute', top: '24px', right: '24px', 
-          width: '40px', height: '40px', borderRadius: '50%', 
-          background: 'var(--bg-card)', border: '1px solid var(--border)', 
-          display: 'flex', alignItems: 'center', justifyContent: 'center', 
-          cursor: 'pointer', color: 'var(--text-primary)', 
+        style={{
+          position: 'absolute', top: '24px', right: '24px',
+          width: '40px', height: '40px', borderRadius: '50%',
+          background: 'var(--bg-card)', border: '1px solid var(--border)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          cursor: 'pointer', color: 'var(--text-primary)',
           boxShadow: 'var(--shadow-sm)', zIndex: 10
         }}
       >
@@ -88,7 +95,7 @@ export default function LoginPage() {
 
       <div className="login-card">
         <div className="login-header">
-          <div className="login-icon">💬</div>
+          <div className="login-icon">HC</div>
           <h1 className="login-title">HaloChat</h1>
           <p className="login-subtitle">Đăng nhập để quản lý tài khoản của bạn</p>
         </div>

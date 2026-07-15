@@ -465,7 +465,8 @@ export function ProfilePageContent() {
           >
             <ChevronLeft size={24} />
           </button>
-          <div>
+          <div style={{paddingLeft:'15px'}}>
+
             <h1 style={{ fontSize: '26px', fontWeight: 800, color: 'var(--text-primary)', marginBottom: '4px' }}>
               Hồ sơ cá nhân
             </h1>
@@ -558,7 +559,7 @@ export function ProfilePageContent() {
         >
           <ChevronLeft size={24} />
         </button>
-        <div>
+        <div style={{paddingLeft:'15px'}}>
           <h1 style={{ fontSize: '26px', fontWeight: 800, color: 'var(--text-primary)', marginBottom: '4px' }}>
             Hồ sơ cá nhân
           </h1>

@@ -490,7 +490,7 @@ export default function FriendsPage() {
             </div>
             
             {/* Name */}
-            <h3 style={{ fontSize: '24px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '8px' }}>
+            <h3 style={{ fontSize: '24px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '8px', wordBreak: 'break-word', textAlign: 'center', maxWidth: '100%', padding: '0 16px' }}>
               {selectedUserForInfo.name || 'Người dùng'}
             </h3>
             

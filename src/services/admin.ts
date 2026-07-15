@@ -48,6 +48,7 @@ export interface Report {
   appealText?: string;
   appealEvidenceMediaIds?: any[];
   appealDeadline?: Date;
+  appealReviewDeadline?: Date;
   penaltyApplied?: string;
   adminNote?: string;
   resolvedBy?: any;
@@ -319,7 +320,7 @@ export const adminApi = {
     sort?: string;
   }) => api.get('/reports', { params }).then(res => res.data?.data || res.data),
 
-  resolveReport: (reportId: string, data: { status: typeof ReportStatusEnum.RESOLVED | typeof ReportStatusEnum.DISMISSED; adminNote: string; overridePenaltyAction?: string; overridePenaltyDurationDays?: number; resetAvatar?: boolean; resetName?: boolean; resetBio?: boolean }) =>
+  resolveReport: (reportId: string, data: { status: typeof ReportStatusEnum.RESOLVED | typeof ReportStatusEnum.DISMISSED | typeof ReportStatusEnum.APPEAL_REJECTED | typeof ReportStatusEnum.APPEAL_SUCCESS; adminNote: string; overridePenaltyAction?: string; overridePenaltyDurationDays?: number; resetAvatar?: boolean; resetName?: boolean; resetBio?: boolean }) =>
       api.patch(`/reports/${reportId}/resolve`, data).then(res => res.data?.data || res.data),
   calculatePenalty: (reportId: string): Promise<ReportPenaltySuggestion> => 
       api.get(`/reports/${reportId}/calculate-penalty`).then(res => res.data?.data || res.data),

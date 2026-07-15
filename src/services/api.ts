@@ -163,10 +163,13 @@ api.interceptors.response.use(
         } else {
           throw new Error('Invalid token format');
         }
-      } catch (err) {
+      } catch (err: any) {
         processQueue(err, null);
-        clearStoredAuth();
-        window.location.href = '/login';
+        const refreshStatus = err?.response?.status;
+        if (refreshStatus === 401 || refreshStatus === 403) {
+          clearStoredAuth();
+          window.location.href = '/login';
+        }
         return Promise.reject(err);
       } finally {
         isRefreshing = false;
@@ -227,6 +230,24 @@ export const authApi = {
   // Refresh token dùng cookie → apiWithCookies
   refreshToken: () => apiWithCookies.post('/auth/refreshToken'),
 };
+
+export interface AppealContext {
+  reportId: string;
+  status: 'resolved' | 'appeal_pending' | 'appeal_rejected' | 'appeal_success' | string;
+  appealDeadline?: string;
+  appealReviewDeadline?: string;
+  penaltyApplied?: string;
+  penaltyType?: 'warning' | 'mute' | 'ban' | string;
+  appealToken?: string;
+}
+
+export interface LoginPayload {
+  accessToken?: string;
+  user?: any;
+  isBanned?: boolean;
+  banUntil?: string;
+  appeal?: AppealContext;
+}
 
 export const systemApi = {
   getHello: () => axios.get(API_BASE_URL, {
@@ -341,4 +362,30 @@ export const reportsApi = {
 
     return api.post('/reports', formData).then(res => res.data);
   },
+
+  getAppealAccess: (reportId: string) =>
+    api.get(`/reports/${reportId}/appeal-access`).then(res => res.data?.data || res.data),
+
+  submitAppeal: (reportId: string, data: { appealText: string; files?: File[]; appealToken: string }) => {
+    const formData = new FormData();
+    formData.append('appealText', data.appealText);
+    data.files?.forEach((file) => {
+      formData.append('files', file);
+    });
+
+    return axios.patch(`${API_BASE_URL}/reports/${reportId}/appeal`, formData, {
+      withCredentials: true,
+      headers: {
+        Authorization: `Bearer ${data.appealToken}`,
+      },
+    }).then(res => res.data?.data || res.data);
+  },
+};
+
+export const notificationsApi = {
+  getAll: (params?: { cursor?: string; limit?: number }) =>
+    api.get('/notifications', { params }),
+  unreadCount: () => api.get('/notifications/unread-count'),
+  markRead: (id: string) => api.patch(`/notifications/${id}/read`),
+  markAllRead: () => api.patch('/notifications/read-all'),
 };

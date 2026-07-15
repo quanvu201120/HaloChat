@@ -1,6 +1,6 @@
-import { useMemo, useState, useEffect, useLayoutEffect, useRef } from 'react';
+import { useMemo, useState, useEffect, useLayoutEffect, useRef, type ReactNode } from 'react';
 import {
-  CornerUpLeft, Pencil, Trash2, Heart, Download, UserX,
+  CornerUpLeft, Pencil, Trash2, Heart, Download, UserX, Pin,
 } from 'lucide-react';
 import AudioPlayer from './AudioPlayer';
 import type { Message, MessageReaction } from '../services/messages';
@@ -21,11 +21,16 @@ interface Props {
   onReply?: () => void;
   onEdit?: () => void;
   onDelete?: () => void;
+  onPin?: () => void;
+  onUnpin?: () => void;
   onToggleReaction?: (type: string) => void;
   onMediaClick?: (media: any) => void;
   onAvatarClick?: () => void;
   disableActions?: boolean;
   disableReply?: boolean;
+  messageRef?: (node: HTMLDivElement | null) => void;
+  isHighlighted?: boolean;
+  onReplyReferenceClick?: () => void;
 }
 
 export const REACTIONS = [
@@ -108,6 +113,32 @@ function getEmojiOnlySizeClass(text: string): string {
   }
 }
 
+function renderHighlightedContent(text: string): ReactNode[] {
+  const segments: ReactNode[] = [];
+  const pattern = /@\[\[(.*?)\]\]/gs;
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = pattern.exec(text)) !== null) {
+    if (match.index > lastIndex) {
+      segments.push(text.slice(lastIndex, match.index));
+    }
+
+    segments.push(
+      <span key={`${match.index}-${match[1]}`} className="msg-highlight">
+        {match[1]}
+      </span>,
+    );
+    lastIndex = pattern.lastIndex;
+  }
+
+  if (lastIndex < text.length) {
+    segments.push(text.slice(lastIndex));
+  }
+
+  return segments;
+}
+
 export default function MessageBubble({
   message,
   isMe,
@@ -122,11 +153,16 @@ export default function MessageBubble({
   onReply,
   onEdit,
   onDelete,
+  onPin,
+  onUnpin,
   onToggleReaction,
   onMediaClick,
   onAvatarClick,
   disableActions,
   disableReply,
+  messageRef,
+  isHighlighted,
+  onReplyReferenceClick,
 }: Props) {
   const [showActions, setShowActions] = useState(false);
   const [showStatus, setShowStatus] = useState(false);
@@ -155,7 +191,7 @@ export default function MessageBubble({
 
   // Dynamic positioning for mobile edge cases
   useEffect(() => {
-    if (showActions && actionsRef.current && window.innerWidth <= 768) {
+    if (showActions && actionsRef.current && window.innerWidth <= 767.98) {
       actionsRef.current.style.left = '';
       actionsRef.current.style.right = '';
       
@@ -177,7 +213,7 @@ export default function MessageBubble({
   }, [showActions, isMe]);
 
   useEffect(() => {
-    if (showReactionPicker && reactionsRef.current && window.innerWidth <= 768) {
+    if (showReactionPicker && reactionsRef.current && window.innerWidth <= 767.98) {
       reactionsRef.current.style.left = '';
       reactionsRef.current.style.right = '';
       reactionsRef.current.style.transform = '';
@@ -199,12 +235,15 @@ export default function MessageBubble({
     if (!showReactionPicker || !reactionsRef.current) return;
 
     const headerEl = document.querySelector('.chat-header') as HTMLElement | null;
+    const pinnedBannerEl = document.querySelector('.pinned-message-banner') as HTMLElement | null;
     const triggerRect = actionsRef.current?.getBoundingClientRect();
     if (!triggerRect) return;
     const pickerRect = reactionsRef.current.getBoundingClientRect();
     const headerBottom = headerEl?.getBoundingClientRect().bottom ?? 0;
+    const pinnedBannerBottom = pinnedBannerEl?.getBoundingClientRect().bottom ?? 0;
+    const effectiveTopBoundary = Math.max(headerBottom, pinnedBannerBottom);
     const gap = 1;
-    const needsBelow = triggerRect.top - pickerRect.height - gap < headerBottom;
+    const needsBelow = triggerRect.top - pickerRect.height - gap < effectiveTopBoundary;
 
     setReactionPickerPlacement(needsBelow ? 'below' : 'above');
   }, [showReactionPicker]);
@@ -253,6 +292,7 @@ export default function MessageBubble({
 
   const isEmojiOnlyText = message.type === 'text' && !message.isDeleted && !message.replyTo && isEmojiOnly(message.content);
   const emojiSizeClass = isEmojiOnlyText ? getEmojiOnlySizeClass(message.content!) : '';
+  const renderedText = message.type === 'text' ? renderHighlightedContent(message.content || '') : null;
 
   const isSenderDisabled = message.isSenderDisabled
     || (typeof message.sender === 'object' && !!message.sender?.isDisabled)
@@ -321,6 +361,7 @@ export default function MessageBubble({
 
   return (
     <div
+      ref={messageRef}
       className={`msg-row${isMe ? ' me' : ' other'}${showActions && !isSenderDisabled && !disableActions ? ' show-actions' : ''}`}
       onMouseEnter={() => {
         if (isSenderDisabled || disableActions) return;
@@ -355,7 +396,7 @@ export default function MessageBubble({
         )}
         <div className={`msg-content-wrapper${isMe ? ' me' : ' other'}${!message.isDeleted && !isSenderDisabled && reactions.length > 0 ? ' has-reactions' : ''}`} style={{ flex: 1, maxWidth: isMe ? '100%' : 'calc(100% - 40px)' }}>
           <div
-            className={`msg-bubble${isMe ? ' me' : ' other'}${message.isDeleted ? ' deleted' : ''}${isOptimistic ? ' sending' : ''}${isError ? ' error' : ''}${isMediaOnly ? ' media-only' : ''}${isEmojiOnlyText ? ' emoji-only' : ''}`}
+            className={`msg-bubble${isMe ? ' me' : ' other'}${message.isDeleted ? ' deleted' : ''}${isOptimistic ? ' sending' : ''}${isError ? ' error' : ''}${isMediaOnly ? ' media-only' : ''}${isEmojiOnlyText ? ' emoji-only' : ''}${isHighlighted ? ' highlight-target' : ''}`}
             onClick={() => isMe && setShowStatus((prev) => !prev)}
             style={isSenderDisabled ? { opacity: 0.8 } : undefined}
         >
@@ -425,11 +466,28 @@ export default function MessageBubble({
                   <Trash2 size={14} />
                 </button>
               )}
+              {onPin && !message.isDeleted && (
+                <button className="action-btn" title="Ghim" onClick={(e) => { e.stopPropagation(); onPin?.(); setShowActions(false); }}>
+                  <Pin size={14} />
+                </button>
+              )}
+              {onUnpin && !message.isDeleted && (
+                <button className="action-btn" title="Bỏ ghim" onClick={(e) => { e.stopPropagation(); onUnpin?.(); setShowActions(false); }}>
+                  <Pin size={14} style={{ transform: 'rotate(45deg)' }} />
+                </button>
+              )}
             </div>
           )}
 
           {!message.isDeleted && message.replyTo && (
-            <div className="msg-reply-ref">
+            <div
+              className={`msg-reply-ref${onReplyReferenceClick ? ' clickable' : ''}`}
+              onClick={(event) => {
+                if (!onReplyReferenceClick) return;
+                event.stopPropagation();
+                onReplyReferenceClick();
+              }}
+            >
               {replyPreview.senderName && (
                 <div className="msg-reply-ref-name">{replyPreview.senderName}</div>
               )}
@@ -443,18 +501,18 @@ export default function MessageBubble({
               Tin nhắn đã thu hồi
             </span>
           ) : message.type === 'text' ? (
-            <span className={`msg-text ${emojiSizeClass}`}>{message.content}</span>
+            <span className={`msg-text ${emojiSizeClass}`}>{renderedText}</span>
           ) : message.type === 'image' && typeof message.media === 'object' && message.media?.url ? (
             <img
               src={message.media.url}
               alt={message.media.fileName || 'Ảnh'}
               className="msg-image"
               loading="lazy"
-              onClick={(e) => { e.stopPropagation(); onMediaClick?.(message.media); }}
+              onClick={(e) => { onMediaClick?.(message.media); }}
               style={{ cursor: onMediaClick ? 'pointer' : 'default' }}
             />
           ) : message.type === 'video' && typeof message.media === 'object' && message.media?.url ? (
-            <div style={{ position: 'relative', cursor: onMediaClick ? 'pointer' : 'default', display: 'inline-block' }} onClick={(e) => { e.stopPropagation(); onMediaClick?.(message.media); }}>
+            <div className="msg-video-block" onClick={(e) => { onMediaClick?.(message.media); }}>
               <video className="msg-video" preload="metadata" style={{ display: 'block' }}>
                 <source src={message.media.url} type={message.media.mimeType || 'video/mp4'} />
               </video>
