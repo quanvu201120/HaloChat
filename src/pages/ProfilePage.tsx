@@ -308,7 +308,7 @@ export function ProfilePageContent() {
   };
 
   const infoItems = [
-    { icon: <Activity size={14} />, label: 'Loại TK', value: user?.accountType || 'LOCAL' },
+    { icon: <Activity size={14} />, label: 'Tài khoản', value: user?.accountType || 'LOCAL' },
   ];
 
   const handleLogoutAll = () => {

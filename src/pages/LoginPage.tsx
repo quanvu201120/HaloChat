@@ -9,6 +9,8 @@ import { useToast } from '../context/ToastContext';
 import { useTheme } from '../context/ThemeContext';
 import { Eye, EyeOff, LogIn, Moon, Sun } from 'lucide-react';
 
+const GOOGLE_OAUTH_STATE_KEY = 'halochat_google_oauth_state';
+
 const loginSchema = z.object({
   identifier: z.string()
     .min(1, 'Email hoặc Số điện thoại không được để trống')
@@ -71,6 +73,30 @@ export default function LoginPage() {
         toast.error(msg);
       }
     }
+  };
+
+  const handleGoogleLogin = () => {
+    const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID?.trim();
+    const redirectUri = import.meta.env.VITE_GOOGLE_REDIRECT_URI?.trim();
+
+    if (!clientId || !redirectUri) {
+      toast.error('Chưa cấu hình đăng nhập Google.');
+      return;
+    }
+
+    const state = crypto.randomUUID?.() || `${Date.now()}-${Math.random()}`;
+    sessionStorage.setItem(GOOGLE_OAUTH_STATE_KEY, state);
+
+    const params = new URLSearchParams({
+      client_id: clientId,
+      redirect_uri: redirectUri,
+      response_type: 'code',
+      scope: 'openid email profile',
+      state,
+      prompt: 'select_account',
+    });
+
+    window.location.href = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
   };
 
   return (
@@ -160,6 +186,23 @@ export default function LoginPage() {
               ? <><div className="loading-spinner" style={{ width: 16, height: 16 }} /> Đang đăng nhập...</>
               : <><LogIn size={16} /> Đăng nhập</>
             }
+          </button>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', margin: '4px 0' }}>
+            <div className="divider" style={{ flex: 1, margin: 0 }} />
+            <span style={{ color: 'var(--text-muted)', fontSize: '12px' }}>hoặc</span>
+            <div className="divider" style={{ flex: 1, margin: 0 }} />
+          </div>
+
+          <button
+            id="btn-google-login"
+            type="button"
+            className="btn btn-secondary"
+            disabled={isLoading}
+            onClick={handleGoogleLogin}
+            style={{ width: '100%', justifyContent: 'center', padding: '11px' }}
+          >
+            <span style={{ fontWeight: 800, fontSize: '16px', lineHeight: 1 }}>G</span> Đăng nhập với Google
           </button>
 
           <div style={{ textAlign: 'center', marginTop: '16px', fontSize: '13px', color: 'var(--text-muted)' }}>

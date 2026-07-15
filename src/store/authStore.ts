@@ -37,6 +37,7 @@ interface AuthState {
   isLoading: boolean;
   isAdminVerified: boolean;
   login: (identifier: string, password: string) => Promise<LoginPayload>;
+  googleLogin: (code: string) => Promise<LoginPayload>;
   logout: () => Promise<void>;
   logoutAll: () => Promise<void>;
   localLogout: () => void;
@@ -95,6 +96,41 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
       if (!accessToken || !user) {
         throw new Error('Đăng nhập thất bại: Không nhận được token từ server');
+      }
+
+      persistAccessToken(accessToken);
+      localStorage.setItem('user', JSON.stringify(user));
+      notifyStoredUserChanged();
+      set({ user, accessToken, bannedAppeal: null });
+      return payload;
+    } catch (error) {
+      clearStoredAuth();
+      set({ bannedAppeal: null });
+      throw error;
+    } finally {
+      set({ isLoading: false });
+    }
+  },
+
+  googleLogin: async (code: string) => {
+    set({ isLoading: true });
+    try {
+      const res = await authApi.googleLogin(code);
+      const payload = (res.data?.data || res.data) as LoginPayload;
+      const { accessToken, user, isBanned, banUntil, appeal } = payload;
+
+      if (isBanned) {
+        clearStoredAuth();
+        set({
+          user: null,
+          accessToken: null,
+          bannedAppeal: appeal ? { ...appeal, banUntil } : null,
+        });
+        return payload;
+      }
+
+      if (!accessToken || !user) {
+        throw new Error('Đăng nhập Google thất bại: Không nhận được token từ server');
       }
 
       persistAccessToken(accessToken);

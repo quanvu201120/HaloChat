@@ -127,7 +127,8 @@ api.interceptors.response.use(
       requestUrl.includes('/auth/active') ||
       requestUrl.includes('/auth/resend-code-active') ||
       requestUrl.includes('/auth/forgot-password') ||
-      requestUrl.includes('/auth/reset-password');
+      requestUrl.includes('/auth/reset-password') ||
+      requestUrl.includes('/auth/google');
 
     const hasAccessToken = Boolean(localStorage.getItem('accessToken'));
 
@@ -184,6 +185,9 @@ export const authApi = {
   // LocalStrategy: usernameField = 'email' → gửi { email, password }
   login: (identifier: string, password: string) =>
     apiWithCookies.post('/auth/login', { identifier, password }),
+
+  googleLogin: (code: string) =>
+    apiWithCookies.post('/auth/google', { code }),
 
   // Logout cần cookie refreshToken → dùng apiWithCookies
   logout: () => apiWithCookies.post('/auth/logout'),

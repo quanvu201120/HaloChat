@@ -11,6 +11,7 @@ import RegisterPage from './pages/RegisterPage';
 import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import ActiveAccountPage from './pages/ActiveAccountPage';
 import AppealPage from './pages/AppealPage';
+import GoogleCallbackPage from './pages/GoogleCallbackPage';
 
 // Protected pages
 import EmptyStatePage from './pages/EmptyStatePage';
@@ -53,6 +54,7 @@ export default function App() {
                 <Route path="/register" element={<RegisterPage />} />
                 <Route path="/forgot-password" element={<ForgotPasswordPage />} />
                 <Route path="/active-account" element={<ActiveAccountPage />} />
+                <Route path="/auth/google/callback" element={<GoogleCallbackPage />} />
               </Route>
 
               <Route path="/appeal" element={<AppealPage />} />
