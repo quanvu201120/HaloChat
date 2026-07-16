@@ -212,7 +212,7 @@ export function ProfilePageContent() {
   const [selectedMedia, setSelectedMedia] = useState<{ url: string; type: 'image' | 'video' } | null>(null);
   const [isAvatarMenuOpen, setIsAvatarMenuOpen] = useState(false);
   const menuRef = React.useRef<HTMLDivElement>(null);
-  const currentSessionId = decodeJwtPayload(accessToken || localStorage.getItem('accessToken'))?.sessionId || null;
+  const currentSessionId = decodeJwtPayload(accessToken)?.sessionId || null;
 
   React.useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -956,7 +956,14 @@ export function ProfilePageContent() {
               {UI_MESSAGES.profile.sessionsEmpty}
             </div>
           ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <div style={{ 
+              display: 'flex', 
+              flexDirection: 'column', 
+              gap: '12px',
+              maxHeight: '480px',
+              overflowY: 'auto',
+              paddingRight: '4px'
+            }}>
               {sessions.map((session) => (
                 <div
                   key={session.sessionId}

@@ -5,10 +5,11 @@ import SocketManager from './components/SocketManager';
 import Sidebar from './components/Sidebar';
 import NavigationSidebar from './components/NavigationSidebar';
 import ContactSidebar from './components/ContactSidebar';
+import SessionRestoreFallback from './components/SessionRestoreFallback';
 import { Menu } from 'lucide-react';
 
 export default function AppLayout() {
-  const { user, accessToken } = useAuth();
+  const { user, accessToken, isSessionRestoring, sessionRestoreError } = useAuth();
   const location = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
@@ -17,6 +18,14 @@ export default function AppLayout() {
     window.addEventListener('openMobileMenu', handleOpenMenu);
     return () => window.removeEventListener('openMobileMenu', handleOpenMenu);
   }, []);
+
+  if (isSessionRestoring) {
+    return <div style={{ minHeight: '100vh', background: 'var(--bg-primary)' }} />;
+  }
+
+  if (user && !accessToken && sessionRestoreError) {
+    return <SessionRestoreFallback />;
+  }
 
   if (!user || !accessToken) {
     return <Navigate to="/login" replace />;

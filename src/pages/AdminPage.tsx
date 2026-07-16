@@ -4,9 +4,10 @@ import { UserRole } from '../constants/roles';
 import { Navigate, useNavigate } from 'react-router-dom';
 import ConfirmPasswordModal from '../components/ConfirmPasswordModal';
 import AdminLayout from './admin/AdminLayout';
+import SessionRestoreFallback from '../components/SessionRestoreFallback';
 
 export default function AdminPage() {
-  const { user, isAdminVerified, setAdminVerified } = useAuthStore();
+  const { user, accessToken, isSessionRestoring, sessionRestoreError, isAdminVerified, setAdminVerified } = useAuthStore();
   const navigate = useNavigate();
 
   // Reset admin verification state when leaving the page or tab loses focus
@@ -25,6 +26,14 @@ export default function AdminPage() {
       setAdminVerified(false);
     };
   }, [setAdminVerified]);
+
+  if (isSessionRestoring) {
+    return <div className="w-full h-screen bg-[var(--bg-primary)]" />;
+  }
+
+  if (user && !accessToken && sessionRestoreError) {
+    return <SessionRestoreFallback />;
+  }
 
   if (user?.role !== UserRole.ADMIN && user?.role !== UserRole.SUPER_ADMIN) {
     return <Navigate to="/" replace />;

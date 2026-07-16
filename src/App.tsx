@@ -4,6 +4,7 @@ import { useAuthStore } from './store/authStore';
 import { ToastProvider } from './context/ToastContext';
 import { ThemeProvider } from './context/ThemeContext';
 import AppLayout from './AppLayout';
+import SessionRestoreFallback from './components/SessionRestoreFallback';
 
 // Public pages
 import LoginPage from './pages/LoginPage';
@@ -27,7 +28,13 @@ function ChatRoute() {
 }
 
 function PublicLayout() {
-  const { user, accessToken } = useAuthStore();
+  const { user, accessToken, isSessionRestoring, sessionRestoreError } = useAuthStore();
+  if (isSessionRestoring) {
+    return <div style={{ minHeight: '100vh', background: 'var(--bg-primary)' }} />;
+  }
+  if (user && !accessToken && sessionRestoreError) {
+    return <SessionRestoreFallback />;
+  }
   if (user && accessToken) {
     return <Navigate to="/" replace />;
   }

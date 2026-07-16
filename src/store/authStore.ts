@@ -3,10 +3,15 @@ import {
   type AppealContext,
   type LoginPayload,
   authApi,
+  broadcastAccessToken,
   clearStoredAuth,
+  getAccessToken,
   notifyStoredUserChanged,
   persistAccessToken,
-  subscribeAuthStorage
+  releaseSessionRefreshLock,
+  subscribeAuthStorage,
+  tryAcquireSessionRefreshLock,
+  waitForBroadcastAccessToken
 } from '../services/api';
 
 import { UserRole } from '../constants/roles';
@@ -34,7 +39,9 @@ interface AuthState {
   user: User | null;
   accessToken: string | null;
   bannedAppeal: (AppealContext & { banUntil?: string }) | null;
+  sessionRestoreError: { message: string; retryAfterSeconds: number } | null;
   isLoading: boolean;
+  isSessionRestoring: boolean;
   isAdminVerified: boolean;
   login: (identifier: string, password: string) => Promise<LoginPayload>;
   googleLogin: (code: string) => Promise<LoginPayload>;
@@ -44,6 +51,7 @@ interface AuthState {
   updateUser: (data: Partial<User>) => void;
   setAdminVerified: (status: boolean) => void;
   setBannedAppeal: (data: (AppealContext & { banUntil?: string }) | null) => void;
+  retrySessionRestore: () => Promise<void>;
   init: () => () => void;
 }
 
@@ -67,11 +75,47 @@ const readStoredUser = () => {
   return saved ? normalizeStoredUser(JSON.parse(saved) as User) : null;
 };
 
+const storedUser = readStoredUser();
+const storedAccessToken = getAccessToken();
+let sessionRefreshPromise: Promise<void> | null = null;
+
+const getErrorMessage = (error: any) => {
+  const message = error?.response?.data?.message;
+  if (typeof message === 'string') return message;
+  return error?.message || 'KhÃ´ng thá»ƒ khÃ´i phá»¥c phiÃªn Ä‘Äƒng nháº­p. Vui lÃ²ng thá»­ láº¡i.';
+};
+
+const getRetryAfterSeconds = (error: any) => {
+  const header = error?.response?.headers?.['retry-after'];
+  const headerSeconds = Number(header);
+  if (Number.isFinite(headerSeconds) && headerSeconds > 0) return Math.ceil(headerSeconds);
+
+  const matched = getErrorMessage(error).match(/(\d+)/);
+  if (matched) {
+    const seconds = Number(matched[1]);
+    if (Number.isFinite(seconds) && seconds > 0) return seconds;
+  }
+
+  return 10;
+};
+
+const getRefreshAccessToken = (data: unknown) => {
+  const responseData = data as { data?: unknown };
+  const payload = responseData?.data ?? data;
+  const accessToken = typeof payload === 'object' && payload !== null && 'accessToken' in payload
+    ? (payload as { accessToken?: unknown }).accessToken
+    : null;
+  const newToken = accessToken || (typeof payload === 'string' ? payload : null);
+  return typeof newToken === 'string' && newToken ? newToken : null;
+};
+
 export const useAuthStore = create<AuthState>((set, get) => ({
-  user: readStoredUser(),
-  accessToken: localStorage.getItem('accessToken'),
+  user: storedUser,
+  accessToken: storedAccessToken,
   bannedAppeal: null,
+  sessionRestoreError: null,
   isLoading: false,
+  isSessionRestoring: Boolean(storedUser && !storedAccessToken),
   isAdminVerified: false,
 
   setAdminVerified: (status: boolean) => set({ isAdminVerified: status }),
@@ -101,7 +145,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       persistAccessToken(accessToken);
       localStorage.setItem('user', JSON.stringify(user));
       notifyStoredUserChanged();
-      set({ user, accessToken, bannedAppeal: null });
+      set({ user, accessToken, bannedAppeal: null, sessionRestoreError: null });
       return payload;
     } catch (error) {
       clearStoredAuth();
@@ -136,7 +180,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       persistAccessToken(accessToken);
       localStorage.setItem('user', JSON.stringify(user));
       notifyStoredUserChanged();
-      set({ user, accessToken, bannedAppeal: null });
+      set({ user, accessToken, bannedAppeal: null, sessionRestoreError: null });
       return payload;
     } catch (error) {
       clearStoredAuth();
@@ -154,18 +198,18 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       // ignore
     }
     clearStoredAuth();
-    set({ user: null, accessToken: null, bannedAppeal: null });
+    set({ user: null, accessToken: null, bannedAppeal: null, sessionRestoreError: null });
   },
 
   localLogout: () => {
     clearStoredAuth();
-    set({ user: null, accessToken: null, bannedAppeal: null });
+    set({ user: null, accessToken: null, bannedAppeal: null, sessionRestoreError: null });
   },
 
   logoutAll: async () => {
     await authApi.logoutAll();
     clearStoredAuth();
-    set({ user: null, accessToken: null, bannedAppeal: null });
+    set({ user: null, accessToken: null, bannedAppeal: null, sessionRestoreError: null });
   },
 
   updateUser: (data: Partial<User>) => {
@@ -178,12 +222,183 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   init: () => {
+    let isRefreshingSession = false;
+
+    const refreshSession = async () => {
+      const user = readStoredUser();
+      const currentToken = getAccessToken();
+
+      if (!user) {
+        set({ user: null, accessToken: null, sessionRestoreError: null, isSessionRestoring: false });
+        return;
+      }
+
+      if (currentToken) {
+        set({ user, accessToken: currentToken, sessionRestoreError: null, isSessionRestoring: false });
+        return;
+      }
+
+      if (sessionRefreshPromise) {
+        await sessionRefreshPromise;
+        return;
+      }
+
+      isRefreshingSession = true;
+      set({ isSessionRestoring: true });
+
+      sessionRefreshPromise = (async () => {
+        let hasRefreshLock = false;
+        try {
+          hasRefreshLock = tryAcquireSessionRefreshLock();
+
+          if (!hasRefreshLock) {
+            const broadcastToken = await waitForBroadcastAccessToken();
+            if (broadcastToken) {
+              persistAccessToken(broadcastToken);
+              set({ user, accessToken: broadcastToken, sessionRestoreError: null });
+              return;
+            }
+
+            hasRefreshLock = tryAcquireSessionRefreshLock();
+          }
+
+          const res = await authApi.refreshToken();
+          const newToken = getRefreshAccessToken(res.data);
+
+          if (newToken) {
+            persistAccessToken(newToken);
+            broadcastAccessToken(newToken);
+            set({ user, accessToken: newToken, sessionRestoreError: null });
+          } else {
+            clearStoredAuth();
+            set({ user: null, accessToken: null, bannedAppeal: null, sessionRestoreError: null });
+          }
+        } catch (error: any) {
+          const status = error?.response?.status;
+
+          if (status === 401 || status === 403) {
+            const broadcastToken = await waitForBroadcastAccessToken(1500, false);
+            if (broadcastToken) {
+              persistAccessToken(broadcastToken);
+              set({ user, accessToken: broadcastToken, sessionRestoreError: null });
+              return;
+            }
+
+            clearStoredAuth();
+            set({ user: null, accessToken: null, bannedAppeal: null, sessionRestoreError: null });
+            return;
+          }
+
+          set({
+            user,
+            accessToken: null,
+            sessionRestoreError: {
+              message: getErrorMessage(error),
+              retryAfterSeconds: getRetryAfterSeconds(error),
+            },
+          });
+        } finally {
+          if (hasRefreshLock) {
+            releaseSessionRefreshLock();
+          }
+          sessionRefreshPromise = null;
+          isRefreshingSession = false;
+          set({ isSessionRestoring: false });
+        }
+      })();
+
+      await sessionRefreshPromise;
+    };
+
+    void refreshSession();
+
     return subscribeAuthStorage(() => {
+      const accessToken = getAccessToken();
+      const user = readStoredUser();
+
       set({
-        accessToken: localStorage.getItem('accessToken'),
-        user: readStoredUser(),
+        accessToken,
+        user,
         bannedAppeal: get().bannedAppeal,
       });
+
+      if (user && !accessToken && !isRefreshingSession) {
+        void refreshSession();
+      }
     });
-  }
+  },
+
+  retrySessionRestore: async () => {
+    const user = readStoredUser();
+    const currentToken = getAccessToken();
+
+    if (!user) {
+      set({ user: null, accessToken: null, sessionRestoreError: null });
+      return;
+    }
+
+    if (currentToken) {
+      set({ user, accessToken: currentToken, sessionRestoreError: null });
+      return;
+    }
+
+    set({ isSessionRestoring: true, sessionRestoreError: null });
+
+    let hasRefreshLock = false;
+    try {
+      hasRefreshLock = tryAcquireSessionRefreshLock();
+
+      if (!hasRefreshLock) {
+        const broadcastToken = await waitForBroadcastAccessToken();
+        if (broadcastToken) {
+          persistAccessToken(broadcastToken);
+          set({ user, accessToken: broadcastToken, sessionRestoreError: null });
+          return;
+        }
+
+        hasRefreshLock = tryAcquireSessionRefreshLock();
+      }
+
+      const res = await authApi.refreshToken();
+      const newToken = getRefreshAccessToken(res.data);
+
+      if (newToken) {
+        persistAccessToken(newToken);
+        broadcastAccessToken(newToken);
+        set({ user, accessToken: newToken, sessionRestoreError: null });
+      } else {
+        clearStoredAuth();
+        set({ user: null, accessToken: null, bannedAppeal: null, sessionRestoreError: null });
+      }
+    } catch (error: any) {
+      const status = error?.response?.status;
+
+      if (status === 401 || status === 403) {
+        const broadcastToken = await waitForBroadcastAccessToken(1500, false);
+        if (broadcastToken) {
+          persistAccessToken(broadcastToken);
+          set({ user, accessToken: broadcastToken, sessionRestoreError: null });
+          return;
+        }
+
+        clearStoredAuth();
+        set({ user: null, accessToken: null, bannedAppeal: null, sessionRestoreError: null });
+        return;
+      }
+
+      set({
+        user,
+        accessToken: null,
+        sessionRestoreError: {
+          message: getErrorMessage(error),
+          retryAfterSeconds: getRetryAfterSeconds(error),
+        },
+      });
+    } finally {
+      if (hasRefreshLock) {
+        releaseSessionRefreshLock();
+      }
+      set({ isSessionRestoring: false });
+    }
+  },
 }));

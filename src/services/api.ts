@@ -12,20 +12,115 @@ export const API_ORIGIN = envApiOrigin ? envApiOrigin : defaultOrigin;
 export const API_BASE_URL = API_ORIGIN ? `${API_ORIGIN}/api/v1` : '/api/v1';
 
 const AUTH_STORAGE_EVENT = 'halochat-auth-storage';
+const AUTH_CHANNEL_NAME = 'halochat-auth';
+const REFRESH_LOCK_KEY = 'halochat-refresh-lock';
+const ACCESS_TOKEN_SESSION_KEY = 'accessToken';
+const REFRESH_LOCK_TTL_MS = 8000;
+let accessTokenMemory: string | null = sessionStorage.getItem(ACCESS_TOKEN_SESSION_KEY);
+const authTabId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+const authChannel = 'BroadcastChannel' in window ? new BroadcastChannel(AUTH_CHANNEL_NAME) : null;
+
+type RefreshLock = {
+  ownerId: string;
+  expiresAt: number;
+};
+
+type AuthChannelMessage = {
+  type: 'access-token';
+  token: string;
+};
 
 function emitAuthStorageEvent() {
   window.dispatchEvent(new Event(AUTH_STORAGE_EVENT));
 }
 
 export function persistAccessToken(token: string) {
-  localStorage.setItem('accessToken', token);
+  accessTokenMemory = token;
+  sessionStorage.setItem(ACCESS_TOKEN_SESSION_KEY, token);
   emitAuthStorageEvent();
 }
 
+export function broadcastAccessToken(token: string) {
+  authChannel?.postMessage({ type: 'access-token', token } satisfies AuthChannelMessage);
+}
+
+export function waitForBroadcastAccessToken(timeoutMs = REFRESH_LOCK_TTL_MS, includeCurrentToken = true) {
+  const currentToken = getAccessToken();
+  if (includeCurrentToken && currentToken) return Promise.resolve(currentToken);
+
+  return new Promise<string | null>((resolve) => {
+    let settled = false;
+
+    const cleanup = () => {
+      authChannel?.removeEventListener('message', handleMessage);
+      window.clearTimeout(timeout);
+    };
+
+    const finish = (token: string | null) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      resolve(token);
+    };
+
+    const handleMessage = (event: MessageEvent<AuthChannelMessage>) => {
+      if (event.data?.type === 'access-token' && event.data.token) {
+        finish(event.data.token);
+      }
+    };
+
+    const timeout = window.setTimeout(() => finish(includeCurrentToken ? getAccessToken() : null), timeoutMs);
+    authChannel?.addEventListener('message', handleMessage);
+  });
+}
+
+export function tryAcquireSessionRefreshLock() {
+  const now = Date.now();
+
+  try {
+    const rawLock = localStorage.getItem(REFRESH_LOCK_KEY);
+    const currentLock = rawLock ? JSON.parse(rawLock) as RefreshLock : null;
+
+    if (currentLock?.expiresAt && currentLock.expiresAt > now && currentLock.ownerId !== authTabId) {
+      return false;
+    }
+
+    const nextLock: RefreshLock = {
+      ownerId: authTabId,
+      expiresAt: now + REFRESH_LOCK_TTL_MS,
+    };
+    localStorage.setItem(REFRESH_LOCK_KEY, JSON.stringify(nextLock));
+
+    const savedLock = JSON.parse(localStorage.getItem(REFRESH_LOCK_KEY) || '{}') as Partial<RefreshLock>;
+    return savedLock.ownerId === authTabId;
+  } catch {
+    return true;
+  }
+}
+
+export function releaseSessionRefreshLock() {
+  try {
+    const rawLock = localStorage.getItem(REFRESH_LOCK_KEY);
+    const currentLock = rawLock ? JSON.parse(rawLock) as RefreshLock : null;
+
+    if (currentLock?.ownerId === authTabId) {
+      localStorage.removeItem(REFRESH_LOCK_KEY);
+    }
+  } catch {
+    localStorage.removeItem(REFRESH_LOCK_KEY);
+  }
+}
+
 export function clearStoredAuth() {
+  accessTokenMemory = null;
+  sessionStorage.removeItem(ACCESS_TOKEN_SESSION_KEY);
   localStorage.removeItem('accessToken');
   localStorage.removeItem('user');
   emitAuthStorageEvent();
+}
+
+export function getAccessToken() {
+  return accessTokenMemory;
 }
 
 export function notifyStoredUserChanged() {
@@ -91,7 +186,7 @@ export function parseError(err: any): string {
 
 // Attach JWT token vào mỗi request
 const attachToken = (config: any) => {
-  const token = localStorage.getItem('accessToken');
+  const token = getAccessToken();
   if (token) config.headers.Authorization = `Bearer ${token}`;
   return config;
 };
@@ -130,7 +225,7 @@ api.interceptors.response.use(
       requestUrl.includes('/auth/reset-password') ||
       requestUrl.includes('/auth/google');
 
-    const hasAccessToken = Boolean(localStorage.getItem('accessToken'));
+    const hasAccessToken = Boolean(getAccessToken());
 
     if (status === 401 && !original._retry && !isAuthEndpoint && hasAccessToken) {
       if (isRefreshing) {
@@ -149,14 +244,30 @@ api.interceptors.response.use(
 
       original._retry = true;
       isRefreshing = true;
+      let hasRefreshLock = false;
 
       try {
+        hasRefreshLock = tryAcquireSessionRefreshLock();
+
+        if (!hasRefreshLock) {
+          const broadcastToken = await waitForBroadcastAccessToken();
+          if (broadcastToken) {
+            original.headers = original.headers || {};
+            original.headers.Authorization = `Bearer ${broadcastToken}`;
+            processQueue(null, broadcastToken);
+            return api(original);
+          }
+
+          hasRefreshLock = tryAcquireSessionRefreshLock();
+        }
+
         const { data } = await apiWithCookies.post('/auth/refreshToken');
         const resData = data?.data ?? data;
         const newToken = resData?.accessToken || (typeof resData === 'string' ? resData : null);
         
         if (typeof newToken === 'string' && newToken) {
           persistAccessToken(newToken);
+          broadcastAccessToken(newToken);
           original.headers = original.headers || {};
           original.headers.Authorization = `Bearer ${newToken}`;
           processQueue(null, newToken);
@@ -165,14 +276,27 @@ api.interceptors.response.use(
           throw new Error('Invalid token format');
         }
       } catch (err: any) {
-        processQueue(err, null);
         const refreshStatus = err?.response?.status;
         if (refreshStatus === 401 || refreshStatus === 403) {
+          const broadcastToken = await waitForBroadcastAccessToken(1500, false);
+          if (broadcastToken) {
+            original.headers = original.headers || {};
+            original.headers.Authorization = `Bearer ${broadcastToken}`;
+            processQueue(null, broadcastToken);
+            return api(original);
+          }
+
+          processQueue(err, null);
           clearStoredAuth();
           window.location.href = '/login';
+        } else {
+          processQueue(err, null);
         }
         return Promise.reject(err);
       } finally {
+        if (hasRefreshLock) {
+          releaseSessionRefreshLock();
+        }
         isRefreshing = false;
       }
     }
@@ -256,7 +380,7 @@ export interface LoginPayload {
 export const systemApi = {
   getHello: () => axios.get(API_BASE_URL, {
     headers: (() => {
-      const token = localStorage.getItem('accessToken');
+      const token = getAccessToken();
       return token ? { Authorization: `Bearer ${token}` } : undefined;
     })(),
   }),

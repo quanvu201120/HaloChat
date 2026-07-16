@@ -1280,6 +1280,7 @@ export default function ChatPage() {
     };
 
     const onRelationshipChanged = () => {
+      void reloadMessages(activeConversationId, true);
       refreshSidebarMedia();
     };
 
@@ -1325,6 +1326,7 @@ export default function ChatPage() {
     appendSidebarMedia,
     removeSidebarMedia,
     refreshSidebarMedia,
+    reloadMessages,
   ]);
 
   // Handle window focus to mark conversation as read
