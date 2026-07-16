@@ -85,7 +85,9 @@ export default function Sidebar() {
         {/* Header */}
         <div className="sidebar-header">
           <div className="sidebar-brand">
-            <div className="sidebar-brand-icon">💬</div>
+            <div className="sidebar-brand-icon">
+              <img src="/halo-icon-96.png" alt="HaloChat" className="sidebar-brand-logo" />
+            </div>
             <span className="sidebar-brand-name">
             {isRequestContext ? 'Tin nhắn chờ' : 'HaloChat'}
             </span>

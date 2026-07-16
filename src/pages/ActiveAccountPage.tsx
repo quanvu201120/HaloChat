@@ -116,8 +116,14 @@ export default function ActiveAccountPage() {
         </button>
 
         <div className="login-header">
-          <div className="login-icon" style={{ background: 'linear-gradient(135deg, var(--accent-teal), #06b6d4)' }}>
-            ✉️
+          <div
+            className="login-icon"
+            style={{
+              background: 'linear-gradient(135deg, var(--accent-teal), #06b6d4)',
+              borderRadius: '12px',
+            }}
+          >
+            <ShieldCheck size={28} color="white" />
           </div>
           <h1 className="login-title">Kích hoạt tài khoản</h1>
           <p className="login-subtitle">

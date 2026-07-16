@@ -298,6 +298,9 @@ export default function MessageBubble({
     || (typeof message.sender === 'object' && !!message.sender?.isDisabled)
     || (message.content === 'Người dùng vô hiệu hoá' && !message.isDeleted);
 
+  const isHiddenUser = senderName === 'Người dùng bị ẩn' || senderName === 'Người dùng vô hiệu hoá';
+  const shouldDisableAvatarInfo = isSenderDisabled || isHiddenUser;
+
   const handleDownload = async (event: React.MouseEvent<HTMLButtonElement>) => {
     event.stopPropagation();
     if (isDownloading || typeof message.media !== 'object' || !message.media?.url) return;
@@ -382,10 +385,10 @@ export default function MessageBubble({
         {!isMe && showAvatar && (
           <div 
             className="msg-avatar-container" 
-            onClick={onAvatarClick}
-            style={{ width: '32px', height: '32px', flexShrink: 0, borderRadius: '50%', backgroundColor: isSenderDisabled ? 'var(--bg-secondary)' : '#eee', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: 'bold', color: '#666', border: '1px solid #ddd', marginTop: showSenderName ? '20px' : '0', cursor: onAvatarClick ? 'pointer' : 'default' }}
+            onClick={shouldDisableAvatarInfo ? undefined : onAvatarClick}
+            style={{ width: '32px', height: '32px', flexShrink: 0, borderRadius: '50%', backgroundColor: shouldDisableAvatarInfo ? 'var(--bg-secondary)' : '#eee', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: 'bold', color: '#666', border: '1px solid #ddd', marginTop: showSenderName ? '20px' : '0', cursor: (onAvatarClick && !shouldDisableAvatarInfo) ? 'pointer' : 'default' }}
           >
-            {isSenderDisabled ? (
+            {shouldDisableAvatarInfo ? (
               <UserX size={18} style={{ color: 'var(--text-muted)' }} />
             ) : senderAvatarUrl ? (
               <img src={senderAvatarUrl} alt={senderName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />

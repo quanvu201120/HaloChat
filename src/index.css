@@ -177,18 +177,20 @@ body,
 .sidebar-brand-icon {
   width: 32px;
   height: 32px;
-  background: linear-gradient(
-    135deg,
-    var(--accent-primary),
-    var(--accent-secondary)
-  );
-  border-radius: 8px;
+  background: transparent;
+  border-radius: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 16px;
-  box-shadow: var(--shadow-glow);
+  box-shadow: none;
   flex-shrink: 0;
+}
+
+.sidebar-brand-logo {
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  object-fit: cover;
 }
 
 .sidebar-brand-name {
@@ -1786,8 +1788,18 @@ body,
 }
 
 .chat-empty-icon {
-  font-size: 64px;
+  width: 84px;
+  height: 84px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   animation: pulse 3s ease-in-out infinite;
+}
+
+.chat-empty-icon-image {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
 }
 
 .chat-empty-title {
@@ -2077,6 +2089,32 @@ body,
 
 .btn-success:hover {
   background: rgba(5, 150, 105, 0.15);
+}
+
+.btn-google {
+  background: #ffffff;
+  color: #3c4043;
+  border: 1px solid #dadce0;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.btn-google:hover {
+  background: #f8f9fa;
+  box-shadow: 0 1px 3px rgba(60, 64, 67, 0.2);
+  border-color: #d2e3fc;
+}
+
+[data-theme="dark"] .btn-google {
+  background: #131314;
+  color: #e3e3e3;
+  border: 1px solid #444746;
+}
+
+[data-theme="dark"] .btn-google:hover {
+  background: #1e1e1f;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+  border-color: #8e918f;
 }
 
 .btn-icon {
@@ -2551,18 +2589,19 @@ tbody tr:last-child td {
 .login-icon {
   width: 60px;
   height: 60px;
-  background: linear-gradient(
-    135deg,
-    var(--accent-primary),
-    var(--accent-secondary)
-  );
-  border-radius: var(--radius-lg);
+  background: transparent;
+  border-radius: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 26px;
   margin: 0 auto 16px;
-  box-shadow: var(--shadow-glow);
+  box-shadow: none;
+}
+
+.login-icon-image {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
 }
 
 .login-title {

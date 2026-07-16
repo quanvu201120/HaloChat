@@ -85,7 +85,7 @@ export const UI_MESSAGES = {
     updateSuccess: 'Cập nhật hồ sơ thành công!',
     logoutAllConfirm: 'Bạn có chắc chắn muốn đăng xuất khỏi tất cả các thiết bị khác?',
     logoutAllSuccess: 'Đã đăng xuất tất cả thiết bị.',
-    sessionsTitle: 'Thiết bị đã đăng nhập',
+    sessionsTitle: 'Thiết bị đang hoạt động',
     sessionsSubtitle: 'Quản lý các phiên đang hoạt động trên tài khoản của bạn.',
     sessionsLoading: 'Đang tải danh sách thiết bị...',
     sessionsEmpty: 'Chưa có thiết bị nào khác đang hoạt động.',

@@ -73,8 +73,8 @@ export default function RegisterPage() {
 
       <div className="login-card" style={{ maxWidth: '420px' }}>
         <div className="login-header">
-          <div className="login-icon" style={{ background: 'linear-gradient(135deg, var(--accent-secondary), var(--accent-teal))' }}>
-            <UserPlus size={24} color="white" />
+          <div className="login-icon">
+            <img src="/halo-icon-96.png" alt="HaloChat" className="login-icon-image" />
           </div>
           <h1 className="login-title">{UI_MESSAGES.register.title}</h1>
           <p className="login-subtitle">{UI_MESSAGES.register.subtitle}</p>

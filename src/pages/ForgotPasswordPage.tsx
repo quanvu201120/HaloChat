@@ -155,7 +155,13 @@ export default function ForgotPasswordPage() {
         {step === 'email' && (
           <>
             <div className="login-header">
-              <div className="login-icon" style={{ background: 'linear-gradient(135deg, var(--accent-orange), var(--accent-pink))' }}>
+              <div
+                className="login-icon"
+                style={{
+                  background: 'linear-gradient(135deg, var(--accent-orange), var(--accent-pink))',
+                  borderRadius: '12px',
+                }}
+              >
                 <Mail size={24} color="white" />
               </div>
               <h1 className="login-title">Quên mật khẩu</h1>
@@ -205,7 +211,13 @@ export default function ForgotPasswordPage() {
         {step === 'reset' && (
           <>
             <div className="login-header">
-              <div className="login-icon" style={{ background: 'linear-gradient(135deg, var(--accent-orange), var(--accent-pink))' }}>
+              <div
+                className="login-icon"
+                style={{
+                  background: 'linear-gradient(135deg, var(--accent-orange), var(--accent-pink))',
+                  borderRadius: '12px',
+                }}
+              >
                 <KeyRound size={24} color="white" />
               </div>
               <h1 className="login-title">Đặt mật khẩu mới</h1>

@@ -51,7 +51,21 @@ export default function GoogleCallbackPage() {
         navigate('/', { replace: true });
       })
       .catch((err) => {
-        toast.error(parseError(err));
+        const message = parseError(err);
+        const status = err?.response?.status;
+        const payload = err?.response?.data?.data || err?.response?.data;
+        const email = payload?.email || payload?.user?.email || '';
+
+        if (status === 403 && message === 'Tài khoản chưa được kích hoạt') {
+          toast.warning('Tài khoản chưa được kích hoạt. Vui lòng nhập mã xác nhận.');
+          navigate('/active-account', {
+            replace: true,
+            state: email ? { email } : undefined,
+          });
+          return;
+        }
+
+        toast.error(message);
         navigate('/login', { replace: true });
       });
   }, [googleLogin, navigate, searchParams, toast]);
