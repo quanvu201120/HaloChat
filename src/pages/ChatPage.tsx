@@ -886,7 +886,6 @@ export default function ChatPage() {
     ping();
     callHeartbeatTimerRef.current = setInterval(ping, 25_000);
   }, [callState, stopCallHeartbeat]);
-
   useEffect(() => {
     const incomingCall = (location.state as IncomingCallRouteState | null)?.incomingCall;
     if (!incomingCall || callState) return;
