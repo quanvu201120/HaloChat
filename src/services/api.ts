@@ -14,6 +14,7 @@ export const API_BASE_URL = API_ORIGIN ? `${API_ORIGIN}/api/v1` : '/api/v1';
 const AUTH_STORAGE_EVENT = 'halochat-auth-storage';
 const AUTH_CHANNEL_NAME = 'halochat-auth';
 const REFRESH_LOCK_KEY = 'halochat-refresh-lock';
+const ACCESS_TOKEN_BROADCAST_KEY = 'halochat-access-token-broadcast';
 const ACCESS_TOKEN_SESSION_KEY = 'accessToken';
 const REFRESH_LOCK_TTL_MS = 8000;
 let accessTokenMemory: string | null = sessionStorage.getItem(ACCESS_TOKEN_SESSION_KEY);
@@ -42,6 +43,13 @@ export function persistAccessToken(token: string) {
 
 export function broadcastAccessToken(token: string) {
   authChannel?.postMessage({ type: 'access-token', token } satisfies AuthChannelMessage);
+
+  try {
+    localStorage.setItem(ACCESS_TOKEN_BROADCAST_KEY, token);
+    localStorage.removeItem(ACCESS_TOKEN_BROADCAST_KEY);
+  } catch {
+    // Ignore storage failures and keep BroadcastChannel as the primary path.
+  }
 }
 
 export function waitForBroadcastAccessToken(timeoutMs = REFRESH_LOCK_TTL_MS, includeCurrentToken = true) {
@@ -53,6 +61,7 @@ export function waitForBroadcastAccessToken(timeoutMs = REFRESH_LOCK_TTL_MS, inc
 
     const cleanup = () => {
       authChannel?.removeEventListener('message', handleMessage);
+      window.removeEventListener('storage', handleStorage);
       window.clearTimeout(timeout);
     };
 
@@ -69,8 +78,15 @@ export function waitForBroadcastAccessToken(timeoutMs = REFRESH_LOCK_TTL_MS, inc
       }
     };
 
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key === ACCESS_TOKEN_BROADCAST_KEY && event.newValue) {
+        finish(event.newValue);
+      }
+    };
+
     const timeout = window.setTimeout(() => finish(includeCurrentToken ? getAccessToken() : null), timeoutMs);
     authChannel?.addEventListener('message', handleMessage);
+    window.addEventListener('storage', handleStorage);
   });
 }
 
@@ -318,9 +334,9 @@ export const authApi = {
 
   logoutAll: () => apiWithCookies.post('/auth/logoutAll'),
 
-  getSessions: () => api.get('/auth/sessions'),
+  getDevices: () => api.get('/auth/devices'),
 
-  logoutSession: (sessionId: string) => apiWithCookies.delete(`/auth/sessions/${sessionId}`),
+  logoutDevice: (deviceId: string) => apiWithCookies.delete(`/auth/devices/${deviceId}`),
 
   // RegisterAuthDto: { email, password, confirmPassword }
   register: (data: { email: string; password: string; confirmPassword: string }) =>

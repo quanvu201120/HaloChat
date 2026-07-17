@@ -11,10 +11,16 @@ import {
   FileText,
   Info,
   Sparkles,
+  Laptop,
+  CircleHelp,
+  Monitor,
+  Smartphone,
+  TabletSmartphone,
   TriangleAlert,
   X,
 } from 'lucide-react';
 import { formatDateVN } from '../utils/date';
+import { getDeviceCategoryForDisplay } from '../utils/device';
 import { UI_LIMITS } from '../constants/limits';
 import {
   useNotifications,
@@ -66,55 +72,17 @@ const NOTIFICATION_META: Record<string, NotificationMeta> = {
     softTone: 'rgba(99, 102, 241, 0.12)',
     icon: Info,
   },
+  LOGIN: {
+    label: 'Đăng nhập thiết bị mới',
+    tone: 'var(--accent-primary)',
+    softTone: 'rgba(99, 102, 241, 0.12)',
+    icon: Laptop,
+  },
 };
 
 function getNotificationMeta(type: NotificationType | string): NotificationMeta {
   return NOTIFICATION_META[type] || NOTIFICATION_META.SYSTEM;
 }
-
-type ReportStatusMeta = {
-  label: string;
-  tone: string;
-  softTone: string;
-};
-
-const REPORT_STATUS_META: Record<string, ReportStatusMeta> = {
-  pending: {
-    label: 'Đang chờ xử lý',
-    tone: 'var(--warning)',
-    softTone: 'rgba(217, 119, 6, 0.12)',
-  },
-  resolving: {
-    label: 'Đang xử lý',
-    tone: 'var(--accent-primary)',
-    softTone: 'rgba(99, 102, 241, 0.12)',
-  },
-  resolved: {
-    label: 'Đã giải quyết',
-    tone: 'var(--success)',
-    softTone: 'rgba(5, 150, 105, 0.12)',
-  },
-  dismissed: {
-    label: 'Đã bỏ qua',
-    tone: 'var(--text-muted)',
-    softTone: 'rgba(100, 116, 139, 0.12)',
-  },
-  appeal_pending: {
-    label: 'Đang kháng cáo',
-    tone: 'var(--warning)',
-    softTone: 'rgba(217, 119, 6, 0.12)',
-  },
-  appeal_rejected: {
-    label: 'Kháng cáo bị từ chối',
-    tone: 'var(--error)',
-    softTone: 'rgba(220, 38, 38, 0.12)',
-  },
-  appeal_success: {
-    label: 'Kháng cáo thành công',
-    tone: 'var(--info)',
-    softTone: 'rgba(37, 99, 235, 0.12)',
-  },
-};
 
 const REPORT_REASON_LABELS: Record<string, string> = {
   spam_harassment: 'Spam / Quấy rối',
@@ -130,14 +98,6 @@ const PENALTY_LABELS: Record<string, string> = {
   reset_and_warning: 'Gỡ thông tin & Cảnh cáo',
   reset_and_ban: 'Gỡ thông tin & Khóa tài khoản',
 };
-
-function getReportStatusMeta(status?: string): ReportStatusMeta {
-  return (status && REPORT_STATUS_META[status]) || {
-    label: status || 'Không xác định',
-    tone: 'var(--text-muted)',
-    softTone: 'rgba(148, 163, 184, 0.12)',
-  };
-}
 
 function getReportReasonLabel(reason?: string) {
   if (!reason) return 'Không xác định';
@@ -163,6 +123,26 @@ function getInitials(name?: string) {
     .slice(0, 2)
     .map((part) => part[0]?.toUpperCase() || '')
     .join('');
+}
+
+function getNotificationIcon(item: NotificationItem) {
+  if (item.type !== 'LOGIN') {
+    return getNotificationMeta(item.type).icon;
+  }
+
+  const category = getDeviceCategoryForDisplay(item.metadata?.deviceName);
+
+  switch (category) {
+    case 'mobile':
+      return Smartphone;
+    case 'tablet':
+      return TabletSmartphone;
+    case 'desktop':
+    case 'tv':
+      return Monitor;
+    default:
+      return CircleHelp;
+  }
 }
 
 function countLabel(count: number) {
@@ -279,6 +259,7 @@ function NotificationsInbox({ onClose, onSelect, selectedId }: NotificationsInbo
           <>
             {filteredNotifications.map((item) => {
               const meta = getNotificationMeta(item.type);
+              const NotificationIcon = getNotificationIcon(item);
               const isSelected = selectedId === item._id;
 
               return (
@@ -291,7 +272,7 @@ function NotificationsInbox({ onClose, onSelect, selectedId }: NotificationsInbo
                     className="notification-item-icon"
                     style={{ background: meta.softTone, color: meta.tone }}
                   >
-                    <meta.icon size={16} />
+                    <NotificationIcon size={16} />
                   </div>
                   <div className="notification-item-body">
                     <div className="notification-item-top">
@@ -342,7 +323,7 @@ function NotificationDetailStage({ item, onClose }: NotificationDetailStageProps
   const navigate = useNavigate();
   const meta = getNotificationMeta(item.type);
   const MetaIcon = meta.icon;
-  const reportStatus = getReportStatusMeta(item.reportStatus);
+  const metadata = item.metadata;
   const avatarUrl = getMediaUrl(item.snapshot?.avatarMediaId);
   const showAppealButton =
     item.type === 'REPORT_RESOLVED' &&
@@ -430,17 +411,76 @@ function NotificationDetailStage({ item, onClose }: NotificationDetailStageProps
               </div>
             </div>
 
-            {item.snapshot ? (
+            {item.type === 'LOGIN' ? (
+              <div className="notifications-stage-section">
+                <div className="notifications-stage-section-title">Thiết bị đăng nhập</div>
+                <div
+                  style={{
+                    padding: '18px',
+                    borderRadius: '22px',
+                    border: '1px solid rgba(99, 102, 241, 0.16)',
+                    background:
+                      'radial-gradient(circle at top left, rgba(99, 102, 241, 0.12), transparent 42%), linear-gradient(135deg, rgba(255, 255, 255, 0.94), rgba(243, 244, 255, 0.92))',
+                    boxShadow: '0 16px 32px rgba(99, 102, 241, 0.10)',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                    <div
+                      className="notifications-stage-avatar"
+                      style={{
+                        width: '68px',
+                        height: '68px',
+                        borderRadius: '20px',
+                        background: 'rgba(99, 102, 241, 0.12)',
+                        color: 'var(--accent-primary)',
+                        border: '1px solid rgba(99, 102, 241, 0.18)',
+                      }}
+                    >
+                      {(() => {
+                        const DeviceIcon = getNotificationIcon(item);
+                        return <DeviceIcon size={24} />;
+                      })()}
+                    </div>
+
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      
+                      <div
+                        style={{
+                          marginTop: '10px',
+                          fontSize: '18px',
+                          fontWeight: 800,
+                          color: 'var(--text-primary)',
+                          lineHeight: 1.35,
+                          wordBreak: 'break-word',
+                        }}
+                      >
+                        {metadata?.deviceName || 'Thiết bị mới'}
+                      </div>
+                      <div
+                        style={{
+                          marginTop: '6px',
+                          fontSize: '13px',
+                          lineHeight: 1.6,
+                          color: 'var(--text-secondary)',
+                        }}
+                      >
+                        Thiết bị này vừa được dùng để đăng nhập vào tài khoản của bạn.
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : item.snapshot ? (
               <>
                 <div className="notifications-stage-grid">
                   
                   <div className="notifications-stage-stat-card">
                     <span>Lý do vi phạm</span>
-                    <strong>{getReportReasonLabel(item.reason)}</strong>
+                    <strong>{getReportReasonLabel(metadata?.reason)}</strong>
                   </div>
                   <div className="notifications-stage-stat-card">
                     <span>Phương thức xử lí</span>
-                    <strong>{getPenaltyLabel(item.penaltyApplied)}</strong>
+                    <strong>{getPenaltyLabel(metadata?.penaltyApplied)}</strong>
                   </div>
                   <div className="notifications-stage-stat-card">
                     <span>
@@ -454,7 +494,7 @@ function NotificationDetailStage({ item, onClose }: NotificationDetailStageProps
                       {item.type === 'REPORT_RESOLVED' || item.type === 'REPORT_APPEAL_PENDING'
                         ? '30 ngày'
                         : item.type === 'REPORT_APPEAL_SUCCESS'
-                          ? <span style={{ color: 'var(--success)' }}>{getAppealSuccessResult(item.penaltyApplied)}</span>
+                          ? <span style={{ color: 'var(--success)' }}>{getAppealSuccessResult(metadata?.penaltyApplied)}</span>
                           : item.type === 'REPORT_APPEAL_REJECTED'
                             ? <span style={{ color: 'var(--error)' }}>Thất bại</span>
                             : <span style={{ color: 'var(--text-muted)' }}>—</span>}
@@ -485,10 +525,8 @@ function NotificationDetailStage({ item, onClose }: NotificationDetailStageProps
                 <div className="notifications-stage-empty-icon">
                   <FileText size={20} />
                 </div>
-                <div className="notifications-stage-empty-title">Không có dữ liệu báo cáo</div>
-                <div className="notifications-stage-empty-desc">
-                  Thông báo này chưa có snapshot báo cáo.
-                </div>
+                <div className="notifications-stage-empty-title">Không có dữ liệu</div>
+                
               </div>
             )}
           </motion.div>
@@ -609,4 +647,3 @@ export function NotificationsCenter() {
     </>
   );
 }
-

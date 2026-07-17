@@ -7,12 +7,26 @@ import { normalizeMessage } from '../services/messages';
 import { useToast } from '../context/ToastContext';
 import { useNavigate } from 'react-router-dom';
 import { queryClient } from '../lib/queryClient';
+import { startCallTone, stopCallTone, unlockCallTone } from '../utils/callTone';
+
+type IncomingCallRouteState = {
+  callId: string;
+  callerId: string;
+  calleeId: string;
+  conversationId: string;
+  callType: 'audio' | 'video';
+  callToken?: string;
+};
 
 export default function SocketManager() {
   const toast = useToast();
   const navigate = useNavigate();
 
   useEffect(() => {
+    const unlockTone = () => unlockCallTone();
+    window.addEventListener('pointerdown', unlockTone, { once: true });
+    window.addEventListener('touchstart', unlockTone, { once: true });
+
     // We subscribe to the store instead of calling hook directly to avoid unnecessary re-renders of the manager component
     const unsubAuth = useAuthStore.subscribe((state, prevState) => {
       if (state.user?.muteUntil !== prevState.user?.muteUntil) {
@@ -290,6 +304,18 @@ export default function SocketManager() {
         void queryClient.invalidateQueries({ queryKey: ['notifications-unread-count'] });
       };
 
+      const onIncomingCall = (data: IncomingCallRouteState) => {
+        const conversationId = normalizeId(data.conversationId);
+        if (!conversationId || data.calleeId !== currentUserId) return;
+        startCallTone('incoming');
+        if (window.location.pathname === `/chat/${conversationId}`) return;
+
+        navigate(`/chat/${conversationId}`, {
+          state: { incomingCall: { ...data, conversationId } },
+        });
+      };
+      const onCallFinished = () => stopCallTone();
+
       sock.on('connect', onConnect);
       sock.on('disconnect', onDisconnect);
       sock.on('user:unseen-message', onUnseenMessage);
@@ -321,6 +347,10 @@ export default function SocketManager() {
       sock.on('relationship:unblocked', onRelationshipUnblocked);
       sock.on('notification:created', onNotificationCreated);
       sock.on('notification.created', onNotificationCreated);
+      sock.on('call:incoming', onIncomingCall);
+      sock.on('call:accepted', onCallFinished);
+      sock.on('call:rejected', onCallFinished);
+      sock.on('call:ended', onCallFinished);
 
       if (sock.connected) {
         chatStore.setIsSocketConnected(true);
@@ -345,6 +375,9 @@ export default function SocketManager() {
       unsubAuth();
       unsubFetch();
       clearMuteTimer();
+      stopCallTone();
+      window.removeEventListener('pointerdown', unlockTone);
+      window.removeEventListener('touchstart', unlockTone);
       if (currentSock) disconnectSocket();
     };
   }, []);

@@ -6,12 +6,13 @@ import { z } from 'zod';
 import { useAuthStore as useAuth } from '../store/authStore';
 import { authApi, usersApi, parseError } from '../services/api';
 import { useToast } from '../context/ToastContext';
-import { UserCircle, Save, Phone, MapPin, Mail, Shield, Activity, LogOut, Camera, Trash2, AlertTriangle, Edit2, ChevronLeft, Calendar, Users, FileText, Monitor, RefreshCw } from 'lucide-react';
+import { UserCircle, Save, Phone, MapPin, Mail, Shield, Activity, LogOut, Camera, Trash2, AlertTriangle, Edit2, ChevronLeft, Calendar, Users, FileText, Monitor, Smartphone, TabletSmartphone, CircleHelp, RefreshCw } from 'lucide-react';
 import ConfirmModal from '../components/ConfirmModal';
 import UpdateEmailModal from '../components/UpdateEmailModal';
 import MediaLightbox from '../components/MediaLightbox';
 import { UserRole } from '../constants/roles';
 import { UI_MESSAGES } from '../constants/messages';
+import { getDeviceCategoryForDisplay, getDeviceDetailLabel, getDeviceDisplayLabel } from '../utils/device';
 
 const profileSchema = z.object({
   name: z.string().optional(),
@@ -35,6 +36,8 @@ type ProfileFormValues = z.infer<typeof profileSchema>;
 
 type ProfileSession = {
   sessionId: string;
+  deviceId: string;
+  deviceCategory: ReturnType<typeof getDeviceCategoryForDisplay>;
   deviceLabel: string;
   deviceDetail: string;
   lastActiveLabel: string;
@@ -45,6 +48,7 @@ type ProfileSession = {
 
 type SessionApiItem = {
   _id?: string;
+  deviceId?: string;
   sessionId?: string;
   deviceName?: string;
   userAgent?: string;
@@ -53,8 +57,6 @@ type SessionApiItem = {
   createdAt?: string | Date;
   updatedAt?: string | Date;
 };
-
-const UNKNOWN_DEVICE_LABEL = 'Thiết bị không xác định';
 
 const decodeJwtPayload = (token?: string | null) => {
   if (!token) return null;
@@ -95,70 +97,17 @@ const toTimestamp = (value?: string | Date | null) => {
   return Number.isNaN(date.getTime()) ? 0 : date.getTime();
 };
 
-const buildDeviceLabel = (deviceName?: string, userAgent?: string) => {
-  const trimmedDeviceName = deviceName?.trim();
-  if (trimmedDeviceName) return trimmedDeviceName;
-
-  const ua = (userAgent || '').toLowerCase();
-  const browser = ua.includes('edg/')
-    ? 'Edge'
-    : ua.includes('chrome/') && !ua.includes('edg/')
-      ? 'Chrome'
-      : ua.includes('firefox/')
-        ? 'Firefox'
-        : ua.includes('safari/') && !ua.includes('chrome/')
-          ? 'Safari'
-          : ua.includes('opr/') || ua.includes('opera/')
-            ? 'Opera'
-            : '';
-
-  const platform = ua.includes('windows') ? 'Windows'
-    : ua.includes('mac os') || ua.includes('macintosh') ? 'macOS'
-      : ua.includes('android') ? 'Android'
-        : ua.includes('iphone') || ua.includes('ipad') || ua.includes('ios') ? 'iOS'
-          : ua.includes('linux') ? 'Linux'
-            : '';
-
-  if (!browser && !platform) return UNKNOWN_DEVICE_LABEL;
-  if (browser && platform) return `${browser} trên ${platform}`;
-  return browser || platform || UNKNOWN_DEVICE_LABEL;
-};
-
-const buildDeviceDetail = (userAgent?: string) => {
-  if (!userAgent?.trim()) return UNKNOWN_DEVICE_LABEL;
-
-  const ua = userAgent.toLowerCase();
-  const browser = ua.includes('edg/')
-    ? 'Edge'
-    : ua.includes('chrome/') && !ua.includes('edg/')
-      ? 'Chrome'
-      : ua.includes('firefox/')
-        ? 'Firefox'
-        : ua.includes('safari/') && !ua.includes('chrome/')
-          ? 'Safari'
-          : ua.includes('opr/') || ua.includes('opera/')
-            ? 'Opera'
-            : '';
-
-  const platform = ua.includes('windows') ? 'Windows'
-    : ua.includes('mac os') || ua.includes('macintosh') ? 'macOS'
-      : ua.includes('android') ? 'Android'
-        : ua.includes('iphone') || ua.includes('ipad') || ua.includes('ios') ? 'iOS'
-          : ua.includes('linux') ? 'Linux'
-            : '';
-
-  const parts = [browser, platform].filter(Boolean);
-  return parts.length > 0 ? parts.join(' · ') : userAgent;
-};
-
 const mapSessionItem = (session: SessionApiItem, currentSessionId: string | null): ProfileSession | null => {
   const sessionId = String(session?._id || session?.sessionId || '').trim();
-  if (!sessionId) return null;
+  const deviceId = String(session?.deviceId || '').trim();
+  if (!sessionId || !deviceId) return null;
 
   return {
     sessionId,
-    deviceLabel: buildDeviceLabel(session?.deviceName, session?.userAgent),
-    deviceDetail: buildDeviceDetail(session?.userAgent),
+    deviceId,
+    deviceCategory: getDeviceCategoryForDisplay(session?.deviceName, session?.userAgent),
+    deviceLabel: getDeviceDisplayLabel(session?.deviceName, session?.userAgent),
+    deviceDetail: getDeviceDetailLabel(session?.userAgent),
     lastActiveLabel: `Hoạt động gần nhất: ${formatDateTime(session?.lastUsedAt || session?.updatedAt || session?.createdAt)}`,
     expiresLabel: `Hết hạn: ${formatDateTime(session?.expiresAt)}`,
     lastActiveAt: toTimestamp(session?.lastUsedAt || session?.updatedAt || session?.createdAt),
@@ -234,7 +183,7 @@ export function ProfilePageContent() {
       setSessionsError('');
 
       try {
-        const res = await authApi.getSessions();
+        const res = await authApi.getDevices();
         const payload = res.data?.data ?? res.data;
         const list = Array.isArray(payload) ? payload : [];
         const mapped = list
@@ -411,18 +360,18 @@ export function ProfilePageContent() {
 
   const handleLogoutSession = (session: ProfileSession) => {
     setConfirmAction({
-      title: 'Đăng xuất thiết bị',
+      title: 'Xóa thiết bị',
       message: session.isCurrent
-        ? 'Bạn có chắc chắn muốn đăng xuất thiết bị hiện tại?'
-        : `Bạn có chắc chắn muốn đăng xuất ${session.deviceLabel}?`,
+        ? 'Bạn có chắc chắn muốn xóa thiết bị hiện tại?'
+        : `Bạn có chắc chắn muốn xóa ${session.deviceLabel}?`,
       isDanger: true,
-      confirmText: 'Đăng xuất',
+      confirmText: 'Xóa',
       action: async () => {
         setConfirmAction(null);
-        setLogoutSessionId(session.sessionId);
+        setLogoutSessionId(session.deviceId);
 
         try {
-          await authApi.logoutSession(session.sessionId);
+          await authApi.logoutDevice(session.deviceId);
 
           if (session.isCurrent) {
             localLogout();
@@ -966,16 +915,17 @@ export function ProfilePageContent() {
             }}>
               {sessions.map((session) => (
                 <div
-                  key={session.sessionId}
+                  key={session.deviceId}
                   style={{
+                    position: 'relative',
                     border: '1px solid var(--border)',
                     borderRadius: 'var(--radius-md)',
                     padding: '14px 16px',
                     background: session.isCurrent ? 'rgba(99,102,241,0.03)' : 'var(--bg-card)',
                   }}
                 >
-                  <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '16px', flexWrap: 'wrap' }}>
-                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', minWidth: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px', flexWrap: 'nowrap' }}>
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', minWidth: 0, flex: 1 }}>
                       <div style={{
                         width: 40,
                         height: 40,
@@ -987,7 +937,15 @@ export function ProfilePageContent() {
                         justifyContent: 'center',
                         flexShrink: 0,
                       }}>
-                        <Monitor size={20} />
+                        {session.deviceCategory === 'mobile' ? (
+                          <Smartphone size={20} />
+                        ) : session.deviceCategory === 'tablet' ? (
+                          <TabletSmartphone size={20} />
+                        ) : session.deviceCategory === 'desktop' || session.deviceCategory === 'tv' ? (
+                          <Monitor size={20} />
+                        ) : (
+                          <CircleHelp size={20} />
+                        )}
                       </div>
 
                       <div style={{ minWidth: 0 }}>
@@ -999,8 +957,8 @@ export function ProfilePageContent() {
                             <span style={{
                               fontSize: '11px',
                               fontWeight: 700,
-                              color: 'var(--primary)',
-                              background: 'rgba(99,102,241,0.12)',
+                              color: '#0f766e',
+                              background: 'rgba(45,212,191,0.16)',
                               padding: '3px 8px',
                               borderRadius: '999px',
                             }}>
@@ -1021,19 +979,17 @@ export function ProfilePageContent() {
                       </div>
                     </div>
 
-                    {!session.isCurrent && (
-                      <button
-                        type="button"
-                        className="btn btn-secondary"
-                        onClick={() => handleLogoutSession(session)}
-                        disabled={logoutSessionId === session.sessionId}
-                        style={{ color: 'var(--error)' }}
-                      >
-                        {logoutSessionId === session.sessionId
-                          ? <><div className="loading-spinner" style={{ width: 14, height: 14 }} /> Đang xử lý...</>
-                          : <><LogOut size={15} /> Đăng xuất</>}
-                      </button>
-                    )}
+                    <button
+                      type="button"
+                      className="btn btn-secondary shrink-0 px-[2px] py-[2px] text-sm sm:self-center sm:px-4 sm:py-2 sm:text-base"
+                      onClick={() => handleLogoutSession(session)}
+                      disabled={logoutSessionId === session.deviceId}
+                      style={{ color: 'var(--error)', alignSelf: 'center' }}
+                    >
+                      {logoutSessionId === session.deviceId
+                        ? <><div className="loading-spinner" style={{ width: 14, height: 14 }} /> Đang xử lý...</>
+                        : <><Trash2 size={14} /><span className="hidden sm:inline">Xóa thiết bị</span></>}
+                    </button>
                   </div>
                 </div>
               ))}

@@ -14,6 +14,27 @@ import { API_ORIGIN } from './api';
 let socket: Socket | null = null;
 let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
 
+export type CallType = 'audio' | 'video';
+export type CallEndReason = 'user_hangup' | 'callee_reject' | 'timeout' | 'network_lost' | 'error';
+
+export type CallSessionDescription = {
+  type: 'offer' | 'answer';
+  sdp: string;
+};
+
+export type CallIceCandidate = {
+  candidate: string;
+  sdpMLineIndex?: number | null;
+  sdpMid?: string | null;
+  usernameFragment?: string | null;
+};
+
+export type CallAckData = {
+  callId: string;
+  conversationId: string;
+  callToken?: string;
+};
+
 export function getSocket(): Socket | null {
   return socket;
 }
@@ -132,4 +153,65 @@ export function markReadSocket(
   callback?: (ack: any) => void
 ) {
   socket?.emit('chat:mark-read', { conversationId, messageId }, callback);
+}
+
+function emitCallEvent<T>(event: string, payload: Record<string, unknown>): Promise<T> {
+  return new Promise((resolve, reject) => {
+    if (!socket?.connected) {
+      reject(new Error('Socket not connected'));
+      return;
+    }
+
+    socket.emit(event, payload, (ack: any) => {
+      if (ack?.ok) resolve(ack?.data as T);
+      else reject(new Error(ack?.message || ack?.error || `Failed to emit ${event}`));
+    });
+  });
+}
+
+export function startCallSocket(payload: {
+  calleeId: string;
+  conversationId: string;
+  callType: CallType;
+}) {
+  return emitCallEvent<CallAckData>('call:start', payload);
+}
+
+export function acceptCallSocket(callId: string) {
+  return emitCallEvent<CallAckData>('call:accept', { callId });
+}
+
+export function rejectCallSocket(callId: string) {
+  return emitCallEvent<CallAckData>('call:reject', { callId });
+}
+
+export function endCallSocket(callId: string, endReason: CallEndReason) {
+  return emitCallEvent<CallAckData>('call:end', { callId, endReason });
+}
+
+export function sendCallOfferSocket(payload: {
+  callId: string;
+  conversationId: string;
+  callToken: string;
+  offer: CallSessionDescription;
+}) {
+  return emitCallEvent<{ forwarded: boolean }>('call:offer', payload);
+}
+
+export function sendCallAnswerSocket(payload: {
+  callId: string;
+  conversationId: string;
+  callToken: string;
+  answer: CallSessionDescription;
+}) {
+  return emitCallEvent<{ forwarded: boolean }>('call:answer', payload);
+}
+
+export function sendCallIceCandidateSocket(payload: {
+  callId: string;
+  conversationId: string;
+  callToken: string;
+  candidate: CallIceCandidate;
+}) {
+  return emitCallEvent<{ forwarded: boolean }>('call:ice-candidate', payload);
 }
