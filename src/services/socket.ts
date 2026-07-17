@@ -214,7 +214,6 @@ export function endCallSocket(callId: string, endReason: CallEndReason) {
  */
 export function sendCallHeartbeatSocket(payload: {
   callId: string;
-  callToken: string;
 }) {
   return emitCallEvent<CallHeartbeatData>('call:heartbeat', payload);
 }
