@@ -8,13 +8,25 @@ export type NotificationType =
   | 'REPORT_APPEAL_PENDING'
   | 'REPORT_APPEAL_REJECTED'
   | 'REPORT_APPEAL_SUCCESS'
-  | 'SYSTEM';
+  | 'SYSTEM'
+  | 'LOGIN';
 
 export interface NotificationSnapshot {
   avatarMediaId?: any;
   displayName?: string;
   bio?: string;
   role?: string;
+}
+
+export interface NotificationMetadata {
+  reportStatus?: string;
+  reason?: string;
+  penaltyApplied?: string;
+  penaltyType?: string;
+  appealDeadline?: string;
+  appealReviewDeadline?: string;
+  deviceName?: string;
+  deviceId?: string;
 }
 
 export interface NotificationItem {
@@ -24,11 +36,8 @@ export interface NotificationItem {
   title: string;
   refId?: string | null;
   snapshot?: NotificationSnapshot;
-  reportStatus?: string;
+  metadata?: NotificationMetadata;
   hasAppealed?: boolean;
-  reason?: string;
-  penaltyApplied?: string;
-  appealDeadline?: string;
   isRead: boolean;
   readAt?: string;
   createdAt: string;
