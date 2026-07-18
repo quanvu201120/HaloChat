@@ -249,13 +249,19 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       sessionRefreshPromise = (async () => {
         let hasRefreshLock = false;
         try {
-          hasRefreshLock = tryAcquireSessionRefreshLock();
+          const broadcastToken = await waitForBroadcastAccessToken(800, false);
+          if (broadcastToken) {
+            persistAccessToken(broadcastToken);
+            set({ user, accessToken: broadcastToken, sessionRestoreError: null });
+            return;
+          }
 
+          hasRefreshLock = tryAcquireSessionRefreshLock();
           if (!hasRefreshLock) {
-            const broadcastToken = await waitForBroadcastAccessToken();
-            if (broadcastToken) {
-              persistAccessToken(broadcastToken);
-              set({ user, accessToken: broadcastToken, sessionRestoreError: null });
+            const fallbackToken = await waitForBroadcastAccessToken();
+            if (fallbackToken) {
+              persistAccessToken(fallbackToken);
+              set({ user, accessToken: fallbackToken, sessionRestoreError: null });
               return;
             }
 
@@ -346,13 +352,19 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
     let hasRefreshLock = false;
     try {
-      hasRefreshLock = tryAcquireSessionRefreshLock();
+      const broadcastToken = await waitForBroadcastAccessToken(800, false);
+      if (broadcastToken) {
+        persistAccessToken(broadcastToken);
+        set({ user, accessToken: broadcastToken, sessionRestoreError: null });
+        return;
+      }
 
+      hasRefreshLock = tryAcquireSessionRefreshLock();
       if (!hasRefreshLock) {
-        const broadcastToken = await waitForBroadcastAccessToken();
-        if (broadcastToken) {
-          persistAccessToken(broadcastToken);
-          set({ user, accessToken: broadcastToken, sessionRestoreError: null });
+        const fallbackToken = await waitForBroadcastAccessToken();
+        if (fallbackToken) {
+          persistAccessToken(fallbackToken);
+          set({ user, accessToken: fallbackToken, sessionRestoreError: null });
           return;
         }
 
