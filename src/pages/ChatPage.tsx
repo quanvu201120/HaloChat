@@ -277,9 +277,10 @@ type MediaCacheEntry = {
 };
 const globalMediaCache: Record<string, Partial<Record<MediaResourceTypeEnum, MediaCacheEntry>>> = {};
 
-const WEBRTC_ICE_SERVERS: RTCIceServer[] = [
+const WEBRTC_FALLBACK_ICE_SERVERS: RTCIceServer[] = [
   { urls: import.meta.env.VITE_WEBRTC_STUN_URL || 'stun:stun.l.google.com:19302' },
 ];
+const WEBRTC_ICE_SERVERS_CACHE_KEY = 'halochat-webrtc-ice-servers';
 
 type CallUiState = {
   callId: string;
@@ -404,6 +405,8 @@ export default function ChatPage() {
   const [callDurationSeconds, setCallDurationSeconds] = useState(0);
   const callTokenRef = useRef<string>('');
   const callHeartbeatTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [webrtcIceServers, setWebrtcIceServers] = useState<RTCIceServer[]>(WEBRTC_FALLBACK_ICE_SERVERS);
+  const webrtcIceServersLoadedRef = useRef(false);
 
   const [memberSearchQuery, setMemberSearchQuery] = useState('');
   const groupAvatarInputRef = useRef<HTMLInputElement>(null);
@@ -684,6 +687,47 @@ export default function ChatPage() {
     callTokenRef.current = callState?.callToken || '';
   }, [callState?.callToken]);
 
+  useEffect(() => {
+    if (webrtcIceServersLoadedRef.current) return;
+    webrtcIceServersLoadedRef.current = true;
+
+    try {
+      const cachedIceServers = sessionStorage.getItem(WEBRTC_ICE_SERVERS_CACHE_KEY);
+      if (cachedIceServers) {
+        const parsedIceServers = JSON.parse(cachedIceServers) as RTCIceServer[];
+        if (Array.isArray(parsedIceServers) && parsedIceServers.length > 0) {
+          setWebrtcIceServers(parsedIceServers);
+          return;
+        }
+      }
+    } catch {
+      // Ignore cache parse errors and fall back to backend fetch.
+    }
+
+    let cancelled = false;
+    void api.get('/realtime/webrtc/ice-servers')
+      .then((res) => {
+        const servers = res.data?.iceServers;
+        if (!cancelled && Array.isArray(servers) && servers.length > 0) {
+          setWebrtcIceServers(servers);
+          try {
+            sessionStorage.setItem(WEBRTC_ICE_SERVERS_CACHE_KEY, JSON.stringify(servers));
+          } catch {
+            // Ignore storage errors.
+          }
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setWebrtcIceServers(WEBRTC_FALLBACK_ICE_SERVERS);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const stopCallTone = useCallback(() => stopSharedCallTone(), []);
   const startCallTone = useCallback((mode: 'incoming' | 'outgoing') => startSharedCallTone(mode), []);
 
@@ -727,7 +771,7 @@ export default function ChatPage() {
   const ensurePeerConnection = useCallback((callId: string, conversationId: string, stream: MediaStream) => {
     if (peerConnectionRef.current) return peerConnectionRef.current;
 
-    const peerConnection = new RTCPeerConnection({ iceServers: WEBRTC_ICE_SERVERS });
+    const peerConnection = new RTCPeerConnection({ iceServers: webrtcIceServers });
     peerConnectionRef.current = peerConnection;
 
     stream.getTracks().forEach((track) => peerConnection.addTrack(track, stream));
@@ -762,7 +806,7 @@ export default function ChatPage() {
     };
 
     return peerConnection;
-  }, [callState?.callId, cleanupCall]);
+  }, [callState?.callId, cleanupCall, webrtcIceServers]);
 
   useEffect(() => {
     if (!callState || callState.status !== 'active' || !callStartedAt) {
