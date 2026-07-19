@@ -165,6 +165,7 @@ export default function MaintenanceTab() {
   const [sortFilter, setSortFilter] = useState('created_desc');
   const [page, setPage] = useState(1);
   const [selectedJob, setSelectedJob] = useState<CleanupJob | null>(null);
+  const detailHistoryPushedRef = useRef(false);
   const [isFilterOpen, setIsFilterOpen] = useState(false);
 
   const { data, isLoading, isFetching } = useQuery({
@@ -183,6 +184,23 @@ export default function MaintenanceTab() {
 
   const jobs = data?.items || [];
   const total = data?.total || 0;
+
+  useEffect(() => {
+    if (!selectedJob) {
+      detailHistoryPushedRef.current = false;
+      return;
+    }
+
+    if (!detailHistoryPushedRef.current) {
+      window.history.pushState({ ...window.history.state, adminDetail: 'maintenance' }, '', window.location.href);
+      detailHistoryPushedRef.current = true;
+    }
+
+    const handleAdminDetailBack = () => setSelectedJob(null);
+
+    window.addEventListener('popstate', handleAdminDetailBack);
+    return () => window.removeEventListener('popstate', handleAdminDetailBack);
+  }, [selectedJob]);
 
   useEffect(() => {
     if (selectedJob && data?.items) {

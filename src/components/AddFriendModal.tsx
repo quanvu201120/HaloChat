@@ -182,7 +182,7 @@ export default function AddFriendModal({ isOpen, onClose }: Props) {
       if (relState.type === 'friend') {
         return (
           <button 
-            className="btn btn-secondary" 
+            className="btn btn-secondary add-friend-action-btn" 
             onClick={() => handleMessage(result._id)}
             disabled={isNavigating}
           >
@@ -194,7 +194,7 @@ export default function AddFriendModal({ isOpen, onClose }: Props) {
       if (relState.type === 'sent') {
         return (
           <button 
-            className="btn btn-danger" 
+            className="btn btn-danger add-friend-action-btn" 
             onClick={() => rejectOrRemove({ relationshipId: relState.relationshipId, targetUserId: result._id })}
             disabled={isRejectingOrRemoving}
           >
@@ -206,7 +206,7 @@ export default function AddFriendModal({ isOpen, onClose }: Props) {
       if (relState.type === 'received') {
         return (
           <button 
-            className="btn btn-primary" 
+            className="btn btn-primary add-friend-action-btn" 
             onClick={() => accept({ relationshipId: relState.relationshipId, targetUserId: result._id })}
             disabled={isAccepting}
           >
@@ -218,7 +218,7 @@ export default function AddFriendModal({ isOpen, onClose }: Props) {
       if (relState.type === 'blocked') {
         return (
           <button 
-            className="btn btn-secondary" 
+            className="btn btn-secondary add-friend-action-btn" 
             onClick={() => setUserToUnblock(result)}
             disabled={isUnblocking}
           >
@@ -230,7 +230,7 @@ export default function AddFriendModal({ isOpen, onClose }: Props) {
     
     return (
           <button 
-            className="btn btn-primary" 
+            className="btn btn-primary add-friend-action-btn" 
             onClick={async () => {
               try {
                 await sendRequest({ targetUserId: result._id });
@@ -306,7 +306,7 @@ export default function AddFriendModal({ isOpen, onClose }: Props) {
                   borderRadius: '12px',
                   border: '1px solid var(--border)'
                 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0, flex: 1 }}>
                     <div style={{ 
                       width: 48, 
                       height: 48, 
@@ -326,11 +326,11 @@ export default function AddFriendModal({ isOpen, onClose }: Props) {
                         (result.name || 'U').slice(0, 2).toUpperCase()
                       )}
                     </div>
-                    <div>
-                      <div style={{ fontWeight: 600, fontSize: '15px' }}>{result.name || 'Người dùng'}</div>
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <div style={{ fontWeight: 600, fontSize: '15px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{result.name || 'Người dùng'}</div>
                     </div>
                   </div>
-                  <div>
+                  <div style={{ flexShrink: 0 }}>
                     {renderAction()}
                   </div>
                 </div>

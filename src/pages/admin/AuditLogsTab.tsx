@@ -227,6 +227,7 @@ function MuiInput({
 export default function AuditLogsTab() {
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [selectedLog, setSelectedLog] = useState<AuditLogData | null>(null);
+  const detailHistoryPushedRef = useRef(false);
   const [lightboxData, setLightboxData] = useState<{ medias: any[], initialIndex: number } | null>(null);
   const [actorId, setActorId] = useState<string | undefined>();
   const [actionFilter, setActionFilter] = useState('all');
@@ -258,6 +259,26 @@ export default function AuditLogsTab() {
     initialPageParam: undefined,
     getNextPageParam: (lastPage) => lastPage.nextCursor || undefined,
   });
+
+  useEffect(() => {
+    if (!selectedLog) {
+      detailHistoryPushedRef.current = false;
+      return;
+    }
+
+    if (!detailHistoryPushedRef.current) {
+      window.history.pushState({ ...window.history.state, adminDetail: 'auditlogs' }, '', window.location.href);
+      detailHistoryPushedRef.current = true;
+    }
+
+    const handleAdminDetailBack = () => {
+      setSelectedLog(null);
+      setLightboxData(null);
+    };
+
+    window.addEventListener('popstate', handleAdminDetailBack);
+    return () => window.removeEventListener('popstate', handleAdminDetailBack);
+  }, [selectedLog]);
 
   const logs = data?.pages.flatMap(p => p.items) || [];
 

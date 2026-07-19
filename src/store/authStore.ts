@@ -29,6 +29,7 @@ export interface User {
   gender?: string;
   bio?: string;
   muteUntil?: string;
+  hasPassword?: boolean;
   avatar?: {
     _id?: string;
     url?: string;
@@ -78,6 +79,29 @@ const readStoredUser = () => {
 const storedUser = readStoredUser();
 const storedAccessToken = getAccessToken();
 let sessionRefreshPromise: Promise<void> | null = null;
+const CREATE_PASSWORD_PROMPT_KEY = 'halochat_create_password_prompt';
+const BANNED_APPEAL_SESSION_KEY = 'halochat_banned_appeal';
+
+const readStoredBannedAppeal = () => {
+  const saved = sessionStorage.getItem(BANNED_APPEAL_SESSION_KEY);
+  if (!saved) return null;
+
+  try {
+    return JSON.parse(saved) as AppealContext & { banUntil?: string };
+  } catch {
+    sessionStorage.removeItem(BANNED_APPEAL_SESSION_KEY);
+    return null;
+  }
+};
+
+const persistBannedAppeal = (data: (AppealContext & { banUntil?: string }) | null) => {
+  if (data) {
+    sessionStorage.setItem(BANNED_APPEAL_SESSION_KEY, JSON.stringify(data));
+    return;
+  }
+
+  sessionStorage.removeItem(BANNED_APPEAL_SESSION_KEY);
+};
 
 const getErrorMessage = (error: any) => {
   const message = error?.response?.data?.message;
@@ -112,14 +136,17 @@ const getRefreshAccessToken = (data: unknown) => {
 export const useAuthStore = create<AuthState>((set, get) => ({
   user: storedUser,
   accessToken: storedAccessToken,
-  bannedAppeal: null,
+  bannedAppeal: readStoredBannedAppeal(),
   sessionRestoreError: null,
   isLoading: false,
   isSessionRestoring: Boolean(storedUser && !storedAccessToken),
   isAdminVerified: false,
 
   setAdminVerified: (status: boolean) => set({ isAdminVerified: status }),
-  setBannedAppeal: (data) => set({ bannedAppeal: data }),
+  setBannedAppeal: (data) => {
+    persistBannedAppeal(data);
+    set({ bannedAppeal: data });
+  },
 
   login: async (identifier: string, password: string) => {
     set({ isLoading: true });
@@ -129,11 +156,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const { accessToken, user, isBanned, banUntil, appeal } = payload;
 
       if (isBanned) {
+        const bannedAppeal = appeal ? { ...appeal, banUntil } : null;
         clearStoredAuth();
+        persistBannedAppeal(bannedAppeal);
         set({
           user: null,
           accessToken: null,
-          bannedAppeal: appeal ? { ...appeal, banUntil } : null,
+          bannedAppeal,
         });
         return payload;
       }
@@ -143,12 +172,19 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       }
 
       persistAccessToken(accessToken);
+      persistBannedAppeal(null);
       localStorage.setItem('user', JSON.stringify(user));
       notifyStoredUserChanged();
+      if (user?.accountType === 'GOOGLE' && user?.hasPassword === false) {
+        sessionStorage.setItem(CREATE_PASSWORD_PROMPT_KEY, '1');
+      } else {
+        sessionStorage.removeItem(CREATE_PASSWORD_PROMPT_KEY);
+      }
       set({ user, accessToken, bannedAppeal: null, sessionRestoreError: null });
       return payload;
     } catch (error) {
       clearStoredAuth();
+      persistBannedAppeal(null);
       set({ bannedAppeal: null });
       throw error;
     } finally {
@@ -164,11 +200,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const { accessToken, user, isBanned, banUntil, appeal } = payload;
 
       if (isBanned) {
+        const bannedAppeal = appeal ? { ...appeal, banUntil } : null;
         clearStoredAuth();
+        persistBannedAppeal(bannedAppeal);
         set({
           user: null,
           accessToken: null,
-          bannedAppeal: appeal ? { ...appeal, banUntil } : null,
+          bannedAppeal,
         });
         return payload;
       }
@@ -178,12 +216,19 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       }
 
       persistAccessToken(accessToken);
+      persistBannedAppeal(null);
       localStorage.setItem('user', JSON.stringify(user));
       notifyStoredUserChanged();
+      if (user?.accountType === 'GOOGLE' && user?.hasPassword === false) {
+        sessionStorage.setItem(CREATE_PASSWORD_PROMPT_KEY, '1');
+      } else {
+        sessionStorage.removeItem(CREATE_PASSWORD_PROMPT_KEY);
+      }
       set({ user, accessToken, bannedAppeal: null, sessionRestoreError: null });
       return payload;
     } catch (error) {
       clearStoredAuth();
+      persistBannedAppeal(null);
       set({ bannedAppeal: null });
       throw error;
     } finally {
@@ -198,17 +243,23 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       // ignore
     }
     clearStoredAuth();
+    persistBannedAppeal(null);
+    sessionStorage.removeItem(CREATE_PASSWORD_PROMPT_KEY);
     set({ user: null, accessToken: null, bannedAppeal: null, sessionRestoreError: null });
   },
 
   localLogout: () => {
     clearStoredAuth();
+    persistBannedAppeal(null);
+    sessionStorage.removeItem(CREATE_PASSWORD_PROMPT_KEY);
     set({ user: null, accessToken: null, bannedAppeal: null, sessionRestoreError: null });
   },
 
   logoutAll: async () => {
     await authApi.logoutAll();
     clearStoredAuth();
+    persistBannedAppeal(null);
+    sessionStorage.removeItem(CREATE_PASSWORD_PROMPT_KEY);
     set({ user: null, accessToken: null, bannedAppeal: null, sessionRestoreError: null });
   },
 

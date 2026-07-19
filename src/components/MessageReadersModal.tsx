@@ -31,7 +31,7 @@ export default function MessageReadersModal({
     const displayName = user.name || 'Người dùng';
 
     return (
-      <div key={user._id} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 0' }}>
+      <div key={user._id} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 0', minWidth: 0 }}>
         <div style={{
           width: '32px', height: '32px', borderRadius: '50%', backgroundColor: '#eee', flexShrink: 0,
           backgroundImage: avatar ? `url(${avatar})` : 'none', backgroundSize: 'cover', backgroundPosition: 'center',
@@ -40,7 +40,7 @@ export default function MessageReadersModal({
         }}>
           {!avatar && displayName.charAt(0).toUpperCase()}
         </div>
-        <div style={{ flex: 1, fontSize: '14px', fontWeight: 500, color: 'var(--text-primary)' }}>
+        <div style={{ flex: 1, minWidth: 0, fontSize: '14px', fontWeight: 500, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {displayName}
         </div>
       </div>

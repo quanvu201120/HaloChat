@@ -186,7 +186,7 @@ export default function AddMemberModal({ isOpen, conversationId, currentMembers,
 
               {/* Selected chips */}
               {selected.length > 0 && (
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '12px' }}>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '12px', maxHeight: '76px', overflowY: 'auto', overflowX: 'hidden', paddingRight: '4px' }}>
                   {selected.map((u) => (
                     <span
                       key={u._id}
@@ -195,12 +195,15 @@ export default function AddMemberModal({ isOpen, conversationId, currentMembers,
                         background: 'rgba(99,102,241,0.12)', color: 'var(--accent-primary)',
                         border: '1px solid rgba(99,102,241,0.25)', borderRadius: '20px',
                         padding: '3px 10px', fontSize: '12px', fontWeight: 600,
+                        maxWidth: '100%', minWidth: 0,
                       }}
                     >
-                      {u.name || 'Người dùng'}
+                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {u.name || 'Người dùng'}
+                      </span>
                       <button
                         onClick={() => toggleSelect(u)}
-                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'inherit', padding: 0, display: 'flex' }}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'inherit', padding: 0, display: 'flex', flexShrink: 0 }}
                       >
                         <X size={12} />
                       </button>
@@ -242,11 +245,11 @@ export default function AddMemberModal({ isOpen, conversationId, currentMembers,
                           {(u.name || 'U').slice(0, 2).toUpperCase()}
                         </div>
                         <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontSize: '13.5px', fontWeight: 600, color: 'var(--text-primary)' }}>
+                          <div style={{ fontSize: '13.5px', fontWeight: 600, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                             {u.name || 'Chưa đặt tên'}
                           </div>
                         </div>
-                        {isSelected && <Check size={16} color="var(--accent-primary)" />}
+                        {isSelected && <Check size={16} color="var(--accent-primary)" style={{ flexShrink: 0 }} />}
                       </button>
                     );
                   })}

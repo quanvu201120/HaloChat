@@ -39,6 +39,17 @@ export type CallHeartbeatData = {
   refreshed: boolean;
 };
 
+export type CallSyncData = {
+  hasActiveCall: boolean;
+  callId?: string;
+  callerId?: string;
+  calleeId?: string;
+  conversationId?: string;
+  callType?: CallType;
+  callToken?: string;
+  createdAt?: string;
+};
+
 export function getSocket(): Socket | null {
   return socket;
 }
@@ -216,6 +227,13 @@ export function sendCallHeartbeatSocket(payload: {
   callId: string;
 }) {
   return emitCallEvent<CallHeartbeatData>('call:heartbeat', payload);
+}
+
+/**
+ * Sync lại cuộc gọi đang ring sau khi socket reconnect.
+ */
+export function syncCallSocket() {
+  return emitCallEvent<CallSyncData>('call:sync', {});
 }
 
 /**

@@ -235,6 +235,7 @@ export default function UsersTab() {
   const [sortFilter, setSortFilter] = useState('newest');
   const [page, setPage] = useState(1);
   const [selectedUser, setSelectedUser] = useState<UserAdminData | null>(null);
+  const detailHistoryPushedRef = useRef(false);
   
   // Real fetch
   const { data, isLoading, isFetching } = useQuery({
@@ -447,6 +448,26 @@ export default function UsersTab() {
   });
 
   const isSuperAdmin = currentUser?.role === UserRole.SUPER_ADMIN;
+
+  useEffect(() => {
+    if (!selectedUser) {
+      detailHistoryPushedRef.current = false;
+      return;
+    }
+
+    if (!detailHistoryPushedRef.current) {
+      window.history.pushState({ ...window.history.state, adminDetail: 'users' }, '', window.location.href);
+      detailHistoryPushedRef.current = true;
+    }
+
+    const handleAdminDetailBack = () => {
+      setSelectedUser(null);
+      setShowActionsDropdown(false);
+    };
+
+    window.addEventListener('popstate', handleAdminDetailBack);
+    return () => window.removeEventListener('popstate', handleAdminDetailBack);
+  }, [selectedUser]);
 
   const validateCreateForm = () => {
     const errors: Record<string, string> = {};
@@ -1473,19 +1494,17 @@ export default function UsersTab() {
                 </p>
               </div>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                <label style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)' }}>Vai trò mới</label>
-                <select 
-                  value={selectedNewRole}
-                  onChange={(e) => setSelectedNewRole(e.target.value as UserRole)}
-                  style={{ width: '100%', padding: '10px 12px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: '6px', color: 'var(--text-primary)', fontSize: '14px', outline: 'none', cursor: 'pointer', transition: 'border-color 0.2s' }}
-                  onFocus={e => e.target.style.borderColor = '#3b82f6'}
-                  onBlur={e => e.target.style.borderColor = 'var(--border)'}
-                >
-                  <option value={UserRole.USER}>USER</option>
-                  <option value={UserRole.ADMIN}>ADMIN</option>
-                </select>
-              </div>
+              <MuiSelect
+                label="Vai trò mới"
+                value={selectedNewRole}
+                onChange={(value) => setSelectedNewRole(value as UserRole)}
+                options={[
+                  { value: UserRole.USER, label: 'USER' },
+                  { value: UserRole.ADMIN, label: 'ADMIN' },
+                ]}
+                minWidth={0}
+                labelBgColor="var(--bg-card)"
+              />
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                 <label style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)' }}>Lý do thực hiện</label>
@@ -1663,16 +1682,17 @@ export default function UsersTab() {
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                   <label style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)' }}>Vai trò</label>
-                  <select
+                  <MuiSelect
+                    label=""
                     value={createForm.role}
-                    onChange={(e) => setCreateForm(p => ({ ...p, role: e.target.value as UserRole }))}
-                    style={{ width: '100%', padding: '8px 12px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: '6px', color: 'var(--text-primary)', fontSize: '14px', outline: 'none', cursor: 'pointer', transition: 'border-color 0.2s' }}
-                    onFocus={e => e.target.style.borderColor = '#3b82f6'}
-                    onBlur={e => e.target.style.borderColor = 'var(--border)'}
-                  >
-                    <option value={UserRole.USER}>User</option>
-                    {isSuperAdmin && <option value={UserRole.ADMIN}>Admin</option>}
-                  </select>
+                    onChange={(role) => setCreateForm(p => ({ ...p, role: role as UserRole }))}
+                    options={[
+                      { value: UserRole.USER, label: 'User' },
+                      ...(isSuperAdmin ? [{ value: UserRole.ADMIN, label: 'Admin' }] : []),
+                    ]}
+                    minWidth={0}
+                    labelBgColor="var(--bg-card)"
+                  />
                   {!isSuperAdmin && (
                     <p style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Admin chỉ có thể tạo tài khoản với vai trò USER.</p>
                   )}

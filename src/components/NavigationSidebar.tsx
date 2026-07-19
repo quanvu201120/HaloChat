@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { MessageCircle, Users, MessageSquareDashed, Ban, Moon, Sun, LogOut, Shield } from 'lucide-react';
 import { useAuthStore as useAuth } from '../store/authStore';
@@ -7,10 +7,13 @@ import { useToast } from '../context/ToastContext';
 import { useRelationships } from '../hooks/useRelationships';
 import { useChatStore } from '../store/chatStore';
 import ConfirmModal from './ConfirmModal';
+import CreatePasswordModal from './CreatePasswordModal';
 
 import { UserRole } from '../constants/roles';
 import { UI_LIMITS } from '../constants/limits';
 import { UI_MESSAGES } from '../constants/messages';
+
+const CREATE_PASSWORD_PROMPT_CLOSED_EVENT = 'halochat_create_password_prompt_closed';
 
 interface NavigationSidebarProps {
   isOpen: boolean;
@@ -35,6 +38,17 @@ export default function NavigationSidebar({ isOpen, setIsOpen }: NavigationSideb
     confirmText?: string;
     action: () => void | Promise<void>;
   } | null>(null);
+  const [isCreatePasswordModalOpen, setIsCreatePasswordModalOpen] = useState(false);
+  const [createPasswordMode, setCreatePasswordMode] = useState<'login' | 'logout'>('login');
+  const shouldCreatePassword = user?.accountType === 'GOOGLE' && user?.hasPassword === false;
+
+  useEffect(() => {
+    if (shouldCreatePassword && sessionStorage.getItem('halochat_create_password_prompt') === '1') {
+      setCreatePasswordMode('login');
+      setIsCreatePasswordModalOpen(true);
+      sessionStorage.removeItem('halochat_create_password_prompt');
+    }
+  }, [shouldCreatePassword]);
 
   const isChatRoute = location.pathname === '/' || location.pathname.startsWith('/chat');
   const isFriendsRoute = location.pathname === '/friends';
@@ -50,6 +64,11 @@ export default function NavigationSidebar({ isOpen, setIsOpen }: NavigationSideb
   };
 
   const handleLogout = () => {
+    if (shouldCreatePassword) {
+      setCreatePasswordMode('logout');
+      setIsCreatePasswordModalOpen(true);
+      return;
+    }
     setConfirmAction({
       title: UI_MESSAGES.navigation.logoutTitle,
       message: UI_MESSAGES.navigation.logoutConfirm,
@@ -65,6 +84,21 @@ export default function NavigationSidebar({ isOpen, setIsOpen }: NavigationSideb
         }
       }
     });
+  };
+
+  const executeLogout = async () => {
+    try {
+      await logout();
+      toast.success(UI_MESSAGES.navigation.logoutSuccess);
+      navigate('/login');
+    } catch {
+      toast.error(UI_MESSAGES.navigation.logoutFailed);
+    }
+  };
+
+  const handleCreatePasswordModalClose = () => {
+    setIsCreatePasswordModalOpen(false);
+    window.dispatchEvent(new Event(CREATE_PASSWORD_PROMPT_CLOSED_EVENT));
   };
 
   const handleNavigate = (path: string, action?: () => void) => {
@@ -98,7 +132,7 @@ export default function NavigationSidebar({ isOpen, setIsOpen }: NavigationSideb
       />
 
       {/* Sidebar Drawer */}
-      <aside className={`w-[260px] min-w-[260px] md:w-[68px] md:min-w-[68px] h-full bg-[var(--bg-card)] border-r border-[var(--border)] flex flex-col items-center py-6 md:py-4 z-40 overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] fixed md:static inset-y-0 left-0 transition-transform duration-300 ease-in-out ${isOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
+      <aside className={`w-[260px] min-w-[260px] md:w-[68px] md:min-w-[68px] h-full bg-[var(--bg-card)] border-r border-[var(--border)] flex flex-col items-center py-6 md:py-4 z-[60] overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] fixed md:static inset-y-0 left-0 transition-transform duration-300 ease-in-out ${isOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
         
 
         <div className="flex flex-col items-center gap-2 md:gap-4 w-full">
@@ -227,6 +261,14 @@ export default function NavigationSidebar({ isOpen, setIsOpen }: NavigationSideb
         confirmText={confirmAction?.confirmText}
         onConfirm={confirmAction?.action || (() => {})}
         onCancel={() => setConfirmAction(null)}
+      />
+
+      <CreatePasswordModal
+        isOpen={isCreatePasswordModalOpen}
+        onClose={handleCreatePasswordModalClose}
+        onSuccess={() => setIsCreatePasswordModalOpen(false)}
+        onSkipLogout={shouldCreatePassword ? executeLogout : undefined}
+        showSkipLogout={createPasswordMode === 'logout'}
       />
     </>
   );

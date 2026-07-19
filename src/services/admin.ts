@@ -32,6 +32,7 @@ export const ReportReasonEnum = {
     SPAM_HARASSMENT: 'spam_harassment',
     INAPPROPRIATE_CONTENT: 'inappropriate_content',
     IMPERSONATION: 'impersonation',
+    SYSTEM_SPAM: 'system_spam',
     OTHER: 'other',
   } as const;
 export type ReportReasonEnum = typeof ReportReasonEnum[keyof typeof ReportReasonEnum];

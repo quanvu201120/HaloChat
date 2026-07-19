@@ -52,6 +52,14 @@ const PENALTY_LABELS: Record<string, string> = {
   ban: 'Khóa tài khoản',
 };
 
+const REASON_LABELS: Record<string, string> = {
+  spam_harassment: 'Spam / Lừa đảo / Quấy rối',
+  inappropriate_content: 'Vi phạm Tiêu chuẩn Cộng đồng',
+  impersonation: 'Mạo danh',
+  system_spam: 'Spam hệ thống',
+  other: 'Vi phạm khác',
+};
+
 export default function AppealPage() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -67,7 +75,9 @@ export default function AppealPage() {
     if (!reportId) return bannedAppeal;
     return bannedAppeal?.reportId === reportId ? bannedAppeal : null;
   }, [bannedAppeal, reportId]);
-  const locationBannedAppeal = (location.state as { bannedAppeal?: typeof bannedAppeal; banUntil?: string } | null)?.bannedAppeal;
+  const locationState = location.state as { bannedAppeal?: typeof bannedAppeal; banUntil?: string } | null;
+  const locationBannedAppeal = locationState?.bannedAppeal;
+  const activeBanUntil = bannedContext?.banUntil || locationState?.banUntil;
 
   const appealAccessQuery = useQuery({
     queryKey: ['appeal-access', reportId],
@@ -112,7 +122,7 @@ export default function AppealPage() {
     },
   });
 
-  if (!accessToken && !bannedContext && !locationBannedAppeal && !reportId) {
+  if (!accessToken && !bannedContext && !locationBannedAppeal && !activeBanUntil && !reportId) {
     return <Navigate to="/login" replace />;
   }
 
@@ -162,7 +172,7 @@ export default function AppealPage() {
           <p className="login-subtitle">Gửi giải trình và bằng chứng để đội ngũ xem xét lại quyết định xử lý</p>
         </div>
 
-        {bannedContext?.banUntil && (
+        {activeBanUntil && (
           <div
             style={{
               display: 'flex',
@@ -179,9 +189,9 @@ export default function AppealPage() {
             <div>
               <div style={{ fontWeight: 700 }}>Tài khoản đang bị khóa </div>
               <div style={{ fontWeight: 700 }}> Thời hạn: 
-                {bannedContext?.banUntil && new Date(bannedContext.banUntil).getFullYear() - new Date().getFullYear() >= 10
+                {new Date(activeBanUntil).getFullYear() - new Date().getFullYear() >= 10
                   ? 'Vĩnh viễn'
-                  : ` ${formatTimeRemaining(bannedContext.banUntil)}`
+                  : ` ${formatTimeRemaining(activeBanUntil)}`
                 }
               </div>
             </div>
@@ -204,6 +214,14 @@ export default function AppealPage() {
                 marginBottom: '18px',
               }}
             >
+              {appealContext.reason && (
+                <div className="bg-[var(--bg-secondary)]" style={{ borderRadius: '14px', padding: '14px' }}>
+                  <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '6px' }}>Lỗi vi phạm</div>
+                  <div style={{ fontWeight: 700 }}>
+                    {REASON_LABELS[appealContext.reason] || appealContext.reason}
+                  </div>
+                </div>
+              )}
               {canSubmit && (
                 <div className="bg-[var(--bg-secondary)]" style={{ borderRadius: '14px', padding: '14px' }}>
                   <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '6px' }}>Hạn gửi kháng cáo</div>
@@ -318,15 +336,16 @@ export default function AppealPage() {
               </div>
             )}
 
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '18px', fontSize: '13px' }}>
-              {!accessToken && (
-                <Link to="/login" style={{ color: 'var(--accent-primary)', textDecoration: 'none', fontWeight: 600 }}>
-                  <LogIn size={14} style={{ display: 'inline-block', marginRight: '6px', verticalAlign: 'text-bottom' }} />
-                  Quay lại đăng nhập
-                </Link>
-              )}
-            </div>
           </>
+        )}
+
+        {!accessToken && (
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '18px', fontSize: '13px' }}>
+            <Link to="/login" style={{ color: 'var(--accent-primary)', textDecoration: 'none', fontWeight: 600 }}>
+              <LogIn size={14} style={{ display: 'inline-block', marginRight: '6px', verticalAlign: 'text-bottom' }} />
+              Quay lại đăng nhập
+            </Link>
+          </div>
         )}
       </div>
     </div>

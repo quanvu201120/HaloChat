@@ -80,7 +80,7 @@ export default function ConfirmModal({
         </div>
       }
     >
-      <div style={{ padding: '10px 0', fontSize: '14.5px', color: 'var(--text-secondary)' }}>
+      <div style={{ padding: '10px 0', fontSize: '14.5px', color: 'var(--text-secondary)', overflowWrap: 'anywhere', wordBreak: 'break-word' }}>
         {message}
       </div>
     </Modal>

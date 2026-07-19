@@ -183,6 +183,7 @@ export default function ReportsTab() {
   const [sortOrder, setSortOrder] = useState('newest');
   
   const [selectedReport, setSelectedReport] = useState<Report | null>(null);
+  const detailHistoryPushedRef = useRef(false);
   const [isMobileFilterOpen, setIsMobileFilterOpen] = useState(false);
   const [lightboxData, setLightboxData] = useState<{ medias: any[], initialIndex: number } | null>(null);
   const [isResolveModalOpen, setIsResolveModalOpen] = useState(false);
@@ -214,6 +215,27 @@ export default function ReportsTab() {
   const canOpenResolveModal =
     selectedReport?.status === ReportStatusEnum.PENDING ||
     selectedReport?.status === ReportStatusEnum.APPEAL_PENDING;
+
+  useEffect(() => {
+    if (!selectedReport) {
+      detailHistoryPushedRef.current = false;
+      return;
+    }
+
+    if (!detailHistoryPushedRef.current) {
+      window.history.pushState({ ...window.history.state, adminDetail: 'reports' }, '', window.location.href);
+      detailHistoryPushedRef.current = true;
+    }
+
+    const handleAdminDetailBack = () => {
+      setSelectedReport(null);
+      setIsResolveModalOpen(false);
+      setLightboxData(null);
+    };
+
+    window.addEventListener('popstate', handleAdminDetailBack);
+    return () => window.removeEventListener('popstate', handleAdminDetailBack);
+  }, [selectedReport]);
 
   useEffect(() => {
     if (selectedReport) {
@@ -252,6 +274,7 @@ export default function ReportsTab() {
       case ReportReasonEnum.SPAM_HARASSMENT: return 'Spam / Quấy rối';
       case ReportReasonEnum.INAPPROPRIATE_CONTENT: return 'Vi phạm tiêu chuẩn cộng đồng.';
       case ReportReasonEnum.IMPERSONATION: return 'Mạo danh';
+      case ReportReasonEnum.SYSTEM_SPAM: return 'Spam hệ thống';
       case ReportReasonEnum.OTHER: return 'Khác';
       default: return reason;
     }
@@ -478,11 +501,11 @@ export default function ReportsTab() {
         <div className="flex-1 overflow-auto px-4 pb-4">
           <div className="bg-[var(--bg-card)] rounded-lg border border-[var(--border)] overflow-hidden shadow-sm flex flex-col h-full">
             <div className="flex-1 overflow-x-auto custom-scrollbar">
-              <table className="w-full text-left border-collapse min-w-[900px]">
+              <table className="w-full text-left border-collapse min-w-[970px]">
                 <thead className="bg-[var(--bg-secondary)] text-[12px] uppercase text-[var(--text-muted)] font-semibold sticky top-0 z-10 shadow-sm">
                   <tr>
                     <th className="py-3 px-4 w-12 text-center border-b border-[var(--border)]">#</th>
-                    <th className="py-3 px-4 w-[150px] border-b border-[var(--border)]">Lý do</th>
+                    <th className="py-3 px-4 w-[220px] border-b border-[var(--border)]">Lý do</th>
                     <th className="py-3 px-4 w-[180px] border-b border-[var(--border)]">Người báo cáo</th>
                     <th className="py-3 px-4 w-[180px] border-b border-[var(--border)]">Người bị báo cáo</th>
                     <th className="py-3 px-4 w-[130px] border-b border-[var(--border)]">Trạng thái</th>
@@ -499,7 +522,7 @@ export default function ReportsTab() {
                     reports.map((report: Report, idx: number) => (
                       <tr key={report._id} className="hover:bg-[var(--bg-secondary)] transition-colors cursor-pointer group" onClick={() => setSelectedReport(report)}>
                         <td className="py-3 px-4 text-center text-[var(--text-muted)] font-mono text-xs">{(page - 1) * LIMIT + idx + 1}</td>
-                        <td className="py-3 px-4"><span className="font-semibold text-[var(--text-primary)]">{getReasonText(report.reason)}</span></td>
+                        <td className="py-3 px-4 w-[220px]"><span className="font-semibold text-[var(--text-primary)]">{getReasonText(report.reason)}</span></td>
                         <td className="py-3 px-4">{renderUserInfo(report.reporterId)}</td>
                         <td className="py-3 px-4">{renderUserInfo(report.targetUserId)}</td>
                         <td className="py-3 px-4">{getStatusBadge(report.status)}</td>
@@ -690,27 +713,31 @@ export default function ReportsTab() {
               <div style={{ padding: '10px' }} className="bg-[var(--bg-card)] rounded-sm border border-[var(--border)] shadow-sm flex flex-col justify-start lg:col-span-2">
                  <div className="flex items-center gap-3 mb-2">
                    <h4 className="text-xs font-bold text-[var(--text-primary)] uppercase tracking-wider font-semibold text-amber-500">Thông tin kháng cáo</h4>
-                   {selectedReport.status === ReportStatusEnum.APPEAL_PENDING && (
-                     <button
-                       onClick={() => setIsResolveModalOpen(true)}
-                       disabled={!canOpenResolveModal}
-                       className={`px-3 w-30 py-1 bg-amber-500 text-white font-bold rounded shadow-sm text-xs transition-colors ${canOpenResolveModal ? 'cursor-pointer hover:bg-amber-600' : 'cursor-not-allowed opacity-60'}`}
-                     >
-                       XỬ LÝ 
-                     </button>
-                   )}
                  </div>
                  <div className="flex flex-col">
                    {selectedReport.status === ReportStatusEnum.APPEAL_PENDING ? (
-                     <>
-                       {selectedReport.appealReviewDeadline && (
-                         <InfoItem icon={<Clock size={16} />} label="Thời gian xử lí" value={formatTimeRemaining(selectedReport.appealReviewDeadline)} />
-                       )}
-                     </>
-                   ) : (
-                     <>
-                       {selectedReport.appealDeadline && <InfoItem icon={<Clock size={16} />} label="Thời gian kháng cáo" value={formatTimeRemaining(selectedReport.appealDeadline)} />}
-                     </>
+                     <InfoItem icon={<Clock size={16} />} label="Thời gian xử lí">
+                       <div className="flex flex-wrap items-center gap-6">
+                         <span className="text-sm font-semibold text-[var(--text-primary)]">
+                           {selectedReport.appealReviewDeadline
+                             ? formatTimeRemaining(selectedReport.appealReviewDeadline)
+                             : 'Chưa xác định'}
+                         </span>
+                         <button
+                           onClick={() => setIsResolveModalOpen(true)}
+                           disabled={!canOpenResolveModal}
+                           className={`min-w-32 px-5 py-2 bg-amber-500 text-white font-bold rounded shadow-sm text-sm transition-colors ${canOpenResolveModal ? 'cursor-pointer hover:bg-amber-600' : 'cursor-not-allowed opacity-60'}`}
+                         >
+                           Giải quyết
+                         </button>
+                       </div>
+                     </InfoItem>
+                    ) : selectedReport.status === ReportStatusEnum.APPEAL_SUCCESS || selectedReport.status === ReportStatusEnum.APPEAL_REJECTED ? (
+                      <InfoItem icon={<Clock size={16} />} label="Đã giải quyết" value={formatDateVN(selectedReport.updatedAt)} />
+                    ) : (
+                      <>
+                        {selectedReport.appealDeadline && <InfoItem icon={<Clock size={16} />} label="Thời gian kháng cáo" value={formatTimeRemaining(selectedReport.appealDeadline)} />}
+                      </>
                    )}
                    {selectedReport.appealText && <InfoItem icon={<FileText size={16} />} label="Nội dung kháng cáo" value={selectedReport.appealText} />}
                    {selectedReport.appealEvidenceMediaIds && selectedReport.appealEvidenceMediaIds.length > 0 && (

@@ -328,9 +328,9 @@ export default function FriendsPage() {
                 {isSortDropdownOpen && (
                   <div 
                     style={{
-                      position: 'absolute', right: 0, top: '100%', marginTop: '4px',
+                      position: 'absolute', left: 0, top: '100%', marginTop: '4px',
                       backgroundColor: 'var(--bg-card)', borderRadius: '8px',
-                      boxShadow: '0 4px 20px rgba(0,0,0,0.15)', zIndex: 50,
+                      boxShadow: '0 4px 20px rgba(0,0,0,0.15)', zIndex: 20,
                       minWidth: '200px', padding: '8px 0',
                       border: '1px solid var(--border)'
                     }}
@@ -381,7 +381,7 @@ export default function FriendsPage() {
                       <div 
                         key={friend._id} 
                         className="friend-row"
-                        style={{ display: 'flex', alignItems: 'center', gap: '16px', position: 'relative', padding: '12px', borderRadius: '8px', cursor: currentTab === '/blocked' ? 'default' : 'pointer' }}
+                        style={{ display: 'flex', alignItems: 'center', gap: '16px', position: 'relative', padding: '12px', borderRadius: '8px', cursor: currentTab === '/blocked' ? 'default' : 'pointer', minWidth: 0, maxWidth: '100%' }}
                         onClick={() => currentTab !== '/blocked' && setSelectedUserForInfo(friend)}
                       >
                         {/* Avatar */}
@@ -401,6 +401,10 @@ export default function FriendsPage() {
                         {/* Name */}
                         <div style={{ 
                           flex: 1, 
+                          minWidth: 0,
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
                           fontWeight: 500, 
                           fontSize: '15px', 
                           color: friend.isDisabled ? 'var(--error)' : 'var(--text-primary)',
@@ -446,7 +450,7 @@ export default function FriendsPage() {
         title="Thông tin người dùng"
       >
         {selectedUserForInfo && (
-          <div style={{ position: 'relative', width: '100%', minHeight: '400px' }}>
+          <div className="friend-info-modal-content" style={{ position: 'relative', width: '100%', minHeight: '400px' }}>
             {/* Report Icon */}
             {user?._id !== selectedUserForInfo._id && (
               <button

@@ -232,7 +232,7 @@ export default function CreateConversationModal({ isOpen, onClose }: Props) {
           </div>
 
           {selected.length > 0 && (
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', maxHeight: '76px', overflowY: 'auto', overflowX: 'hidden', paddingRight: '4px' }}>
               {selected.map((u) => (
                 <span
                   key={u._id}
@@ -247,12 +247,16 @@ export default function CreateConversationModal({ isOpen, onClose }: Props) {
                     padding: '3px 10px',
                     fontSize: '12px',
                     fontWeight: 600,
+                    maxWidth: '100%',
+                    minWidth: 0,
                   }}
                 >
-                  {u.name || 'Người dùng'}
+                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {u.name || 'Người dùng'}
+                  </span>
                   <button
                     onClick={() => toggleSelect(u)}
-                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'inherit', padding: 0, display: 'flex' }}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'inherit', padding: 0, display: 'flex', flexShrink: 0 }}
                   >
                     <X size={12} />
                   </button>
@@ -298,11 +302,11 @@ export default function CreateConversationModal({ isOpen, onClose }: Props) {
                       {(u.name || 'U').slice(0, 2).toUpperCase()}
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: '13.5px', fontWeight: 600, color: 'var(--text-primary)' }}>
+                      <div style={{ fontSize: '13.5px', fontWeight: 600, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {u.name || 'Chua dat ten'}
                       </div>
                     </div>
-                    {isSelected && <Check size={16} color="var(--accent-primary)" />}
+                    {isSelected && <Check size={16} color="var(--accent-primary)" style={{ flexShrink: 0 }} />}
                   </button>
                 );
               })}

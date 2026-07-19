@@ -6,13 +6,16 @@ import { z } from 'zod';
 import { useAuthStore as useAuth } from '../store/authStore';
 import { authApi, usersApi, parseError } from '../services/api';
 import { useToast } from '../context/ToastContext';
-import { UserCircle, Save, Phone, MapPin, Mail, Shield, Activity, LogOut, Camera, Trash2, AlertTriangle, Edit2, ChevronLeft, Calendar, Users, FileText, Monitor, Smartphone, TabletSmartphone, CircleHelp, RefreshCw } from 'lucide-react';
+import { UserCircle, Save, Phone, MapPin, Mail, Shield, Activity, LogOut, Camera, Trash2, AlertTriangle, Edit2, ChevronLeft, Calendar, Users, FileText, Monitor, Smartphone, TabletSmartphone, CircleHelp, RefreshCw, ChevronDown, Check } from 'lucide-react';
 import ConfirmModal from '../components/ConfirmModal';
+import CreatePasswordModal from '../components/CreatePasswordModal';
 import UpdateEmailModal from '../components/UpdateEmailModal';
 import MediaLightbox from '../components/MediaLightbox';
 import { UserRole } from '../constants/roles';
 import { UI_MESSAGES } from '../constants/messages';
 import { getDeviceCategoryForDisplay, getDeviceDetailLabel, getDeviceDisplayLabel } from '../utils/device';
+
+const CREATE_PASSWORD_PROMPT_CLOSED_EVENT = 'halochat_create_password_prompt_closed';
 
 const profileSchema = z.object({
   name: z.string().optional(),
@@ -124,6 +127,7 @@ export function ProfilePageContent() {
     register,
     handleSubmit,
     watch,
+    setValue,
     formState: { errors }
   } = useForm<ProfileFormValues>({
     resolver: zodResolver(profileSchema),
@@ -158,15 +162,29 @@ export function ProfilePageContent() {
     action: () => void | boolean | Promise<void | boolean>;
   } | null>(null);
   const [isUpdateEmailModalOpen, setIsUpdateEmailModalOpen] = useState(false);
+  const [isCreatePasswordModalOpen, setIsCreatePasswordModalOpen] = useState(false);
   const [selectedMedia, setSelectedMedia] = useState<{ url: string; type: 'image' | 'video' } | null>(null);
   const [isAvatarMenuOpen, setIsAvatarMenuOpen] = useState(false);
   const menuRef = React.useRef<HTMLDivElement>(null);
+  const [isGenderSelectOpen, setIsGenderSelectOpen] = useState(false);
+  const genderSelectRef = React.useRef<HTMLDivElement>(null);
   const currentSessionId = decodeJwtPayload(accessToken)?.sessionId || null;
+  const shouldCreatePassword = user?.accountType === 'GOOGLE' && user?.hasPassword === false;
+
+  React.useEffect(() => {
+    if (shouldCreatePassword && sessionStorage.getItem('halochat_create_password_prompt') === '1') {
+      setIsCreatePasswordModalOpen(true);
+      sessionStorage.removeItem('halochat_create_password_prompt');
+    }
+  }, [shouldCreatePassword]);
 
   React.useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
         setIsAvatarMenuOpen(false);
+      }
+      if (genderSelectRef.current && !genderSelectRef.current.contains(event.target as Node)) {
+        setIsGenderSelectOpen(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -248,6 +266,11 @@ export function ProfilePageContent() {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleCreatePasswordModalClose = () => {
+    setIsCreatePasswordModalOpen(false);
+    window.dispatchEvent(new Event(CREATE_PASSWORD_PROMPT_CLOSED_EVENT));
   };
 
   const getInitials = () => {
@@ -640,17 +663,26 @@ export function ProfilePageContent() {
             <div>
               <div style={{ fontWeight: 600, color: 'var(--text-primary)', marginBottom: '4px' }}>Bảo mật tài khoản</div>
               <div style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
-                Thay đổi mật khẩu định kỳ để bảo vệ tài khoản của bạn.
+                {shouldCreatePassword
+                  ? 'Tài khoản Google của bạn chưa có mật khẩu. Hãy tạo mật khẩu để đăng nhập theo cách khác.'
+                  : 'Thay đổi mật khẩu định kỳ để bảo vệ tài khoản của bạn.'}
               </div>
             </div>
             <button
               id="btn-go-change-password"
               type="button"
               className="btn btn-secondary"
-              onClick={() => navigate('/change-password')}
+              onClick={() => {
+                if (shouldCreatePassword) {
+                  setIsCreatePasswordModalOpen(true);
+                  return;
+                }
+                navigate('/change-password');
+              }}
               style={{ padding: '8px 16px' }}
             >
-              <Shield size={15} style={{ marginRight: '6px' }} /> Đổi mật khẩu
+              <Shield size={15} style={{ marginRight: '6px' }} />
+              {shouldCreatePassword ? 'Tạo mật khẩu' : 'Đổi mật khẩu'}
             </button>
           </div>
         </div>
@@ -793,17 +825,56 @@ export function ProfilePageContent() {
                     <Users size={13} /> Giới tính
                   </span>
                 </label>
-                <select
-                  id="profile-gender"
-                  className={`form-input ${errors.gender ? 'is-invalid' : ''}`}
-                  {...register('gender')}
-                  style={{ appearance: 'auto' }}
-                >
-                  <option value="">Chọn giới tính</option>
-                  <option value="MALE">Nam</option>
-                  <option value="FEMALE">Nữ</option>
-                  <option value="OTHER">Khác</option>
-                </select>
+                <div style={{ position: 'relative' }} ref={genderSelectRef}>
+                  <button
+                    type="button"
+                    className={`form-input ${errors.gender ? 'is-invalid' : ''}`}
+                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', textAlign: 'left', background: 'transparent', width: '100%', height: '42px', padding: '0 16px' }}
+                    onClick={(e) => { e.stopPropagation(); setIsGenderSelectOpen(!isGenderSelectOpen); }}
+                  >
+                    <span>
+                      {watch('gender') === 'MALE' ? 'Nam' : watch('gender') === 'FEMALE' ? 'Nữ' : watch('gender') === 'OTHER' ? 'Khác' : 'Chọn giới tính'}
+                    </span>
+                    <ChevronDown size={16} style={{ color: 'var(--text-muted)' }} />
+                  </button>
+                  {isGenderSelectOpen && (
+                    <div
+                      style={{
+                        position: 'absolute', left: 0, right: 0, top: '100%', marginTop: '4px',
+                        backgroundColor: 'var(--bg-card)', borderRadius: '8px',
+                        boxShadow: '0 4px 20px rgba(0,0,0,0.15)', zIndex: 50,
+                        border: '1px solid var(--border)', padding: '4px 0',
+                        animation: 'fadeIn 0.2s ease-out'
+                      }}
+                    >
+                      {[
+                        { value: '', label: 'Chọn giới tính' },
+                        { value: 'MALE', label: 'Nam' },
+                        { value: 'FEMALE', label: 'Nữ' },
+                        { value: 'OTHER', label: 'Khác' }
+                      ].map((opt) => (
+                        <button
+                          key={opt.value}
+                          type="button"
+                          className="dropdown-item custom-dropdown-btn hover:bg-[var(--bg-secondary)] transition-colors duration-200"
+                          style={{ 
+                            width: '100%', textAlign: 'left', padding: '10px 16px', 
+                            fontSize: '14px', border: 'none', 
+                            cursor: 'pointer', color: watch('gender') === opt.value ? 'var(--accent-primary)' : 'var(--text-primary)', 
+                            display: 'flex', alignItems: 'center', justifyContent: 'space-between'
+                          }}
+                          onClick={() => {
+                            setValue('gender', opt.value, { shouldDirty: true });
+                            setIsGenderSelectOpen(false);
+                          }}
+                        >
+                          {opt.label}
+                          {watch('gender') === opt.value && <Check size={16} />}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
                 {errors.gender && <div className="error-message" style={{ color: 'var(--error-color)', fontSize: '13px', marginTop: '4px' }}>{errors.gender.message}</div>}
               </div>
             </div>
@@ -1015,6 +1086,12 @@ export function ProfilePageContent() {
       <UpdateEmailModal 
         isOpen={isUpdateEmailModalOpen} 
         onClose={() => setIsUpdateEmailModalOpen(false)} 
+      />
+
+      <CreatePasswordModal
+        isOpen={isCreatePasswordModalOpen}
+        onClose={handleCreatePasswordModalClose}
+        onSuccess={() => updateUser({ hasPassword: true })}
       />
 
       {selectedMedia && (

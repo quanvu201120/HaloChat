@@ -1,5 +1,7 @@
 let audioContext: AudioContext | null = null;
 let toneTimer: ReturnType<typeof setInterval> | null = null;
+let activeMode: 'incoming' | 'outgoing' | null = null;
+let toneGeneration = 0;
 
 function getAudioContext() {
   const AudioContextClass = window.AudioContext || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
@@ -10,7 +12,14 @@ function getAudioContext() {
 }
 
 export function unlockCallTone() {
-  void getAudioContext()?.resume().catch(() => {});
+  const context = getAudioContext();
+  if (!context) return;
+
+  void context.resume().then(() => {
+    if (activeMode && !toneTimer) {
+      void startTone(activeMode, toneGeneration);
+    }
+  }).catch(() => {});
 }
 
 function playToneNote(frequency: number, startDelay: number, duration: number, volume = 0.08) {
@@ -40,7 +49,40 @@ function playCallChime(frequency: number, startDelay: number, duration: number, 
   playToneNote(frequency * 1.5, startDelay + 0.01, duration * 0.75, volume * 0.32);
 }
 
+function playPattern(mode: 'incoming' | 'outgoing') {
+  if (mode === 'incoming') {
+    playCallChime(784, 0, 0.16, 0.085);
+    playCallChime(1175, 0.18, 0.18, 0.078);
+    playCallChime(988, 0.46, 0.16, 0.072);
+    playCallChime(1175, 0.64, 0.2, 0.07);
+    navigator.vibrate?.([180, 80, 180]);
+    return;
+  }
+
+  playCallChime(523, 0, 0.14, 0.055);
+  playCallChime(659, 0.2, 0.14, 0.05);
+}
+
+async function startTone(mode: 'incoming' | 'outgoing', generation: number) {
+  const context = getAudioContext();
+  if (!context) return;
+
+  try {
+    await context.resume();
+  } catch {
+    return;
+  }
+
+  if (context.state !== 'running' || generation !== toneGeneration || activeMode !== mode) return;
+
+  if (toneTimer) clearInterval(toneTimer);
+  playPattern(mode);
+  toneTimer = setInterval(() => playPattern(mode), mode === 'incoming' ? 1450 : 1800);
+}
+
 export function stopCallTone() {
+  toneGeneration += 1;
+  activeMode = null;
   if (toneTimer) {
     clearInterval(toneTimer);
     toneTimer = null;
@@ -50,21 +92,7 @@ export function stopCallTone() {
 
 export function startCallTone(mode: 'incoming' | 'outgoing') {
   stopCallTone();
-
-  const playPattern = () => {
-    if (mode === 'incoming') {
-      playCallChime(784, 0, 0.16, 0.085);
-      playCallChime(1175, 0.18, 0.18, 0.078);
-      playCallChime(988, 0.46, 0.16, 0.072);
-      playCallChime(1175, 0.64, 0.2, 0.07);
-      navigator.vibrate?.([180, 80, 180]);
-      return;
-    }
-
-    playCallChime(523, 0, 0.14, 0.055);
-    playCallChime(659, 0.2, 0.14, 0.05);
-  };
-
-  playPattern();
-  toneTimer = setInterval(playPattern, mode === 'incoming' ? 1450 : 1800);
+  activeMode = mode;
+  if (mode === 'incoming') navigator.vibrate?.([180, 80, 180]);
+  void startTone(mode, toneGeneration);
 }

@@ -88,6 +88,7 @@ const REPORT_REASON_LABELS: Record<string, string> = {
   spam_harassment: 'Spam / Quấy rối',
   inappropriate_content: 'Nội dung vi phạm tiêu chuẩn cộng đồng.',
   impersonation: 'Mạo danh',
+  system_spam: 'Spam hệ thống',
   other: 'Khác',
 };
 
@@ -178,15 +179,14 @@ function NotificationsInbox({ onClose, onSelect, selectedId }: NotificationsInbo
     }
   };
 
-  const openNotification = async (item: NotificationItem) => {
-    if (!item.isRead) {
-      try {
-        await markRead(item._id);
-      } catch (err) {
-        console.error('Failed to mark notification as read:', err);
-      }
-    }
+  const openNotification = (item: NotificationItem) => {
     onSelect(item);
+
+    if (!item.isRead) {
+      void markRead(item._id).catch((err) => {
+        console.error('Failed to mark notification as read:', err);
+      });
+    }
   };
 
   const unread = unreadCount ?? 0;
@@ -420,7 +420,7 @@ function NotificationDetailStage({ item, onClose }: NotificationDetailStageProps
                     borderRadius: '22px',
                     border: '1px solid rgba(99, 102, 241, 0.16)',
                     background:
-                      'radial-gradient(circle at top left, rgba(99, 102, 241, 0.12), transparent 42%), linear-gradient(135deg, rgba(255, 255, 255, 0.94), rgba(243, 244, 255, 0.92))',
+                      'radial-gradient(circle at top left, rgba(99, 102, 241, 0.10), transparent 42%), linear-gradient(135deg, var(--bg-card), var(--bg-secondary))',
                     boxShadow: '0 16px 32px rgba(99, 102, 241, 0.10)',
                   }}
                 >

@@ -1,13 +1,13 @@
 import { useEffect } from 'react';
 import { useAuthStore } from '../store/authStore';
 import { useChatStore } from '../store/chatStore';
-import { connectSocket, disconnectSocket } from '../services/socket';
+import { connectSocket, disconnectSocket, syncCallSocket } from '../services/socket';
 import { normalizeId } from '../utils/chat';
 import { normalizeMessage } from '../services/messages';
 import { useToast } from '../context/ToastContext';
 import { useNavigate } from 'react-router-dom';
 import { queryClient } from '../lib/queryClient';
-import { startCallTone, stopCallTone, unlockCallTone } from '../utils/callTone';
+import { stopCallTone, unlockCallTone } from '../utils/callTone';
 
 type IncomingCallRouteState = {
   callId: string;
@@ -24,8 +24,11 @@ export default function SocketManager() {
 
   useEffect(() => {
     const unlockTone = () => unlockCallTone();
+    const tryUnlockTone = () => unlockCallTone();
     window.addEventListener('pointerdown', unlockTone, { once: true });
     window.addEventListener('touchstart', unlockTone, { once: true });
+    window.addEventListener('focus', tryUnlockTone);
+    document.addEventListener('visibilitychange', tryUnlockTone);
 
     // We subscribe to the store instead of calling hook directly to avoid unnecessary re-renders of the manager component
     const unsubAuth = useAuthStore.subscribe((state, prevState) => {
@@ -84,9 +87,6 @@ export default function SocketManager() {
       currentSock = sock;
 
       const chatStore = useChatStore.getState();
-
-      const onConnect = () => chatStore.setIsSocketConnected(true);
-      const onDisconnect = () => chatStore.setIsSocketConnected(false);
 
       const onUnseenMessage = (data: { conversationId: string }) => {
         const conversationId = normalizeId(data.conversationId);
@@ -307,7 +307,6 @@ export default function SocketManager() {
       const onIncomingCall = (data: IncomingCallRouteState) => {
         const conversationId = normalizeId(data.conversationId);
         if (!conversationId || data.calleeId !== currentUserId) return;
-        startCallTone('incoming');
         if (window.location.pathname === `/chat/${conversationId}`) return;
 
         navigate(`/chat/${conversationId}`, {
@@ -315,9 +314,40 @@ export default function SocketManager() {
         });
       };
       const onCallFinished = () => stopCallTone();
+      const onSocketConnect = async () => {
+        chatStore.setIsSocketConnected(true);
+        try {
+          const call = await syncCallSocket();
+          if (
+            !call.hasActiveCall ||
+            !call.callId ||
+            !call.conversationId ||
+            !call.callType ||
+            !call.callerId
+          ) return;
 
-      sock.on('connect', onConnect);
-      sock.on('disconnect', onDisconnect);
+          const incomingCall = {
+            callId: call.callId,
+            callerId: call.callerId,
+            calleeId: currentUserId,
+            conversationId: call.conversationId,
+            callType: call.callType,
+            callToken: call.callToken,
+          };
+          navigate(`/chat/${call.conversationId}`, {
+            replace: true,
+            state: { incomingCall },
+          });
+        } catch {
+          // Nếu sync fail thì giữ nguyên socket bình thường, không chặn chat.
+        }
+      };
+      const onSocketDisconnect = () => {
+        chatStore.setIsSocketConnected(false);
+      };
+
+      sock.on('connect', onSocketConnect);
+      sock.on('disconnect', onSocketDisconnect);
       sock.on('user:unseen-message', onUnseenMessage);
       sock.on('user:online', onUserOnline);
       sock.on('user:offline', onUserOffline);
@@ -353,7 +383,7 @@ export default function SocketManager() {
       sock.on('call:ended', onCallFinished);
 
       if (sock.connected) {
-        chatStore.setIsSocketConnected(true);
+        void onSocketConnect();
       }
     };
 
@@ -378,6 +408,8 @@ export default function SocketManager() {
       stopCallTone();
       window.removeEventListener('pointerdown', unlockTone);
       window.removeEventListener('touchstart', unlockTone);
+      window.removeEventListener('focus', tryUnlockTone);
+      document.removeEventListener('visibilitychange', tryUnlockTone);
       if (currentSock) disconnectSocket();
     };
   }, []);

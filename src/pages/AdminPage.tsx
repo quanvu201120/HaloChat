@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { useAuthStore } from '../store/authStore';
 import { UserRole } from '../constants/roles';
 import { Navigate, useNavigate } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import ConfirmPasswordModal from '../components/ConfirmPasswordModal';
 import AdminLayout from './admin/AdminLayout';
 import SessionRestoreFallback from '../components/SessionRestoreFallback';
@@ -9,23 +10,32 @@ import SessionRestoreFallback from '../components/SessionRestoreFallback';
 export default function AdminPage() {
   const { user, accessToken, isSessionRestoring, sessionRestoreError, isAdminVerified, setAdminVerified } = useAuthStore();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
   // Reset admin verification state when leaving the page or tab loses focus
   useEffect(() => {
+    const lockAdmin = () => {
+      setAdminVerified(false);
+      queryClient.removeQueries({
+        predicate: (query) => String(query.queryKey[0] ?? '').startsWith('admin_'),
+      });
+    };
+
     const handleVisibilityChange = () => {
       if (document.hidden) {
-        // [DEV] Tạm thời tắt reset admin khi mất focus để dễ dev
-        // setAdminVerified(false);
+        lockAdmin();
       }
     };
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('blur', lockAdmin);
 
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
-      setAdminVerified(false);
+      window.removeEventListener('blur', lockAdmin);
+      lockAdmin();
     };
-  }, [setAdminVerified]);
+  }, [queryClient, setAdminVerified]);
 
   if (isSessionRestoring) {
     return <div className="w-full h-screen bg-[var(--bg-primary)]" />;

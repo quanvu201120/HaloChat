@@ -290,12 +290,13 @@ type CallUiState = {
   status: 'incoming' | 'calling' | 'connecting' | 'active';
   peerName: string;
   peerId: string;
+  peerAvatarUrl?: string;
 };
 
 type IncomingCallRouteState = {
   incomingCall?: {
     callId: string;
-    callerId: string;
+    callerId?: string;
     calleeId: string;
     conversationId: string;
     callType: CallType;
@@ -399,6 +400,8 @@ export default function ChatPage() {
   const [callState, setCallState] = useState<CallUiState | null>(null);
   const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
   const [localCallStream, setLocalCallStream] = useState<MediaStream | null>(null);
+  const [callStartedAt, setCallStartedAt] = useState<number | null>(null);
+  const [callDurationSeconds, setCallDurationSeconds] = useState(0);
   const callTokenRef = useRef<string>('');
   const callHeartbeatTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -631,7 +634,8 @@ export default function ChatPage() {
 
   const isBlocked = currentRelationship?.status === 'BLOCKED';
   const iBlockedThem = isBlocked && currentRelationship?.blockedBy === currentUserId;
-  const canStartDirectCall = !!conv && !conv.isGroup && !isBlocked && !isTargetUserBanned && !isTargetUserDisabled;
+  const isFriend = !conv?.isGroup && currentRelationship?.status === 'ACCEPTED';
+  const canStartDirectCall = !!conv && !conv.isGroup && isFriend && !isBlocked && !isTargetUserBanned && !isTargetUserDisabled;
   const blockedUserIds = useMemo(() => {
     const ids = new Set(blockedUsers.map((blockedUser) => blockedUser._id));
 
@@ -653,7 +657,6 @@ export default function ChatPage() {
     ? (conv.avatar?.url || '') 
     : (otherUser?.avatar?.url || '');
 
-  const isFriend = !conv?.isGroup && currentRelationship?.status === 'ACCEPTED';
   const isMessageRequest = conv && !isFriend && !conv.acceptedBy?.includes(currentUserId);
 
   useEffect(() => {
@@ -694,6 +697,8 @@ export default function ChatPage() {
     setRemoteStream(null);
     setLocalCallStream(null);
     setCallState(null);
+    setCallStartedAt(null);
+    setCallDurationSeconds(0);
   }, [stopCallTone]);
 
   const getCallMedia = useCallback(async (callType: CallType) => {
@@ -746,6 +751,7 @@ export default function ChatPage() {
       const state = peerConnection.connectionState;
       if (state === 'connected') {
         setCallState((prev) => (prev ? { ...prev, status: 'active' } : prev));
+        setCallStartedAt((prev) => prev ?? Date.now());
       }
       if (state === 'failed' || state === 'disconnected') {
         if (callState?.callId === callId) {
@@ -758,6 +764,21 @@ export default function ChatPage() {
     return peerConnection;
   }, [callState?.callId, cleanupCall]);
 
+  useEffect(() => {
+    if (!callState || callState.status !== 'active' || !callStartedAt) {
+      setCallDurationSeconds(0);
+      return;
+    }
+
+    const updateDuration = () => {
+      setCallDurationSeconds(Math.max(0, Math.floor((Date.now() - callStartedAt) / 1000)));
+    };
+
+    updateDuration();
+    const timer = setInterval(updateDuration, 1000);
+    return () => clearInterval(timer);
+  }, [callStartedAt, callState?.status, callState?.callId]);
+
   /**
    * Bắt đầu cuộc gọi mới từ chat hiện tại.
    * Chỉ cho phép chat 1-1 và chỉ khi không có cuộc gọi active nào khác.
@@ -765,6 +786,10 @@ export default function ChatPage() {
   const handleStartCall = useCallback(async (callType: CallType) => {
     if (!activeConversationId || !otherUser || !conv || conv.isGroup) {
       toast.warning('Chỉ hỗ trợ gọi 1-1 ở phiên bản này.');
+      return;
+    }
+    if (!isFriend) {
+      toast.warning('Chỉ có thể gọi khi hai bên là bạn bè.');
       return;
     }
     if (!socket?.connected) {
@@ -794,13 +819,14 @@ export default function ChatPage() {
         status: 'calling',
         peerName: otherUser.name || otherUser.email || 'Người dùng',
         peerId: otherUser._id,
+        peerAvatarUrl: otherUser.avatar?.url || '',
       });
       startCallTone('outgoing');
     } catch (error) {
       cleanupCall();
       toast.error(error instanceof Error ? error.message : 'Không thể bắt đầu cuộc gọi.');
     }
-  }, [activeConversationId, callState, cleanupCall, conv, ensurePeerConnection, getCallMedia, otherUser, socket?.connected, startCallTone, toast]);
+  }, [activeConversationId, callState, cleanupCall, conv, ensurePeerConnection, getCallMedia, isFriend, otherUser, socket?.connected, startCallTone, toast]);
 
   /**
    * Chấp nhận cuộc gọi incoming và chuyển sang giai đoạn kết nối WebRTC.
@@ -890,7 +916,8 @@ export default function ChatPage() {
     if (!conversationId || conversationId !== activeConversationId) return;
     if (incomingCall.calleeId !== currentUserId) return;
 
-    const caller = conv?.users.find((member) => member._id === incomingCall.callerId);
+    const callerId = normalizeId(incomingCall.callerId) || conv?.users.find((member) => member._id !== currentUserId)?._id || '';
+    const caller = conv?.users.find((member) => member._id === callerId);
     setCallState({
       callId: incomingCall.callId,
       conversationId,
@@ -899,7 +926,8 @@ export default function ChatPage() {
       direction: 'incoming',
       status: 'incoming',
       peerName: caller?.name || caller?.email || 'Người gọi',
-      peerId: incomingCall.callerId,
+      peerId: callerId,
+      peerAvatarUrl: caller?.avatar?.url || '',
     });
     startCallTone('incoming');
     navigate(`/chat/${conversationId}`, { replace: true, state: null });
@@ -945,6 +973,7 @@ export default function ChatPage() {
         status: 'incoming',
         peerName: caller?.name || caller?.email || 'Người gọi',
         peerId: data.callerId,
+        peerAvatarUrl: caller?.avatar?.url || '',
       });
       startCallTone('incoming');
     };
@@ -3722,6 +3751,11 @@ export default function ChatPage() {
                         ? `Đang kết nối với ${callState.peerName}`
                         : `Đang thiết lập với ${callState.peerName}`}
                 </div>
+                {callState.status === 'active' && (
+                  <div className="call-panel-subtitle">
+                    {formatDuration(callDurationSeconds)}
+                  </div>
+                )}
               </div>
               {callState.status !== 'incoming' && (
                 <button className="call-close-btn" onClick={() => void handleEndCall()} title="Kết thúc">
@@ -3738,8 +3772,14 @@ export default function ChatPage() {
                 </>
               ) : (
                 <div className="call-audio-avatar">
-                  <Phone size={38} />
-                  <span>{callState.peerName.slice(0, 2).toUpperCase()}</span>
+                  {callState.peerAvatarUrl ? (
+                    <img src={callState.peerAvatarUrl} alt={callState.peerName} />
+                  ) : (
+                    <>
+                      <Phone size={38} />
+                      <span>{callState.peerName.slice(0, 2).toUpperCase()}</span>
+                    </>
+                  )}
                 </div>
               )}
               {callState.callType === 'audio' && <audio ref={remoteAudioRef} autoPlay />}
@@ -4040,8 +4080,8 @@ export default function ChatPage() {
               Đang hoạt động
             </div>
             {conv.users.filter(u => online[u._id] === true || u._id === user?._id).map(u => (
-              <div key={u._id} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '8px 20px' }}>
-              <div style={{ position: 'relative', width: 36, height: 36, borderRadius: '50%', background: 'linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 600 }}>
+              <div key={u._id} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '8px 20px', minWidth: 0 }}>
+              <div style={{ position: 'relative', width: 36, height: 36, flexShrink: 0, borderRadius: '50%', background: 'linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 600 }}>
                   {u.avatar && typeof u.avatar === 'object' && u.avatar.url ? (
                     <img src={u.avatar.url} alt={u.name || 'Người dùng'} style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
                   ) : (
@@ -4049,8 +4089,8 @@ export default function ChatPage() {
                   )}
                   <span className="online-dot" style={{ position: 'absolute', bottom: 0, right: 0, width: 10, height: 10, border: '2px solid var(--bg-card)' }} />
                 </div>
-                <div>
-                  <div style={{ fontSize: '14px', fontWeight: 500, color: 'var(--text-primary)' }}>{u.name || 'Người dùng'} {u._id === user?._id && '(Bạn)'}</div>
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <div style={{ fontSize: '14px', fontWeight: 500, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{u.name || 'Người dùng'} {u._id === user?._id && '(Bạn)'}</div>
                 </div>
               </div>
             ))}
@@ -4059,16 +4099,16 @@ export default function ChatPage() {
               Ngoại tuyến
             </div>
             {conv.users.filter(u => online[u._id] !== true && u._id !== user?._id).map(u => (
-              <div key={u._id} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '8px 20px', opacity: 0.7 }}>
-                <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 600 }}>
+              <div key={u._id} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '8px 20px', opacity: 0.7, minWidth: 0 }}>
+                <div style={{ width: 36, height: 36, flexShrink: 0, borderRadius: '50%', background: 'linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 600 }}>
                   {u.avatar && typeof u.avatar === 'object' && u.avatar.url ? (
                     <img src={u.avatar.url} alt={u.name || 'Người dùng'} style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
                   ) : (
                     (u.name || '?').slice(0, 1).toUpperCase()
                   )}
                 </div>
-                <div>
-                  <div style={{ fontSize: '14px', fontWeight: 500, color: 'var(--text-primary)' }}>{u.name || 'Người dùng'}</div>
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <div style={{ fontSize: '14px', fontWeight: 500, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{u.name || 'Người dùng'}</div>
                 </div>
               </div>
             ))}

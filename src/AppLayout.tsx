@@ -6,6 +6,7 @@ import Sidebar from './components/Sidebar';
 import NavigationSidebar from './components/NavigationSidebar';
 import ContactSidebar from './components/ContactSidebar';
 import SessionRestoreFallback from './components/SessionRestoreFallback';
+import PushNotificationsManager from './components/PushNotificationsManager';
 import { Menu } from 'lucide-react';
 
 export default function AppLayout() {
@@ -36,7 +37,7 @@ export default function AppLayout() {
     location.pathname === '/message-requests' ||
     location.pathname.startsWith('/chat');
   const isSidebarOnlyRoute = location.pathname === '/' || location.pathname === '/message-requests';
-  const isOuterPage = ['/', '/friends', '/requests', '/blocked', '/message-requests'].includes(location.pathname);
+  const isOuterPage = ['/', '/friends', '/requests', '/blocked', '/message-requests', '/sent-requests'].includes(location.pathname);
   const isContactRoute = ['/friends', '/sent-requests', '/requests', '/group-requests'].some(p => location.pathname.startsWith(p));
 
   // Determine if we should animate the transition. We don't animate if it's just the sidebar opening/closing via CSS.
@@ -44,6 +45,7 @@ export default function AppLayout() {
   
   return (
     <>
+      <PushNotificationsManager />
       <SocketManager />
       <div className={`app-layout ${isSidebarOnlyRoute ? 'mobile-sidebar-only' : 'mobile-main-only'}`}>
         {/* Far Left Navigation Sidebar */}

@@ -90,7 +90,7 @@ export const UI_MESSAGES = {
     sessionsLoading: 'Đang tải danh sách thiết bị...',
     sessionsEmpty: 'Chưa có thiết bị nào khác đang hoạt động.',
     sessionsLoadFailed: 'Không tải được danh sách thiết bị.',
-    sessionsLogoutSuccess: 'Đã đăng xuất thiết bị.',
+    sessionsLogoutSuccess: 'Đã xóa thiết bị.',
     deleteAvatarConfirm: 'Bạn có chắc chắn muốn xóa ảnh đại diện của mình?',
     deleteAvatarSuccess: 'Đã xóa ảnh đại diện',
     disableStep1Title: 'CẢNH BÁO: Vô hiệu hóa tài khoản',

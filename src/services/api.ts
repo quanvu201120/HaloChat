@@ -362,6 +362,10 @@ export const authApi = {
   changePassword: (data: { passwordOld: string; passwordNew: string; confirmPassword: string }) =>
     api.post('/auth/change-password', data),
 
+  // CreatePasswordAuthDto: { password, confirmPassword }
+  createPassword: (data: { password: string; confirmPassword: string }) =>
+    api.post('/auth/create-password', data),
+
   confirmPassword: (password: string) =>
     api.patch('/auth/confirm-password', { password }),
 
@@ -375,8 +379,22 @@ export const authApi = {
   refreshToken: () => apiWithCookies.post('/auth/refreshToken'),
 };
 
+export const pushSubscriptionsApi = {
+  upsert: (data: {
+    deviceId: string;
+    subscription: {
+      endpoint: string;
+      keys: {
+        p256dh: string;
+        auth: string;
+      };
+    };
+  }) => api.post('/push/subscriptions', data),
+};
+
 export interface AppealContext {
   reportId: string;
+  reason?: 'spam_harassment' | 'inappropriate_content' | 'impersonation' | 'system_spam' | 'other' | string;
   status: 'resolved' | 'appeal_pending' | 'appeal_rejected' | 'appeal_success' | string;
   appealDeadline?: string;
   appealReviewDeadline?: string;
