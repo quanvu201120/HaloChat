@@ -1,9 +1,9 @@
 import { useMemo, useState, useEffect, useLayoutEffect, useRef, type ReactNode } from 'react';
 import {
-  CornerUpLeft, Pencil, Trash2, Heart, Download, UserX, Pin,
+  CornerUpLeft, Pencil, Trash2, Heart, Download, UserX, Pin, Phone, Video,
 } from 'lucide-react';
 import AudioPlayer from './AudioPlayer';
-import type { Message, MessageReaction } from '../services/messages';
+import { formatCallMessageDuration, formatCallMessageLabel, type Message, type MessageReaction } from '../services/messages';
 import { api } from '../services/api';
 import { useToast } from '../context/ToastContext';
 
@@ -90,6 +90,17 @@ function isDownloadableMessage(message: Message) {
   }
 
   return message.type === 'file';
+}
+
+function isCallMessage(message: Message) {
+  return message.type === 'callAudio' || message.type === 'callVideo';
+}
+
+function getCallStatusClass(message: Message) {
+  const call = typeof message.call === 'object' ? message.call : null;
+  if (call?.status === 'rejected') return 'rejected';
+  if (call?.status === 'ended' && Number(call.duration || 0) > 0) return 'success';
+  return 'missed';
 }
 
 function isEmojiOnly(text?: string): boolean {
@@ -270,13 +281,16 @@ export default function MessageBubble({
   const showSenderName = !isMe && isGroup && !isSameSender(message, prevMessage);
   const showAvatar = !isMe && !isSameSender(message, prevMessage);
   const senderName = getSenderName(message);
+  const isCall = isCallMessage(message);
   const replyPreview = getReplyPreview(message.replyTo);
   const reactions = message.reactions ?? [];
   const reactionSummary = useMemo(() => getReactionSummary(reactions), [reactions]);
   const myReaction = reactions.find((reaction) => reaction.userId === currentUserId)?.type;
   const canEdit = isMe && message.type === 'text' && !message.isDeleted;
-  const canDelete = isMe && !message.isDeleted;
+  const canDelete = isMe && !message.isDeleted && !isCall;
   const canDownload = isDownloadableMessage(message);
+  const canShowActions = !isCall && !disableActions;
+  const callDuration = isCall ? formatCallMessageDuration(message) : '';
   const downloadFileName = typeof message.media === 'object' && message.media?.fileName
     ? message.media.fileName
     : message.type === 'image'
@@ -285,6 +299,7 @@ export default function MessageBubble({
         ? 'video'
         : 'tệp-đính-kèm';
   const statusLabel = isError ? 'Lỗi' : isOptimistic ? 'Đang gửi' : readStatusLabel;
+  const callStatusClass = isCall ? getCallStatusClass(message) : '';
   const isMediaOnly = !message.isDeleted
     && !message.replyTo
     && !message.content?.trim()
@@ -365,17 +380,17 @@ export default function MessageBubble({
   return (
     <div
       ref={messageRef}
-      className={`msg-row${isMe ? ' me' : ' other'}${showActions && !isSenderDisabled && !disableActions ? ' show-actions' : ''}`}
+      className={`msg-row${isMe ? ' me' : ' other'}${showActions && !isSenderDisabled && canShowActions ? ' show-actions' : ''}`}
       onMouseEnter={() => {
-        if (isSenderDisabled || disableActions) return;
+        if (isSenderDisabled || !canShowActions) return;
         clearReactionPickerCloseTimer();
         setShowActions(true);
       }}
       onMouseLeave={() => {
-        if (isSenderDisabled || disableActions) return;
+        if (isSenderDisabled || !canShowActions) return;
         scheduleReactionPickerClose();
       }}
-      onClick={() => !isSenderDisabled && !disableActions && setShowActions((prev) => !prev)}
+      onClick={() => !isSenderDisabled && canShowActions && setShowActions((prev) => !prev)}
     >
       {showSenderName && senderName && (
         <div className="msg-sender-name" style={{ marginLeft: '40px' }}>{senderName}</div>
@@ -397,13 +412,13 @@ export default function MessageBubble({
             )}
           </div>
         )}
-        <div className={`msg-content-wrapper${isMe ? ' me' : ' other'}${!message.isDeleted && !isSenderDisabled && reactions.length > 0 ? ' has-reactions' : ''}`} style={{ flex: 1, maxWidth: isMe ? '100%' : 'calc(100% - 40px)' }}>
+        <div className={`msg-content-wrapper${isMe ? ' me' : ' other'}${!isCall && !message.isDeleted && !isSenderDisabled && reactions.length > 0 ? ' has-reactions' : ''}`} style={{ flex: 1, maxWidth: isMe ? '100%' : 'calc(100% - 40px)' }}>
           <div
-            className={`msg-bubble${isMe ? ' me' : ' other'}${message.isDeleted ? ' deleted' : ''}${isOptimistic ? ' sending' : ''}${isError ? ' error' : ''}${isMediaOnly ? ' media-only' : ''}${isEmojiOnlyText ? ' emoji-only' : ''}${isHighlighted ? ' highlight-target' : ''}`}
-            onClick={() => isMe && setShowStatus((prev) => !prev)}
+            className={`msg-bubble${isMe ? ' me' : ' other'}${isCall ? ` call ${callStatusClass}` : ''}${message.isDeleted ? ' deleted' : ''}${isOptimistic ? ' sending' : ''}${isError ? ' error' : ''}${isMediaOnly ? ' media-only' : ''}${isEmojiOnlyText ? ' emoji-only' : ''}${isHighlighted ? ' highlight-target' : ''}`}
+            onClick={() => isMe && !isCall && setShowStatus((prev) => !prev)}
             style={isSenderDisabled ? { opacity: 0.8 } : undefined}
         >
-          {showActions && !message.isDeleted && !isSenderDisabled && (
+          {showActions && canShowActions && !message.isDeleted && !isSenderDisabled && (
             <div ref={actionsRef} className={`msg-actions${isMe ? ' me' : ' other'}`} onClick={(e) => e.stopPropagation()}>
               <div
                 className="action-btn"
@@ -482,7 +497,7 @@ export default function MessageBubble({
             </div>
           )}
 
-          {!message.isDeleted && message.replyTo && (
+          {!isCall && !message.isDeleted && message.replyTo && (
             <div
               className={`msg-reply-ref${onReplyReferenceClick ? ' clickable' : ''}`}
               onClick={(event) => {
@@ -511,11 +526,11 @@ export default function MessageBubble({
               alt={message.media.fileName || 'Ảnh'}
               className="msg-image"
               loading="lazy"
-              onClick={(e) => { onMediaClick?.(message.media); }}
+              onClick={() => { onMediaClick?.(message.media); }}
               style={{ cursor: onMediaClick ? 'pointer' : 'default' }}
             />
           ) : message.type === 'video' && typeof message.media === 'object' && message.media?.url ? (
-            <div className="msg-video-block" onClick={(e) => { onMediaClick?.(message.media); }}>
+            <div className="msg-video-block" onClick={() => { onMediaClick?.(message.media); }}>
               <video className="msg-video" preload="metadata" style={{ display: 'block' }}>
                 <source src={message.media.url} type={message.media.mimeType || 'video/mp4'} />
               </video>
@@ -525,6 +540,16 @@ export default function MessageBubble({
             </div>
           ) : message.type === 'voice' && typeof message.media === 'object' && message.media?.url ? (
             <AudioPlayer src={message.media.url} isMe={isMe} />
+          ) : isCallMessage(message) ? (
+            <div className="msg-call">
+              <span className="msg-call-icon">
+                {message.type === 'callVideo' ? <Video size={18} /> : <Phone size={18} />}
+              </span>
+              <span className={`msg-call-body${callDuration ? '' : ' no-duration'}`}>
+                <span className="msg-call-text">{formatCallMessageLabel(message)}</span>
+                {callDuration && <span className="msg-call-duration">{callDuration}</span>}
+              </span>
+            </div>
           ) : typeof message.media === 'object' && message.media?.url ? (
             <div className="msg-file-block" onClick={(event) => event.stopPropagation()}>
               <div
@@ -559,7 +584,7 @@ export default function MessageBubble({
           </div>
         </div>
 
-        {!message.isDeleted && !isSenderDisabled && reactions.length > 0 && (
+        {!isCall && !message.isDeleted && !isSenderDisabled && reactions.length > 0 && (
           <div className={`msg-reactions${isMe ? ' me' : ' other'}`}>
             {Object.entries(reactionSummary).map(([type, count]) => {
               const reaction = REACTIONS.find((item) => item.type === type);

@@ -7,7 +7,7 @@ import {
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import {
   Send, Phone, Video, Info, Smile, Paperclip, Image, Mic, Square, X,
-  Camera, Trash2, LogOut, ShieldOff, Check, Pencil, UserPlus, UserMinus, Crown, History, ChevronDown, ChevronRight, ChevronLeft, FileText, Search, Plus, Download, Edit2, UserX, UserCheck,
+  MicOff, VideoOff, RefreshCw, Camera, Trash2, LogOut, ShieldOff, Check, Pencil, UserPlus, UserMinus, Crown, History, ChevronDown, ChevronRight, ChevronLeft, FileText, Search, Plus, Download, Edit2, UserX, UserCheck,
   MapPin, Calendar, User as UserIcon, MessageSquare, AlertTriangle, Pin
 } from 'lucide-react';
 import { useAuthStore as useAuth } from '../store/authStore';
@@ -18,12 +18,12 @@ import {
 } from '../services/conversations';
 import MediaLightbox from '../components/MediaLightbox';
 import {
-  messagesApi, normalizeMessage, normalizeMessages, type Message,
+  messagesApi, normalizeMessage, normalizeMessages, formatCallMessageLabel, type Message,
 } from '../services/messages';
 import {
   mediaApi, MediaResourceTypeEnum, type MediaResponse,
 } from '../services/media';
-import { api, usersApi, parseError } from '../services/api';
+import { api, parseError } from '../services/api';
 import {
   joinConversation,
   sendTextMessage,
@@ -56,6 +56,7 @@ import MessageReadersModal from '../components/MessageReadersModal';
 import ReportUserModal from '../components/ReportUserModal';
 import MessageReactionsModal from '../components/MessageReactionsModal';
 import { normalizeId } from '../utils/chat';
+import { getDeviceCategoryFromUserAgent } from '../utils/device';
 import { startCallTone as startSharedCallTone, stopCallTone as stopSharedCallTone } from '../utils/callTone';
 import { CHAT_DEFAULTS, MESSAGE_PREVIEWS, MIME_TYPES, TIMING } from '../constants/chat';
 import { PERMANENT_BAN_DAYS } from '../constants/penalty';
@@ -198,6 +199,7 @@ function getSenderId(message: Message): string {
 function getReplyTargetPreview(replyTarget: Message | null) {
   if (!replyTarget) return '';
   if (replyTarget.isDeleted) return MESSAGE_PREVIEWS.RECALLED;
+  if (replyTarget.type === 'callAudio' || replyTarget.type === 'callVideo') return formatCallMessageLabel(replyTarget);
   if (replyTarget.type === 'text') return replyTarget.content || MESSAGE_PREVIEWS.TEXT;
   if (replyTarget.type === 'image') return MESSAGE_PREVIEWS.IMAGE;
   if (replyTarget.type === 'video') return MESSAGE_PREVIEWS.VIDEO;
@@ -206,16 +208,9 @@ function getReplyTargetPreview(replyTarget: Message | null) {
   return CHAT_DEFAULTS.MESSAGE_FALLBACK;
 }
 
-function getPinnedMessageLabel(message: Message) {
-  if (message.type === 'image') return 'Hình ảnh';
-  if (message.type === 'video') return 'Video';
-  if (message.type === 'voice') return 'Voice';
-  if (message.type === 'file') return 'Tệp đính kèm';
-  return 'Tin nhắn đã ghim';
-}
-
 function getPinnedMessageSummary(message: Message) {
   if (message.isDeleted) return 'Tin nhắn đã thu hồi';
+  if (message.type === 'callAudio' || message.type === 'callVideo') return formatCallMessageLabel(message);
   if (message.type === 'text') {
     const text = (message.content || '').replace(/@\[\[(.*?)\]\]/gs, '$1').replace(/\s+/g, ' ').trim();
     if (!text) return 'Tin nhắn văn bản';
@@ -281,6 +276,7 @@ const WEBRTC_FALLBACK_ICE_SERVERS: RTCIceServer[] = [
   { urls: import.meta.env.VITE_WEBRTC_STUN_URL || 'stun:stun.l.google.com:19302' },
 ];
 const WEBRTC_ICE_SERVERS_CACHE_KEY = 'halochat-webrtc-ice-servers';
+const PENDING_CALL_ID_PREFIX = 'pending-call-';
 
 type CallUiState = {
   callId: string;
@@ -403,7 +399,11 @@ export default function ChatPage() {
   const [localCallStream, setLocalCallStream] = useState<MediaStream | null>(null);
   const [callStartedAt, setCallStartedAt] = useState<number | null>(null);
   const [callDurationSeconds, setCallDurationSeconds] = useState(0);
+  const [isCallMicEnabled, setIsCallMicEnabled] = useState(true);
+  const [isCallCameraEnabled, setIsCallCameraEnabled] = useState(true);
+  const [isSwitchingCamera, setIsSwitchingCamera] = useState(false);
   const callTokenRef = useRef<string>('');
+  const pendingOutgoingCallIdRef = useRef<string>('');
   const callHeartbeatTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [webrtcIceServers, setWebrtcIceServers] = useState<RTCIceServer[]>(WEBRTC_FALLBACK_ICE_SERVERS);
   const webrtcIceServersLoadedRef = useRef(false);
@@ -414,7 +414,6 @@ export default function ChatPage() {
   // User Profile Popup States
   const [selectedUserForInfo, setSelectedUserForInfo] = useState<any>(null);
   const [showReportModal, setShowReportModal] = useState(false);
-  const [isLoadingUserDetail, setIsLoadingUserDetail] = useState(false);
 
   const renderPinnedMessagePreview = useCallback((message: Message) => {
     const media = typeof message.media === 'object' ? message.media : null;
@@ -517,21 +516,9 @@ export default function ChatPage() {
     );
   }, []);
 
-  const handleShowUserProfile = async (userObj: any) => {
+  const handleShowUserProfile = (userObj: any) => {
     if (!userObj || !userObj._id || getUserRestrictionState(userObj).kind === 'disable') return;
     setSelectedUserForInfo(userObj);
-    setIsLoadingUserDetail(true);
-    try {
-      const res = await usersApi.getOne(userObj._id);
-      const fetchedUser = res.data?.data ?? res.data;
-      if (fetchedUser) {
-        setSelectedUserForInfo(fetchedUser);
-      }
-    } catch (err) {
-      console.error('Error fetching user detail:', err);
-    } finally {
-      setIsLoadingUserDetail(false);
-    }
   };
 
   const handleStartDirectChat = async (userId: string) => {
@@ -577,6 +564,7 @@ export default function ChatPage() {
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteAudioRef = useRef<HTMLAudioElement>(null);
   const pendingIceCandidatesRef = useRef<RTCIceCandidateInit[]>([]);
+  const isMobileDevice = getDeviceCategoryFromUserAgent(typeof navigator !== 'undefined' ? navigator.userAgent : '') === 'mobile';
   
   // Handle click outside for Emoji Picker
   useEffect(() => {
@@ -684,6 +672,22 @@ export default function ChatPage() {
   }, [localCallStream]);
 
   useEffect(() => {
+    for (const video of [remoteVideoRef.current, localVideoRef.current]) {
+      if (!video) continue;
+      video.setAttribute('playsinline', 'true');
+      video.setAttribute('webkit-playsinline', 'true');
+      video.disablePictureInPicture = true;
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!localCallStream) return;
+
+    setIsCallMicEnabled(localCallStream.getAudioTracks()[0]?.enabled ?? true);
+    setIsCallCameraEnabled(localCallStream.getVideoTracks()[0]?.enabled ?? true);
+  }, [localCallStream]);
+
+  useEffect(() => {
     callTokenRef.current = callState?.callToken || '';
   }, [callState?.callToken]);
 
@@ -733,6 +737,7 @@ export default function ChatPage() {
 
   const cleanupCall = useCallback(() => {
     stopCallTone();
+    pendingOutgoingCallIdRef.current = '';
     peerConnectionRef.current?.close();
     peerConnectionRef.current = null;
     callLocalStreamRef.current?.getTracks().forEach((track) => track.stop());
@@ -743,6 +748,9 @@ export default function ChatPage() {
     setCallState(null);
     setCallStartedAt(null);
     setCallDurationSeconds(0);
+    setIsCallMicEnabled(true);
+    setIsCallCameraEnabled(true);
+    setIsSwitchingCamera(false);
   }, [stopCallTone]);
 
   const getCallMedia = useCallback(async (callType: CallType) => {
@@ -754,8 +762,68 @@ export default function ChatPage() {
     });
     callLocalStreamRef.current = stream;
     setLocalCallStream(stream);
+    setIsCallMicEnabled(stream.getAudioTracks()[0]?.enabled ?? true);
+    setIsCallCameraEnabled(stream.getVideoTracks()[0]?.enabled ?? true);
     return stream;
   }, []);
+
+  const handleToggleCallMic = useCallback(() => {
+    const audioTrack = callLocalStreamRef.current?.getAudioTracks()[0];
+    if (!audioTrack) return;
+
+    audioTrack.enabled = !audioTrack.enabled;
+    setIsCallMicEnabled(audioTrack.enabled);
+  }, []);
+
+  const handleToggleCallCamera = useCallback(() => {
+    const videoTrack = callLocalStreamRef.current?.getVideoTracks()[0];
+    if (!videoTrack) return;
+
+    videoTrack.enabled = !videoTrack.enabled;
+    setIsCallCameraEnabled(videoTrack.enabled);
+  }, []);
+
+  const handleSwitchCallCamera = useCallback(async () => {
+    if (!callState || callState.callType !== 'video' || !isMobileDevice || isSwitchingCamera) return;
+
+    const currentStream = callLocalStreamRef.current;
+    const currentVideoTrack = currentStream?.getVideoTracks()[0];
+    if (!currentStream || !currentVideoTrack) return;
+
+    const currentFacingMode = currentVideoTrack.getSettings().facingMode;
+    const nextFacingMode = currentFacingMode === 'environment' ? 'user' : 'environment';
+
+    setIsSwitchingCamera(true);
+    try {
+      const videoStream = await getUserMediaCompat({
+        audio: false,
+        video: { facingMode: { ideal: nextFacingMode } },
+      });
+      const nextVideoTrack = videoStream.getVideoTracks()[0];
+      if (!nextVideoTrack) {
+        throw new Error('Không thể đổi camera.');
+      }
+
+      nextVideoTrack.enabled = isCallCameraEnabled;
+      const nextStream = new MediaStream([
+        ...currentStream.getAudioTracks(),
+        nextVideoTrack,
+      ]);
+
+      const sender = peerConnectionRef.current?.getSenders().find((item) => item.track?.kind === 'video');
+      if (sender) {
+        await sender.replaceTrack(nextVideoTrack);
+      }
+
+      currentVideoTrack.stop();
+      callLocalStreamRef.current = nextStream;
+      setLocalCallStream(nextStream);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Không thể đổi camera.');
+    } finally {
+      setIsSwitchingCamera(false);
+    }
+  }, [callState, isCallCameraEnabled, isMobileDevice, isSwitchingCamera, toast]);
 
   const flushPendingIceCandidates = useCallback(async () => {
     const peerConnection = peerConnectionRef.current;
@@ -774,12 +842,21 @@ export default function ChatPage() {
     const peerConnection = new RTCPeerConnection({ iceServers: webrtcIceServers });
     peerConnectionRef.current = peerConnection;
 
+    const markCallActive = () => {
+      setCallState((prev) => {
+        if (!prev || prev.callId !== callId || prev.status === 'active') return prev;
+        return { ...prev, status: 'active' };
+      });
+      setCallStartedAt((prev) => prev ?? Date.now());
+    };
+
     stream.getTracks().forEach((track) => peerConnection.addTrack(track, stream));
 
     peerConnection.ontrack = (event) => {
       const [incomingStream] = event.streams;
       if (incomingStream) {
         setRemoteStream(incomingStream);
+        markCallActive();
       }
     };
 
@@ -794,8 +871,20 @@ export default function ChatPage() {
     peerConnection.onconnectionstatechange = () => {
       const state = peerConnection.connectionState;
       if (state === 'connected') {
-        setCallState((prev) => (prev ? { ...prev, status: 'active' } : prev));
-        setCallStartedAt((prev) => prev ?? Date.now());
+        markCallActive();
+      }
+      if (state === 'failed' || state === 'disconnected') {
+        if (callState?.callId === callId) {
+          void endCallSocket(callId, 'network_lost').catch(() => {});
+        }
+        cleanupCall();
+      }
+    };
+
+    peerConnection.oniceconnectionstatechange = () => {
+      const state = peerConnection.iceConnectionState;
+      if (state === 'connected') {
+        markCallActive();
       }
       if (state === 'failed' || state === 'disconnected') {
         if (callState?.callId === callId) {
@@ -845,28 +934,51 @@ export default function ChatPage() {
       return;
     }
 
+    const pendingCallId = PENDING_CALL_ID_PREFIX + Date.now();
+    pendingOutgoingCallIdRef.current = pendingCallId;
+    setCallState({
+      callId: pendingCallId,
+      conversationId: activeConversationId,
+      callType,
+      direction: 'outgoing',
+      status: 'calling',
+      peerName: otherUser.name || otherUser.email || 'Người dùng',
+      peerId: otherUser._id,
+      peerAvatarUrl: otherUser.avatar?.url || '',
+    });
+    startCallTone('outgoing');
+
     try {
       const stream = await getCallMedia(callType);
+      if (pendingOutgoingCallIdRef.current !== pendingCallId) {
+        cleanupCall();
+        return;
+      }
+
       const ack = await startCallSocket({
         calleeId: otherUser._id,
         conversationId: activeConversationId,
         callType,
       });
+      if (pendingOutgoingCallIdRef.current !== pendingCallId) {
+        await endCallSocket(ack.callId, 'user_hangup').catch(() => undefined);
+        cleanupCall();
+        return;
+      }
 
       ensurePeerConnection(ack.callId, activeConversationId, stream);
-      setCallState({
-        callId: ack.callId,
-        conversationId: activeConversationId,
-        callToken: ack.callToken,
-        callType,
-        direction: 'outgoing',
-        status: 'calling',
-        peerName: otherUser.name || otherUser.email || 'Người dùng',
-        peerId: otherUser._id,
-        peerAvatarUrl: otherUser.avatar?.url || '',
+      pendingOutgoingCallIdRef.current = '';
+      setCallState((prev) => {
+        if (!prev || prev.callId !== pendingCallId) return prev;
+        return {
+          ...prev,
+          callId: ack.callId,
+          conversationId: activeConversationId,
+          callToken: ack.callToken,
+        };
       });
-      startCallTone('outgoing');
     } catch (error) {
+      pendingOutgoingCallIdRef.current = '';
       cleanupCall();
       toast.error(error instanceof Error ? error.message : 'Không thể bắt đầu cuộc gọi.');
     }
@@ -913,6 +1025,11 @@ export default function ChatPage() {
    */
   const handleEndCall = useCallback(async () => {
     if (!callState) return;
+    if (callState.callId.startsWith(PENDING_CALL_ID_PREFIX)) {
+      pendingOutgoingCallIdRef.current = '';
+      cleanupCall();
+      return;
+    }
     try {
       await endCallSocket(callState.callId, 'user_hangup');
     } catch {
@@ -3453,10 +3570,7 @@ export default function ChatPage() {
                         )}
                         <div 
                           className={canOpenMemberProfile ? 'info-sidebar-member-name clickable' : 'info-sidebar-member-name info-sidebar-member-name-disabled'}
-                          onClick={canOpenMemberProfile ? () => {
-                            setSelectedUserForInfo(member);
-                            setIsLoadingUserDetail(false);
-                          } : undefined}
+                          onClick={canOpenMemberProfile ? () => handleShowUserProfile(member) : undefined}
                           title={member.isDisabled ? undefined : displayName}
                           style={{ cursor: canOpenMemberProfile ? 'pointer' : 'default' }}
                         >
@@ -3812,7 +3926,13 @@ export default function ChatPage() {
               {callState.callType === 'video' ? (
                 <>
                   <video ref={remoteVideoRef} className="call-remote-video" autoPlay playsInline />
-                  <video ref={localVideoRef} className="call-local-video" autoPlay muted playsInline />
+                  <video
+                    ref={localVideoRef}
+                    className={`call-local-video${!isCallCameraEnabled ? ' off' : ''}`}
+                    autoPlay
+                    muted
+                    playsInline
+                  />
                 </>
               ) : (
                 <div className="call-audio-avatar">
@@ -3840,9 +3960,39 @@ export default function ChatPage() {
                   </button>
                 </>
               ) : (
-                <button className="call-action-btn reject" onClick={() => void handleEndCall()}>
-                  <X size={20} />
-                </button>
+                <>
+                  <button
+                    className={`call-action-btn toggle${!isCallMicEnabled ? ' off' : ''}`}
+                    onClick={handleToggleCallMic}
+                    title={isCallMicEnabled ? 'Tắt mic' : 'Bật mic'}
+                  >
+                    {isCallMicEnabled ? <Mic size={20} /> : <MicOff size={20} />}
+                  </button>
+                  <button className="call-action-btn reject" onClick={() => void handleEndCall()}>
+                    <X size={20} />
+                  </button>
+                  {callState.callType === 'video' && (
+                    <>
+                      <button
+                        className={`call-action-btn toggle${!isCallCameraEnabled ? ' off' : ''}`}
+                        onClick={handleToggleCallCamera}
+                        title={isCallCameraEnabled ? 'Tắt camera' : 'Bật camera'}
+                      >
+                        {isCallCameraEnabled ? <Camera size={20} /> : <VideoOff size={20} />}
+                      </button>
+                      {isMobileDevice && (
+                        <button
+                          className="call-action-btn toggle"
+                          onClick={() => void handleSwitchCallCamera()}
+                          title="Đổi camera"
+                          disabled={isSwitchingCamera}
+                        >
+                          <RefreshCw size={20} />
+                        </button>
+                      )}
+                    </>
+                  )}
+                </>
               )}
             </div>
           </div>
@@ -4006,19 +4156,6 @@ export default function ChatPage() {
               }}
             >
               {!selectedUserForInfo.avatar?.url && (selectedUserForInfo.name || 'U').charAt(0).toUpperCase()}
-              {isLoadingUserDetail && (
-                <div style={{
-                  position: 'absolute',
-                  top: 0, left: 0, right: 0, bottom: 0,
-                  backgroundColor: 'rgba(0,0,0,0.3)',
-                  borderRadius: '50%',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center'
-                }}>
-                  <div className="loading-spinner" style={{ width: '30px', height: '30px', borderColor: '#fff', borderTopColor: 'transparent' }} />
-                </div>
-              )}
             </div>
             
             {/* Name */}
@@ -4045,11 +4182,7 @@ export default function ChatPage() {
               wordBreak: 'break-word',
               minHeight: '22px'
             }}>
-              {isLoadingUserDetail && !selectedUserForInfo.bio ? (
-                <span style={{ opacity: 0.5 }}>Đang tải...</span>
-              ) : (
-                selectedUserForInfo.bio || 'Chưa có tiểu sử.'
-              )}
+              {selectedUserForInfo.bio || 'Chưa có tiểu sử.'}
             </div>
 
             {selectedUserForInfo._id !== currentUserId && getUserRestrictionState(selectedUserForInfo).kind === null && (
@@ -4075,7 +4208,7 @@ export default function ChatPage() {
                 <div>
                   <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Địa chỉ</div>
                   <div style={{ fontSize: '15px', fontWeight: 500 }}>
-                    {isLoadingUserDetail && !selectedUserForInfo.address ? 'Đang tải...' : (selectedUserForInfo.address || 'Chưa cập nhật')}
+                    {selectedUserForInfo.address || 'Chưa cập nhật'}
                   </div>
                 </div>
               </div>
@@ -4087,9 +4220,7 @@ export default function ChatPage() {
                 <div>
                   <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Giới tính</div>
                   <div style={{ fontSize: '15px', fontWeight: 500 }}>
-                    {isLoadingUserDetail && !selectedUserForInfo.gender ? 'Đang tải...' : (
-                      selectedUserForInfo.gender === 'MALE' ? 'Nam' : selectedUserForInfo.gender === 'FEMALE' ? 'Nữ' : selectedUserForInfo.gender === 'OTHER' ? 'Khác' : 'Chưa cập nhật'
-                    )}
+                    {selectedUserForInfo.gender === 'MALE' ? 'Nam' : selectedUserForInfo.gender === 'FEMALE' ? 'Nữ' : selectedUserForInfo.gender === 'OTHER' ? 'Khác' : 'Chưa cập nhật'}
                   </div>
                 </div>
               </div>
@@ -4101,9 +4232,7 @@ export default function ChatPage() {
                 <div>
                   <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Ngày sinh</div>
                   <div style={{ fontSize: '15px', fontWeight: 500 }}>
-                    {isLoadingUserDetail && !selectedUserForInfo.dateOfBirth ? 'Đang tải...' : (
-                      selectedUserForInfo.dateOfBirth ? new Date(selectedUserForInfo.dateOfBirth).toLocaleDateString('vi-VN') : 'Chưa cập nhật'
-                    )}
+                    {selectedUserForInfo.dateOfBirth ? new Date(selectedUserForInfo.dateOfBirth).toLocaleDateString('vi-VN') : 'Chưa cập nhật'}
                   </div>
                 </div>
               </div>

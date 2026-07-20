@@ -1327,6 +1327,118 @@ body,
   width: min(100%, 280px);
 }
 
+.msg-bubble.call {
+  min-width: 236px;
+  max-width: min(76%, 360px);
+  padding: 14px 56px 12px 14px;
+  background: var(--bg-card) !important;
+  color: var(--text-primary) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 18px !important;
+  cursor: default;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.06) !important;
+}
+
+.msg-bubble.call.success {
+  border-color: rgba(34, 197, 94, 0.24) !important;
+  background: linear-gradient(135deg, rgba(34, 197, 94, 0.09), var(--bg-card) 62%) !important;
+}
+
+.msg-bubble.call.missed {
+  border-color: rgba(239, 68, 68, 0.24) !important;
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.09), var(--bg-card) 62%) !important;
+}
+
+.msg-bubble.call.rejected {
+  border-color: rgba(245, 158, 11, 0.28) !important;
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.1), var(--bg-card) 62%) !important;
+}
+
+.msg-call {
+  display: inline-flex;
+  align-items: flex-start;
+  gap: 10px;
+  max-width: 100%;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.msg-call-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 40px;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  color: white;
+  box-shadow: 0 6px 14px rgba(15, 23, 42, 0.12);
+}
+
+.msg-bubble.call.success .msg-call-icon {
+  background: #22c55e;
+}
+
+.msg-bubble.call.missed .msg-call-icon {
+  background: #ef4444;
+}
+
+.msg-bubble.call.rejected .msg-call-icon {
+  background: #f59e0b;
+}
+
+.msg-call-body {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+  padding-top: 1px;
+}
+
+.msg-call-body.no-duration {
+  align-self: stretch;
+  justify-content: center;
+  padding-top: 0;
+}
+
+.msg-call-text {
+  min-width: 0;
+  color: var(--text-primary);
+  overflow-wrap: break-word;
+  word-break: break-word;
+}
+
+.msg-call-duration {
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.msg-bubble.call.success .msg-call-text {
+  color: #15803d;
+}
+
+.msg-bubble.call.success .msg-call-duration {
+  color: #15803d;
+}
+
+.msg-bubble.call.missed .msg-call-text {
+  color: #dc2626;
+}
+
+.msg-bubble.call.missed .msg-call-duration {
+  color: #dc2626;
+}
+
+.msg-bubble.call.rejected .msg-call-text {
+  color: #b45309;
+}
+
+.msg-bubble.call.rejected .msg-call-duration {
+  color: #b45309;
+}
+
 .msg-file-block {
   display: flex;
   flex-direction: column;
@@ -4692,6 +4804,8 @@ tbody tr:last-child td {
 .call-actions {
   display: flex;
   justify-content: center;
+  align-items: center;
+  flex-wrap: wrap;
   gap: 20px;
   padding: 18px;
   background: rgba(0, 0, 0, 0.22);
@@ -4701,6 +4815,14 @@ tbody tr:last-child td {
   width: 52px;
   height: 52px;
   border-radius: 50%;
+}
+
+.call-action-btn.toggle {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.call-action-btn.toggle.off {
+  background: rgba(255, 255, 255, 0.2);
 }
 
 .call-action-btn.accept {
@@ -4713,6 +4835,21 @@ tbody tr:last-child td {
 
 .call-action-btn:hover {
   transform: translateY(-1px) scale(1.03);
+}
+
+.call-action-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.call-action-btn:disabled:hover {
+  transform: none;
+}
+
+.call-local-video.off {
+  opacity: 0.45;
+  filter: grayscale(1);
 }
 
 @media (max-width: 640px) {
@@ -4728,5 +4865,15 @@ tbody tr:last-child td {
     width: 108px;
     right: 10px;
     bottom: 10px;
+  }
+
+  .call-actions {
+    gap: 12px;
+    padding: 14px;
+  }
+
+  .call-action-btn {
+    width: 48px;
+    height: 48px;
   }
 }

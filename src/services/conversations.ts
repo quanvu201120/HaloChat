@@ -10,6 +10,10 @@ export interface ConversationUser {
     _id?: string;
     url?: string;
   };
+  address?: string;
+  dateOfBirth?: string;
+  gender?: string;
+  bio?: string;
   lastOnlineAt?: string;
   isDisabled?: boolean;
   banUntil?: string;
@@ -39,6 +43,10 @@ function normalizeConversationUser(raw: any): ConversationUser {
     name: raw?.name,
     email: String(raw?.email ?? ''),
     avatar: raw?.avatar,
+    address: raw?.address,
+    dateOfBirth: raw?.dateOfBirth,
+    gender: raw?.gender,
+    bio: raw?.bio,
     lastOnlineAt: raw?.lastOnlineAt,
     isDisabled: Boolean(raw?.isDisabled),
     banUntil: raw?.banUntil,

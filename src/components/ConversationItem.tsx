@@ -2,6 +2,7 @@ import { memo } from 'react';
 import { Link } from 'react-router-dom';
 import { UserX } from 'lucide-react';
 import type { Conversation } from '../services/conversations';
+import { formatCallMessageLabel } from '../services/messages';
 import { useChatStore } from '../store/chatStore';
 
 function getConversationName(conv: Conversation, currentUserId: string): string {
@@ -49,6 +50,7 @@ function getLastMessagePreview(conv: Conversation, currentUserId: string): strin
   if (msg.type === 'video') return `${prefix}[Video]`;
   if (msg.type === 'file') return `${prefix}[File]`;
   if (msg.type === 'voice') return `${prefix}[Tin nhắn thoại]`;
+  if (msg.type === 'callAudio' || msg.type === 'callVideo') return `${prefix}${formatCallMessageLabel(msg)}`;
   if (msg.type === 'system') return msg.content || '';
   return '';
 }

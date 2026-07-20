@@ -106,15 +106,17 @@ const persistBannedAppeal = (data: (AppealContext & { banUntil?: string }) | nul
 const getErrorMessage = (error: any) => {
   const message = error?.response?.data?.message;
   if (typeof message === 'string') return message;
-  return error?.message || 'KhÃ´ng thá»ƒ khÃ´i phá»¥c phiÃªn Ä‘Äƒng nháº­p. Vui lÃ²ng thá»­ láº¡i.';
+  return error?.message || 'Không thể khôi phục phiên đăng nhập. Vui lòng thử lại.';
 };
 
 const getRetryAfterSeconds = (error: any) => {
+  if (error?.response?.status !== 429) return 10;
+
   const header = error?.response?.headers?.['retry-after'];
   const headerSeconds = Number(header);
   if (Number.isFinite(headerSeconds) && headerSeconds > 0) return Math.ceil(headerSeconds);
 
-  const matched = getErrorMessage(error).match(/(\d+)/);
+  const matched = getErrorMessage(error).match(/sau\s+(\d+)\s+gi/i);
   if (matched) {
     const seconds = Number(matched[1]);
     if (Number.isFinite(seconds) && seconds > 0) return seconds;

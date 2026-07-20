@@ -1,7 +1,7 @@
 import { api } from './api';
 import { normalizeId } from '../utils/chat';
 
-export type MessageType = 'text' | 'image' | 'video' | 'file' | 'voice' | 'system';
+export type MessageType = 'text' | 'image' | 'video' | 'file' | 'voice' | 'system' | 'callAudio' | 'callVideo';
 
 export interface MessageUser {
   _id: string;
@@ -29,6 +29,19 @@ export interface MessageReaction {
   type: string;
 }
 
+export interface MessageCall {
+  _id: string;
+  callerId: string;
+  calleeId: string;
+  conversationId: string;
+  callType: 'audio' | 'video';
+  status: 'calling' | 'accepted' | 'rejected' | 'ended' | 'missed';
+  startedAt?: string;
+  endedAt?: string;
+  duration: number;
+  endReason?: string;
+}
+
 export interface Message {
   _id: string;
   conversationId: string;
@@ -36,6 +49,7 @@ export interface Message {
   type: MessageType;
   content?: string;
   media?: MessageMedia | string;
+  call?: MessageCall | string;
   replyTo?: string | Message;
   isDeleted: boolean;
   deletedAt?: string;
@@ -52,6 +66,28 @@ function normalizeReaction(raw: any): MessageReaction {
   };
 }
 
+export function formatCallMessageLabel(message: Pick<Message, 'type' | 'call'>): string {
+  const call = typeof message.call === 'object' ? message.call : null;
+  const duration = Number(call?.duration || 0);
+
+  if (call?.status === 'rejected') return 'Đã từ chối';
+  if (call?.status === 'missed') return 'Gọi nhỡ';
+  if (call?.status === 'ended' && duration > 0) {
+    return message.type === 'callVideo' ? 'Cuộc gọi video' : 'Cuộc gọi thoại';
+  }
+  return 'Gọi nhỡ';
+}
+
+export function formatCallMessageDuration(message: Pick<Message, 'call'>): string {
+  const call = typeof message.call === 'object' ? message.call : null;
+  const duration = Number(call?.duration || 0);
+  if (call?.status !== 'ended' || duration <= 0) return '';
+
+  const minutes = Math.floor(duration / 60);
+  const seconds = Math.floor(duration % 60);
+  return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+}
+
 export function normalizeMessage(raw: any): Message {
   const conversationId = raw?.conversationId ?? raw?.conversation?._id ?? raw?.conversation;
   const replyTo = raw?.replyTo
@@ -62,14 +98,20 @@ export function normalizeMessage(raw: any): Message {
 
   const sender = raw?.sender ?? raw?.senderId ?? '';
   const media = raw?.media ?? raw?.mediaId;
+  const call = raw?.call ?? raw?.callId;
+  const rawType = String(raw?.type ?? 'text');
+  const type = rawType === 'callAudio' || rawType === 'callVideo'
+    ? rawType
+    : rawType.toLowerCase();
 
   return {
     _id: normalizeId(raw?._id),
     conversationId: normalizeId(conversationId),
     sender: typeof sender === 'object' ? sender : normalizeId(sender),
-    type: String(raw?.type ?? 'text').toLowerCase() as MessageType,
+    type: type as MessageType,
     content: raw?.content,
     media: typeof media === 'object' ? media : normalizeId(media),
+    call: typeof call === 'object' ? call : normalizeId(call),
     replyTo,
     isDeleted: Boolean(raw?.isDeleted),
     deletedAt: raw?.deletedAt,
