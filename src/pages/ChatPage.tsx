@@ -56,6 +56,7 @@ import MessageReadersModal from '../components/MessageReadersModal';
 import ReportUserModal from '../components/ReportUserModal';
 import MessageReactionsModal from '../components/MessageReactionsModal';
 import { normalizeId } from '../utils/chat';
+import { sanitizeExternalUrl } from '../utils/url';
 import { getDeviceCategoryFromUserAgent } from '../utils/device';
 import { startCallTone as startSharedCallTone, stopCallTone as stopSharedCallTone } from '../utils/callTone';
 import { CHAT_DEFAULTS, MESSAGE_PREVIEWS, MIME_TYPES, TIMING } from '../constants/chat';
@@ -452,7 +453,7 @@ export default function ChatPage() {
     if (message.type === 'file' && media?.url) {
       return (
         <a
-          href={media.url}
+          href={sanitizeExternalUrl(media.url) || undefined}
           target="_blank"
           rel="noreferrer"
           style={{

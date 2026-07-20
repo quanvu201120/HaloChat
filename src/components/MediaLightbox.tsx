@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { X, ChevronLeft, ChevronRight, Download, PlayCircle } from 'lucide-react';
 import { type MediaResponse, MediaResourceTypeEnum } from '../services/media';
 import { api } from '../services/api';
+import { sanitizeExternalUrl } from '../utils/url';
 
 interface MediaLightboxProps {
   medias: MediaResponse[];
@@ -50,7 +51,8 @@ export default function MediaLightbox({ medias, initialIndex, onClose }: MediaLi
       URL.revokeObjectURL(blobUrl);
     } catch (err) {
       console.error('Download failed', err);
-      window.open(activeMedia.url, '_blank', 'noopener,noreferrer');
+      const safeUrl = sanitizeExternalUrl(activeMedia.url);
+      if (safeUrl) window.open(safeUrl, '_blank', 'noopener,noreferrer');
     }
   };
 
