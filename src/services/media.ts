@@ -26,8 +26,21 @@ export interface MediaResponse {
   duration?: number;
   thumbUrl?: string;
   url?: string;
+  expiresAt?: string;
   createdAt?: string;
   updatedAt?: string;
+}
+
+export function isR2Media(media?: { _id?: string; provider?: string; objectKey?: string } | null) {
+  if (!media?._id) return false;
+  return media.provider === 'r2' || Boolean(media.objectKey);
+}
+
+export function isMediaUrlExpired(expiresAt?: string, thresholdMs = 0) {
+  if (!expiresAt) return false;
+  const expiresAtMs = new Date(expiresAt).getTime();
+  if (Number.isNaN(expiresAtMs)) return false;
+  return expiresAtMs - thresholdMs <= Date.now();
 }
 
 export interface ListMediaResponse {
@@ -40,4 +53,7 @@ export const mediaApi = {
     api.get<ListMediaResponse | { data: ListMediaResponse }>(`/conversations/${conversationId}/medias`, {
       params: { type, ...(cursor ? { cursor } : {}) },
     }),
+
+  getUrl: (mediaId: string) =>
+    api.get<{ url: string; expiresAt: string } | { data: { url: string; expiresAt: string } }>(`/media/${mediaId}/url`),
 };

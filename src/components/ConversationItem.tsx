@@ -50,7 +50,8 @@ function getLastMessagePreview(conv: Conversation, currentUserId: string): strin
   if (msg.type === 'video') return `${prefix}[Video]`;
   if (msg.type === 'file') return `${prefix}[File]`;
   if (msg.type === 'voice') return `${prefix}[Tin nhắn thoại]`;
-  if (msg.type === 'callAudio' || msg.type === 'callVideo') return `${prefix}${formatCallMessageLabel(msg)}`;
+  if ((msg.type === 'callAudio' || msg.type === 'callVideo') && typeof msg.call === 'object') return `${prefix}${formatCallMessageLabel(msg)}`;
+  if (msg.type === 'callAudio' || msg.type === 'callVideo') return `${prefix}${msg.content || ''}`;
   if (msg.type === 'system') return msg.content || '';
   return '';
 }

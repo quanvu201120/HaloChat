@@ -6,6 +6,7 @@ import { MuiSelect } from '../../components/admin/MuiSelect';
 import { AdminMobileFilter } from '../../components/admin/AdminMobileFilter';
 import { Flag, ChevronRight, ChevronLeft, Clock, AlertCircle, FileText, CheckCircle, Hash, Image, User, Shield } from 'lucide-react';
 import MediaLightbox from '../../components/MediaLightbox';
+import { useRefreshableMediaUrl } from '../../hooks/useRefreshableMediaUrl';
 import ResolveReportModal from '../../components/admin/ResolveReportModal';
 import { UI_LIMITS } from '../../constants/limits';
 import { formatDateVN, formatTimeRemaining } from '../../utils/date';
@@ -165,6 +166,25 @@ function InfoItem({ icon, label, value, placeholder = 'Chưa xác định', valu
       </div>
     </div>
   );
+}
+
+// Thumbnail bằng chứng report: tự làm mới URL khi media có hạn (expiresAt) hoặc khi tải lỗi.
+function ReportEvidenceThumb({ media }: { media: { _id?: string; url?: string; expiresAt?: string; resource_type?: string } }) {
+  const { url, refreshOnError, containerRef: mediaRef } = useRefreshableMediaUrl(media);
+  const src = url || media.url;
+
+  if (media.resource_type === 'video') {
+    return (
+      <>
+        <video ref={mediaRef} src={src} className="w-full h-full object-cover" onError={() => { void refreshOnError(); }} />
+        <div className="absolute inset-0 flex items-center justify-center bg-black/20 group-hover:bg-black/40 transition-colors">
+          <div className="w-6 h-6 rounded-full bg-white/30 backdrop-blur-sm flex items-center justify-center text-white text-xs">▶</div>
+        </div>
+      </>
+    );
+  }
+
+  return <img ref={mediaRef} src={src} alt="Media" className="w-full h-full object-cover" onError={() => { void refreshOnError(); }} />;
 }
 
 export default function ReportsTab() {
@@ -336,16 +356,7 @@ export default function ReportsTab() {
       <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 gap-2 mt-2">
         {mediaIds.map((media, idx) => (
           <button key={idx} onClick={() => setLightboxData({ medias: mediaIds, initialIndex: idx })} className="block aspect-square rounded-lg border border-[var(--border)] overflow-hidden hover:opacity-80 hover:shadow-md transition-all bg-[var(--bg-secondary)] relative group cursor-pointer p-0">
-            {media.resource_type === 'video' ? (
-               <>
-                 <video src={media.url} className="w-full h-full object-cover" />
-                 <div className="absolute inset-0 flex items-center justify-center bg-black/20 group-hover:bg-black/40 transition-colors">
-                   <div className="w-6 h-6 rounded-full bg-white/30 backdrop-blur-sm flex items-center justify-center text-white text-xs">▶</div>
-                 </div>
-               </>
-            ) : (
-               <img src={media.url} alt="Media" className="w-full h-full object-cover" />
-            )}
+            <ReportEvidenceThumb media={media} />
           </button>
         ))}
       </div>

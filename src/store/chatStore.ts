@@ -148,6 +148,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     const memberMap = new Map<string, string | undefined>();
 
     list.forEach((conversation) => {
+      if (conversation.isGroup) return;
       conversation.users.forEach((member) => {
         if (member._id && member._id !== currentUserId) {
           if (!memberMap.has(member._id)) {
@@ -176,7 +177,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         }
       });
 
-      set({ online: next });
+      set((state) => ({ online: { ...state.online, ...next } }));
     } catch (err) {
       console.warn('[chatStore] hydrate presence failed', err);
     }
@@ -248,7 +249,16 @@ export const useChatStore = create<ChatState>((set, get) => ({
       const normalized = normalizeConversations([res.data?.data ?? res.data])[0];
       if (!normalized) return;
 
-      get().mergeConversation(normalized);
+      const current = get().conversations.find((item) => item._id === normalized._id);
+      if (current) {
+        const currentComparable = { ...current, _stableKey: undefined };
+        const normalizedComparable = { ...normalized, _stableKey: undefined };
+        if (JSON.stringify(currentComparable) !== JSON.stringify(normalizedComparable)) {
+          get().mergeConversation(normalized);
+        }
+      } else {
+        get().mergeConversation(normalized);
+      }
       
       const { user } = useAuthStore.getState();
       const currentUserId = user?._id || '';

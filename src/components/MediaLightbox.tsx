@@ -3,6 +3,7 @@ import { X, ChevronLeft, ChevronRight, Download, PlayCircle } from 'lucide-react
 import { type MediaResponse, MediaResourceTypeEnum } from '../services/media';
 import { api } from '../services/api';
 import { sanitizeExternalUrl } from '../utils/url';
+import { useRefreshableMediaUrl } from '../hooks/useRefreshableMediaUrl';
 
 interface MediaLightboxProps {
   medias: MediaResponse[];
@@ -12,6 +13,10 @@ interface MediaLightboxProps {
 
 export default function MediaLightbox({ medias, initialIndex, onClose }: MediaLightboxProps) {
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
+  // Video đã phát được frame THẬT hay chưa. Trước khi phát được, ta phủ thumbnail
+  // đè lên <video> để không bao giờ lộ khung đen (poster của <video> không đáng
+  // tin khi element remount vì đổi src hoặc lúc autoPlay đang buffer).
+  const [videoReady, setVideoReady] = useState(false);
 
   const handlePrev = useCallback(() => {
     setCurrentIndex((prev) => (prev > 0 ? prev - 1 : medias.length - 1));
@@ -20,6 +25,13 @@ export default function MediaLightbox({ medias, initialIndex, onClose }: MediaLi
   const handleNext = useCallback(() => {
     setCurrentIndex((prev) => (prev < medias.length - 1 ? prev + 1 : 0));
   }, [medias.length]);
+
+  // Đóng khi click ra vùng nền. Chỉ đóng nếu click TRÚNG ĐÚNG element gắn handler
+  // (`e.target === e.currentTarget`), không phải phần tử con nổi bọt lên. Nhờ vậy
+  // click vào ảnh/video, nút, thanh điều hướng hay thumbnail sẽ KHÔNG đóng nhầm.
+  const handleBackdropClick = useCallback((e: React.MouseEvent) => {
+    if (e.target === e.currentTarget) onClose();
+  }, [onClose]);
 
   const handleDownload = async (e: React.MouseEvent) => {
     e.preventDefault();
@@ -37,8 +49,9 @@ export default function MediaLightbox({ medias, initialIndex, onClose }: MediaLi
           ? response.data
           : new Blob([response.data], { type: activeMedia.mimeType || 'application/octet-stream' });
       } else {
-        // Cloudinary hoặc URL thông thường
-        const response = await fetch(activeMedia.url);
+        // Cloudinary hoặc URL thông thường: đảm bảo URL còn hạn trước khi tải.
+        const freshUrl = await ensureFreshUrl();
+        const response = await fetch(freshUrl || activeMedia.url);
         blob = await response.blob();
       }
       const blobUrl = URL.createObjectURL(blob);
@@ -66,18 +79,34 @@ export default function MediaLightbox({ medias, initialIndex, onClose }: MediaLi
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [onClose, handlePrev, handleNext]);
 
-  if (!medias || medias.length === 0) return null;
+  const activeMedia = medias?.[currentIndex] || medias?.[0] || null;
+  const isVideo = activeMedia?.resourceType === MediaResourceTypeEnum.VIDEO;
+  // Lightbox là modal → media đang mở luôn hiển thị: `assumeInView` để hook chủ
+  // động giữ URL tươi (xin vé ngay trước hạn), không đợi click hay để ảnh đen.
+  const { url, isRefreshing, ensureFreshUrl, refreshOnError } = useRefreshableMediaUrl(activeMedia, { assumeInView: true });
+  const displayUrl = url || activeMedia?.url || '';
 
-  const activeMedia = medias[currentIndex] || medias[0];
-  if (!activeMedia) return null;
-  const isVideo = activeMedia.resourceType === MediaResourceTypeEnum.VIDEO;
+  // Đổi video (chuyển slide hoặc xin vé đổi src) → coi như chưa phát được frame
+  // thật → phủ lại thumbnail cho tới khi `onPlaying`. Reset theo prop nguồn.
+  /* eslint-disable-next-line react-hooks/set-state-in-effect */
+  useEffect(() => { setVideoReady(false); }, [activeMedia?._id, displayUrl]);
+
+  // Phủ thumbnail đè lên video khi: đang xin vé HOẶC video chưa phát được frame
+  // thật. Nhờ vậy không bao giờ lộ khung đen (buffer/remount/xin vé).
+  const showVideoOverlay = isVideo && (isRefreshing || !videoReady);
+
+  if (!medias || medias.length === 0 || !activeMedia) return null;
 
   return (
-    <div 
+    <div
+      onClick={handleBackdropClick}
       style={{
         position: 'fixed',
         top: 0, left: 0, right: 0, bottom: 0,
-        backgroundColor: 'rgba(0, 0, 0, 0.9)',
+        // Đen ĐẶC (không phải 0.9 hơi trong): video để `backgroundColor: transparent`
+        // nên letterbox + vùng chưa có frame lộ đúng nền này. Nền đặc, đồng nhất →
+        // không lệch tông với frame video (vốn đen), hết cảnh "chớp màu lệch tông".
+        backgroundColor: 'rgb(0, 0, 0)',
         zIndex: 9999,
         display: 'flex',
         flexDirection: 'column',
@@ -110,7 +139,7 @@ export default function MediaLightbox({ medias, initialIndex, onClose }: MediaLi
       </div>
 
       {/* Main Content */}
-      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
+      <div onClick={handleBackdropClick} style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
         {medias.length > 1 && (
           <button 
             onClick={handlePrev}
@@ -126,16 +155,59 @@ export default function MediaLightbox({ medias, initialIndex, onClose }: MediaLi
 
         <div style={{ maxWidth: '80%', maxHeight: '80vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           {isVideo ? (
-            <video 
-              src={activeMedia.url} 
-              controls 
-              autoPlay 
-              style={{ maxWidth: '100%', maxHeight: '80vh', objectFit: 'contain' }}
-            />
+            <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '80vw', height: '80vh' }}>
+              <video
+                // KHÔNG dùng `key={displayUrl}`. Nếu đặt key theo URL, mỗi lần hook
+                // xin vé mới (đổi displayUrl) thẻ <video> bị HUỶ và TẠO LẠI → mất
+                // frame đang vẽ → lộ khung đen một nhịp. Bỏ key → React chỉ cập nhật
+                // thuộc tính `src` trên cùng một element, trình duyệt giữ nguyên frame
+                // cũ đang vẽ cho tới khi có dữ liệu mới → không còn chớp đen do remount.
+                src={displayUrl}
+                // Video R2 không có `thumbUrl` từ backend → không có poster ảnh thật.
+                // `preload="metadata"` để trình duyệt VẼ FRAME ĐẦU trước (như thumbnail).
+                poster={activeMedia.thumbUrl || undefined}
+                preload="metadata"
+                controls
+                // Đã có frame đầu để vẽ (không còn đen).
+                onLoadedData={() => { setVideoReady(true); }}
+                // CHỈ tự phát khi trình duyệt báo đã buffer ĐỦ để phát không khựng
+                // (`canplay`). Gọi play() sớm ở `loadeddata` (mới có mỗi frame đầu)
+                // làm video stall → hiện đen. Đợi `canplay` mới phát → mượt.
+                onCanPlay={(e) => { void e.currentTarget.play().catch(() => {}); }}
+                onPlay={() => { void ensureFreshUrl(); }}
+                onError={() => { void refreshOnError(); }}
+                // Khung cố định 80vw×80vh + `contain`: video luôn nằm gọn trong khung
+                // với ĐÚNG tỉ lệ, phần thừa là letterbox. Khung KHÔNG đổi size dù đã
+                // load metadata hay chưa → không còn giật/nhảy layout khi loading→phát.
+                // `backgroundColor: transparent`: bỏ nền ĐEN mặc định của thẻ <video>,
+                // để phần chưa có frame và letterbox lộ lớp overlay phía sau → hoà đúng
+                // vào màu overlay thay vì là một ô đen đặc.
+                // `opacity` + `transition`: chưa có frame đầu (`!videoReady`) thì ẩn
+                // video (opacity 0) để chỉ thấy overlay + spinner; khi frame đầu vẽ
+                // xong thì FADE lên (0→1) trong 0.25s → chuyển mượt, không còn cú cắt
+                // cứng "chớp/giật" giữa loading và phát.
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  objectFit: 'contain',
+                  backgroundColor: 'transparent',
+                  opacity: videoReady ? 1 : 0,
+                  transition: 'opacity 0.25s ease',
+                }}
+              />
+              {/* Chỉ hiện spinner khi ĐANG xin vé HOẶC chưa có frame đầu để vẽ; khi
+                  frame đầu đã vẽ (`videoReady`) thì gỡ, để lộ frame video thật. */}
+              {showVideoOverlay && (
+                <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
+                  <div className="loading-spinner" style={{ width: 40, height: 40 }} />
+                </div>
+              )}
+            </div>
           ) : (
-            <img 
-              src={activeMedia.url} 
-              alt={activeMedia.fileName || 'media'} 
+            <img
+              src={displayUrl}
+              alt={activeMedia.fileName || 'media'}
+              onError={() => { void refreshOnError(); }}
               style={{ maxWidth: '100%', maxHeight: '80vh', objectFit: 'contain' }}
             />
           )}

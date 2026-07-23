@@ -16,12 +16,17 @@ export interface MessageUser {
 
 export interface MessageMedia {
   _id: string;
+  provider?: string;
+  resourceType?: string;
   url?: string;
+  thumbUrl?: string;
+  expiresAt?: string;
   fileName?: string;
   mimeType?: string;
   size?: number;
   publicId?: string;
   objectKey?: string;
+  duration?: number;
 }
 
 export interface MessageReaction {

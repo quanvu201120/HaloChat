@@ -217,8 +217,12 @@ export default function CreateConversationModal({ isOpen, onClose }: Props) {
                 placeholder={UI_MESSAGES.conversations.groupNamePlaceholder}
                 value={groupName}
                 onChange={(e) => setGroupName(e.target.value)}
+                maxLength={UI_LIMITS.GROUP_NAME_MAX_LENGTH}
                 autoFocus
               />
+              <div style={{ textAlign: 'right', fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>
+                {groupName.length}/{UI_LIMITS.GROUP_NAME_MAX_LENGTH}
+              </div>
             </div>
           )}
 

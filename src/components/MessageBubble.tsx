@@ -6,6 +6,7 @@ import AudioPlayer from './AudioPlayer';
 import { formatCallMessageDuration, formatCallMessageLabel, type Message, type MessageReaction } from '../services/messages';
 import { api } from '../services/api';
 import { useToast } from '../context/ToastContext';
+import { useRefreshableMediaUrl } from '../hooks/useRefreshableMediaUrl';
 
 interface Props {
   message: Message;
@@ -281,7 +282,7 @@ export default function MessageBubble({
   const showSenderName = !isMe && isGroup && !isSameSender(message, prevMessage);
   const showAvatar = !isMe && !isSameSender(message, prevMessage);
   const senderName = getSenderName(message);
-  const isCall = isCallMessage(message);
+  const isCall = isCallMessage(message) && typeof message.call === 'object';
   const replyPreview = getReplyPreview(message.replyTo);
   const reactions = message.reactions ?? [];
   const reactionSummary = useMemo(() => getReactionSummary(reactions), [reactions]);
@@ -291,6 +292,11 @@ export default function MessageBubble({
   const canDownload = isDownloadableMessage(message);
   const canShowActions = !isCall && !disableActions;
   const callDuration = isCall ? formatCallMessageDuration(message) : '';
+  const messageMedia = typeof message.media === 'object' ? message.media : null;
+  // `containerRef` gắn vào element media → hook tự xin vé mới khi media (gần) lọt
+  // khung nhìn và sắp hết hạn, nên URL luôn tươi, không bao giờ đen/loading khi xem.
+  const { url: refreshableMediaUrl, ensureFreshUrl, ensureFreshMedia, refreshOnError, containerRef: mediaRef } = useRefreshableMediaUrl(messageMedia);
+  const displayMediaUrl = refreshableMediaUrl || (typeof message.media === 'object' ? message.media?.url : '');
   const downloadFileName = typeof message.media === 'object' && message.media?.fileName
     ? message.media.fileName
     : message.type === 'image'
@@ -335,7 +341,8 @@ export default function MessageBubble({
             type: message.media.mimeType || 'application/octet-stream',
           });
       } else {
-        const response = await fetch(message.media.url, {
+        const freshUrl = await ensureFreshUrl();
+        const response = await fetch(freshUrl || message.media.url, {
           method: 'GET',
           mode: 'cors',
           credentials: 'omit',
@@ -367,6 +374,19 @@ export default function MessageBubble({
       } finally {
         setIsDownloading(false);
       }
+  };
+
+  const handleMediaClick = async () => {
+    if (!messageMedia) return;
+
+    // Truyền CẢ url và expiresAt tươi sang lightbox — nếu chỉ đổi url mà giữ
+    // expiresAt cũ (đã hết hạn), lightbox sẽ tưởng vé hết hạn và xin lại mỗi lần mở.
+    const fresh = await ensureFreshMedia();
+    onMediaClick?.({
+      ...messageMedia,
+      url: fresh.url || messageMedia.url,
+      expiresAt: fresh.expiresAt ?? messageMedia.expiresAt,
+    });
   };
 
   if (message.type === 'system') {
@@ -420,45 +440,47 @@ export default function MessageBubble({
         >
           {showActions && canShowActions && !message.isDeleted && !isSenderDisabled && (
             <div ref={actionsRef} className={`msg-actions${isMe ? ' me' : ' other'}`} onClick={(e) => e.stopPropagation()}>
-              <div
-                className="action-btn"
-                title="Cảm xúc"
-                style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  clearReactionPickerCloseTimer();
-                  setShowReactionPicker((prev) => !prev);
-                }}
-              >
-                <Heart size={14} style={{ fill: myReaction ? 'var(--error)' : 'transparent', color: myReaction ? 'var(--error)' : 'inherit' }} />
-                {showReactionPicker && (
-                  <div
-                    ref={reactionsRef}
-                    className={`msg-reaction-picker${isMe ? ' me' : ' other'}${reactionPickerPlacement === 'below' ? ' below' : ''}`}
-                    onClick={(e) => e.stopPropagation()}
-                    onMouseEnter={clearReactionPickerCloseTimer}
-                    onMouseLeave={scheduleReactionPickerClose}
-                  >
-                    {REACTIONS.map((reaction) => (
-                      <button
-                        key={reaction.type}
-                        type="button"
-                        className={`msg-reaction-option${myReaction === reaction.type ? ' active' : ''}`}
-                        title={reaction.label}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onToggleReaction?.(reaction.type);
-                          setShowReactionPicker(false);
-                          setShowActions(false);
-                        }}
-                      >
-                        {reaction.icon}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-              {!disableReply && (
+              {!isHiddenUser && (
+                <div
+                  className="action-btn"
+                  title="Cảm xúc"
+                  style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    clearReactionPickerCloseTimer();
+                    setShowReactionPicker((prev) => !prev);
+                  }}
+                >
+                  <Heart size={14} style={{ fill: myReaction ? 'var(--error)' : 'transparent', color: myReaction ? 'var(--error)' : 'inherit' }} />
+                  {showReactionPicker && (
+                    <div
+                      ref={reactionsRef}
+                      className={`msg-reaction-picker${isMe ? ' me' : ' other'}${reactionPickerPlacement === 'below' ? ' below' : ''}`}
+                      onClick={(e) => e.stopPropagation()}
+                      onMouseEnter={clearReactionPickerCloseTimer}
+                      onMouseLeave={scheduleReactionPickerClose}
+                    >
+                      {REACTIONS.map((reaction) => (
+                        <button
+                          key={reaction.type}
+                          type="button"
+                          className={`msg-reaction-option${myReaction === reaction.type ? ' active' : ''}`}
+                          title={reaction.label}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onToggleReaction?.(reaction.type);
+                            setShowReactionPicker(false);
+                            setShowActions(false);
+                          }}
+                        >
+                          {reaction.icon}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+              {!disableReply && !isHiddenUser && (
                 <button className="action-btn" title="Trả lời" onClick={(e) => { e.stopPropagation(); onReply?.(); setShowActions(false); }}>
                   <CornerUpLeft size={14} />
                 </button>
@@ -522,25 +544,27 @@ export default function MessageBubble({
             <span className={`msg-text ${emojiSizeClass}`}>{renderedText}</span>
           ) : message.type === 'image' && typeof message.media === 'object' && message.media?.url ? (
             <img
-              src={message.media.url}
+              ref={mediaRef}
+              src={displayMediaUrl}
               alt={message.media.fileName || 'Ảnh'}
               className="msg-image"
               loading="lazy"
-              onClick={() => { onMediaClick?.(message.media); }}
+              onError={() => { void refreshOnError(); }}
+              onClick={() => { void handleMediaClick(); }}
               style={{ cursor: onMediaClick ? 'pointer' : 'default' }}
             />
           ) : message.type === 'video' && typeof message.media === 'object' && message.media?.url ? (
-            <div className="msg-video-block" onClick={() => { onMediaClick?.(message.media); }}>
-              <video className="msg-video" preload="metadata" style={{ display: 'block' }}>
-                <source src={message.media.url} type={message.media.mimeType || 'video/mp4'} />
+            <div ref={mediaRef} className="msg-video-block" onClick={() => { void handleMediaClick(); }}>
+              <video className="msg-video" preload="metadata" poster={message.media.thumbUrl || undefined} style={{ display: 'block' }} onError={() => { void refreshOnError(); }}>
+                <source src={displayMediaUrl} type={message.media.mimeType || 'video/mp4'} />
               </video>
               <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: '48px', height: '48px', backgroundColor: 'rgba(0,0,0,0.5)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', pointerEvents: 'none' }}>
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
               </div>
             </div>
           ) : message.type === 'voice' && typeof message.media === 'object' && message.media?.url ? (
-            <AudioPlayer src={message.media.url} isMe={isMe} />
-          ) : isCallMessage(message) ? (
+            <AudioPlayer src={message.media.url} media={message.media} isMe={isMe} />
+          ) : isCall ? (
             <div className="msg-call">
               <span className="msg-call-icon">
                 {message.type === 'callVideo' ? <Video size={18} /> : <Phone size={18} />}

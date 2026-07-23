@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useCallback, useMemo } from 'react';
+import { createContext, useContext, useState, useCallback, useMemo, useEffect } from 'react';
 import type { ReactNode } from 'react';
 import { CheckCircle, XCircle, AlertTriangle, X } from 'lucide-react';
 
@@ -8,6 +8,7 @@ interface Toast {
   id: string;
   type: ToastType;
   message: string;
+  countdownSeconds?: number;
 }
 
 interface ToastContextType {
@@ -16,6 +17,7 @@ interface ToastContextType {
     error: (msg: string) => void;
     warning: (msg: string) => void;
     info: (msg: string) => void;
+    countdown: (msg: string, seconds: number) => void;
   };
 }
 
@@ -32,6 +34,23 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     }, 1500);
   }, []);
 
+  const addCountdownToast = useCallback((message: string, seconds: number) => {
+    const id = Math.random().toString(36).slice(2);
+    setToasts((prev) => [...prev, { id, type: 'warning', message, countdownSeconds: seconds }]);
+  }, []);
+
+  useEffect(() => {
+    if (!toasts.some((t) => t.countdownSeconds !== undefined)) return;
+
+    const timer = window.setInterval(() => {
+      setToasts((prev) => prev
+        .map((t) => (t.countdownSeconds !== undefined ? { ...t, countdownSeconds: t.countdownSeconds - 1 } : t))
+        .filter((t) => t.countdownSeconds === undefined || t.countdownSeconds > 0));
+    }, 1000);
+
+    return () => window.clearInterval(timer);
+  }, [toasts]);
+
   const remove = (id: string) => setToasts((prev) => prev.filter((t) => t.id !== id));
 
   const toast = useMemo(() => ({
@@ -39,7 +58,8 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     error: (msg: string) => addToast('error', msg),
     warning: (msg: string) => addToast('warning', msg),
     info: (msg: string) => addToast('info', msg),
-  }), [addToast]);
+    countdown: (msg: string, seconds: number) => addCountdownToast(msg, seconds),
+  }), [addToast, addCountdownToast]);
 
   const value = useMemo(() => ({ toast }), [toast]);
 
@@ -53,7 +73,9 @@ export function ToastProvider({ children }: { children: ReactNode }) {
             {t.type === 'error' && <XCircle size={16} color="var(--error)" />}
             {t.type === 'warning' && <AlertTriangle size={16} color="var(--warning)" />}
             {t.type === 'info' && <CheckCircle size={16} color="var(--accent-primary)" />}
-            <span className="toast-msg">{t.message}</span>
+            <span className="toast-msg">
+              {t.message}{t.countdownSeconds !== undefined ? ` (${t.countdownSeconds}s)` : ''}
+            </span>
             <button
               onClick={() => remove(t.id)}
               style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: '2px' }}

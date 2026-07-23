@@ -492,9 +492,8 @@ body,
   margin-bottom: 4px;
   width: 100%;
   max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .info-sidebar-name.clickable,
@@ -713,6 +712,7 @@ body,
 .info-sidebar-body {
   flex: 1;
   overflow-y: auto;
+  overflow-x: hidden;
   display: flex;
   flex-direction: column;
 }
@@ -776,6 +776,12 @@ body,
   position: relative;
   width: 100%;
   min-width: 0;
+  min-height: 32px;
+  margin-bottom: 4px;
+}
+
+.info-sidebar-name-row .info-sidebar-name {
+  margin-bottom: 0;
 }
 
 .info-edit-name-btn {
@@ -796,13 +802,34 @@ body,
   align-items: center;
   gap: 4px;
   margin-bottom: 4px;
+  width: 100%;
+  min-height: 32px;
+}
+
+.info-name-input-wrap {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+}
+
+.info-name-counter {
+  position: absolute;
+  left: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 10px;
+  color: var(--text-muted);
+  pointer-events: none;
+  z-index: 1;
 }
 
 .info-name-input {
   flex: 1;
+  min-width: 0;
   border: 1.5px solid var(--accent-primary);
   border-radius: var(--radius-sm);
-  padding: 4px 10px;
+  padding: 4px 10px 4px 40px;
   font-size: 14px;
   font-weight: 600;
   color: var(--text-primary);
@@ -1001,6 +1028,9 @@ body,
   font-weight: 600;
   margin-bottom: 3px;
   padding: 0 4px;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 /* Message Actions (hover) */
@@ -4676,17 +4706,17 @@ tbody tr:last-child td {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 24px;
+  padding: 0;
   background: rgba(15, 17, 26, 0.52);
   backdrop-filter: blur(8px);
 }
 
 .call-panel {
-  width: min(420px, 100%);
-  min-height: 300px;
-  max-height: calc(100dvh - 48px);
-  border-radius: var(--radius-lg);
-  border: 1px solid rgba(255, 255, 255, 0.16);
+  width: 100%;
+  height: 100dvh;
+  max-height: 100dvh;
+  border-radius: 0;
+  border: none;
   background: #111827;
   color: white;
   box-shadow: 0 24px 80px rgba(0, 0, 0, 0.34);
@@ -4696,8 +4726,8 @@ tbody tr:last-child td {
 }
 
 .call-panel.video {
-  width: min(760px, 100%);
-  height: min(620px, calc(100dvh - 48px));
+  width: 100%;
+  height: 100dvh;
 }
 
 .call-panel-header {
@@ -4853,14 +4883,6 @@ tbody tr:last-child td {
 }
 
 @media (max-width: 640px) {
-  .call-overlay {
-    padding: 12px;
-  }
-
-  .call-panel.video {
-    height: calc(100dvh - 24px);
-  }
-
   .call-local-video {
     width: 108px;
     right: 10px;

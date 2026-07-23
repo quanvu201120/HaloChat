@@ -65,17 +65,14 @@ export function connectSocket(accessToken: string): Socket {
   });
 
   socket.on('connect', () => {
-    console.log('[Socket] connected:', socket?.id);
     startHeartbeat();
   });
 
   socket.on('disconnect', (reason) => {
-    console.log('[Socket] disconnected:', reason);
     stopHeartbeat();
   });
 
   socket.on('connect_error', (err) => {
-    console.warn('[Socket] connect error:', err.message);
   });
 
   return socket;
@@ -107,6 +104,15 @@ function stopHeartbeat() {
 /** Join một conversation room khi user mở chat.
  * Trả về Promise resolve khi ack thành công.
  */
+export class SocketAckError extends Error {
+  retryAfterSeconds?: number;
+
+  constructor(message: string, retryAfterSeconds?: number) {
+    super(message);
+    this.retryAfterSeconds = retryAfterSeconds;
+  }
+}
+
 export function joinConversation(conversationId: string): Promise<{
   conversationId: string;
   roomName?: string;
@@ -120,7 +126,7 @@ export function joinConversation(conversationId: string): Promise<{
     }
     socket.emit('chat:join-conversation', { conversationId }, (ack: any) => {
       if (ack?.ok) resolve(ack?.data ?? { conversationId });
-      else reject(new Error(ack?.message || ack?.error || 'Failed to join conversation'));
+      else reject(new SocketAckError(ack?.message || ack?.error || 'Failed to join conversation', ack?.retryAfterSeconds));
     });
   });
 }

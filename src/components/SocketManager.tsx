@@ -8,6 +8,7 @@ import { useToast } from '../context/ToastContext';
 import { useNavigate } from 'react-router-dom';
 import { queryClient } from '../lib/queryClient';
 import { stopCallTone, unlockCallTone } from '../utils/callTone';
+import { globalMessagesCache, findSharedConversationIds } from '../pages/ChatPage.helpers';
 
 type IncomingCallRouteState = {
   callId: string;
@@ -149,11 +150,23 @@ export default function SocketManager() {
       };
 
       const onNewMessage = (rawMessage: any) => {
-        useChatStore.getState().syncConversationMessage(normalizeMessage(rawMessage));
+        const message = normalizeMessage(rawMessage);
+        useChatStore.getState().syncConversationMessage(message);
+
+        const cached = globalMessagesCache[normalizeId(message.conversationId)];
+        if (cached && !cached.messages.some((item) => item._id === message._id)) {
+          cached.messages = [...cached.messages, message];
+        }
       };
 
       const onMessageUpdated = (rawMessage: any) => {
         const message = normalizeMessage(rawMessage);
+        const cached = globalMessagesCache[normalizeId(message.conversationId)];
+        if (cached) {
+          cached.messages = cached.messages.map((item) => (
+            item._id === message._id ? { ...item, ...message } : item
+          ));
+        }
         useChatStore.getState().patchConversation(message.conversationId, (conversation) => ({
           ...conversation,
           lastMessage: conversation.lastMessage?._id === message._id
@@ -166,6 +179,22 @@ export default function SocketManager() {
         const conversationId = normalizeId(data.conversationId);
         const messageId = normalizeId(data.messageId);
         if (!conversationId || !messageId) return;
+
+        const cached = globalMessagesCache[conversationId];
+        if (cached) {
+          cached.messages = cached.messages.map((item) => {
+            if (item._id === messageId) {
+              return { ...item, isDeleted: true, content: '', reactions: [] };
+            }
+            if (typeof item.replyTo === 'object' && item.replyTo?._id === messageId) {
+              return {
+                ...item,
+                replyTo: { ...item.replyTo, isDeleted: true, content: '' },
+              };
+            }
+            return item;
+          });
+        }
 
         useChatStore.getState().patchConversation(conversationId, (conversation) => {
           if (conversation.lastMessage?._id !== messageId) return conversation;
@@ -265,6 +294,15 @@ export default function SocketManager() {
         void useChatStore.getState().refetchConversations({ silent: true });
       };
 
+      const onUserSessionRevoked = (data: { userId: string }) => {
+        const userId = normalizeId(data.userId);
+        if (userId && userId !== currentUserId) return;
+
+        useAuthStore.getState().localLogout();
+        toast.warning('Phiên đăng nhập đã bị thu hồi. Vui lòng đăng nhập lại.');
+        navigate('/login');
+      };
+
       const onUserMuted = (data: { muteUntil: string | Date }) => {
         const muteUntil = data.muteUntil ? new Date(data.muteUntil).toISOString() : undefined;
         useAuthStore.getState().updateUser({ muteUntil });
@@ -288,12 +326,29 @@ export default function SocketManager() {
         void queryClient.invalidateQueries({ queryKey: ['relationships'] });
       };
 
-      const onRelationshipBlocked = () => {
-        void queryClient.invalidateQueries({ queryKey: ['relationships'] });
+      const clearSharedConversationsCache = (actorId: string) => {
+        const otherUserId = normalizeId(actorId);
+        if (!otherUserId) return;
+        const sharedIds = findSharedConversationIds(
+          useChatStore.getState().conversations,
+          currentUserId,
+          otherUserId,
+        );
+        sharedIds.forEach((conversationId) => {
+          delete globalMessagesCache[conversationId];
+        });
       };
 
-      const onRelationshipUnblocked = () => {
+      const onRelationshipBlocked = (data: { actorId?: string }) => {
         void queryClient.invalidateQueries({ queryKey: ['relationships'] });
+        void useChatStore.getState().refetchConversations({ silent: true });
+        clearSharedConversationsCache(data?.actorId || '');
+      };
+
+      const onRelationshipUnblocked = (data: { actorId?: string }) => {
+        void queryClient.invalidateQueries({ queryKey: ['relationships'] });
+        void useChatStore.getState().refetchConversations({ silent: true });
+        clearSharedConversationsCache(data?.actorId || '');
       };
 
       const onNotificationCreated = (data: { userId?: string }) => {
@@ -370,6 +425,7 @@ export default function SocketManager() {
       sock.on('user:banned', onUserBanned);
       sock.on('user:muted', onUserMuted);
       sock.on('user:unmuted', onUserUnmuted);
+      sock.on('user:session-revoked', onUserSessionRevoked);
       sock.on('relationship:created', onRelationshipCreated);
       sock.on('relationship:accepted', onRelationshipAccepted);
       sock.on('relationship:deleted', onRelationshipDeleted);

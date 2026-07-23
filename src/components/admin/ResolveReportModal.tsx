@@ -37,7 +37,8 @@ export default function ResolveReportModal({
     | typeof ReportStatusEnum.APPEAL_SUCCESS
   >(isAppealReview ? ReportStatusEnum.APPEAL_REJECTED : isTargetSuperAdmin ? ReportStatusEnum.DISMISSED : ReportStatusEnum.RESOLVED);
   const [adminNote, setAdminNote] = useState(isTargetSuperAdmin ? superAdminDismissNote : '');
-  
+  const [password, setPassword] = useState('');
+
   const [useOverride, setUseOverride] = useState(false);
   const [penaltyAction, setPenaltyAction] = useState<string>('WARNING');
   const [durationDays, setDurationDays] = useState<number>(BAN_DURATION_7_DAYS);
@@ -127,6 +128,7 @@ export default function ResolveReportModal({
           : ReportStatusEnum.RESOLVED,
     );
     setAdminNote(isTargetSuperAdmin ? superAdminDismissNote : '');
+    setPassword('');
   }, [isOpen, isTargetSuperAdmin, isAppealReview]);
 
   useEffect(() => {
@@ -400,6 +402,20 @@ export default function ResolveReportModal({
             />
           </div>
 
+          {/* Mật khẩu xác thực */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            <label style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)' }}>Mật khẩu của bạn <span style={{ color: '#ef4444' }}>*</span></label>
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Nhập mật khẩu để xác nhận..."
+              style={{ width: '100%', padding: '10px 12px', background: 'transparent', border: '1px solid var(--border)', borderRadius: '6px', color: 'var(--text-primary)', fontSize: '14px', outline: 'none', transition: 'border-color 0.2s' }}
+              onFocus={e => (e.target.style.borderColor = '#f59e0b')}
+              onBlur={e => (e.target.style.borderColor = 'var(--border)')}
+            />
+          </div>
+
         </div>
 
         {/* Footer */}
@@ -416,6 +432,7 @@ export default function ResolveReportModal({
             disabled={
               (reportStatus !== ReportStatusEnum.PENDING && reportStatus !== ReportStatusEnum.APPEAL_PENDING) ||
               resolveMutation.isPending ||
+              !password.trim() ||
               ((status === ReportStatusEnum.DISMISSED || status === ReportStatusEnum.APPEAL_REJECTED) &&
                 !(isTargetSuperAdmin ? superAdminDismissNote : adminNote).trim())
             }
@@ -423,7 +440,8 @@ export default function ResolveReportModal({
               const normalizedAdminNote = (isTargetSuperAdmin ? superAdminDismissNote : adminNote).trim();
               const payload: any = {
                 status,
-                adminNote: normalizedAdminNote
+                adminNote: normalizedAdminNote,
+                password
               };
               if (status === ReportStatusEnum.RESOLVED) {
                 payload.resetAvatar = resetAvatar;
@@ -450,12 +468,14 @@ export default function ResolveReportModal({
               cursor: (
                 (reportStatus !== ReportStatusEnum.PENDING && reportStatus !== ReportStatusEnum.APPEAL_PENDING) ||
                 resolveMutation.isPending ||
+                !password.trim() ||
                 ((status === ReportStatusEnum.DISMISSED || status === ReportStatusEnum.APPEAL_REJECTED) &&
                   !(isTargetSuperAdmin ? superAdminDismissNote : adminNote).trim())
-              ) ? 'not-allowed' : 'pointer', 
+              ) ? 'not-allowed' : 'pointer',
               opacity: (
                 (reportStatus !== ReportStatusEnum.PENDING && reportStatus !== ReportStatusEnum.APPEAL_PENDING) ||
                 resolveMutation.isPending ||
+                !password.trim() ||
                 ((status === ReportStatusEnum.DISMISSED || status === ReportStatusEnum.APPEAL_REJECTED) &&
                   !(isTargetSuperAdmin ? superAdminDismissNote : adminNote).trim())
               ) ? 0.6 : 1,
